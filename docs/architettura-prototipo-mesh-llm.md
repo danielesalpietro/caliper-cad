@@ -12,14 +12,17 @@ incrociate con Gemini), STL processata via slicing e stampata in 3D.
 Risultati validati: accoppiamenti filettati con tolleranze di tre decimi,
 funzionanti dopo la stampa.
 
-**Domanda aperta, da chiarire con Fabrizio prima di scrivere il Livello 3:**
-il metodo attuale ottiene dal cloud codice parametrico (es. OpenSCAD/
-CadQuery) oppure STL/mesh diretta? Determina se la modalità parametrica del
-L3 (vedi sotto) è disponibile fin da subito in Fase A. Se oggi il flusso
-produce mesh diretta, il singolo cambiamento a più alto rendimento nella
-Fase A è probabilmente chiedere al cloud codice CadQuery/OpenSCAD invece di
-STL — sblocca la verifica esatta invece di quella ricostruita da mesh, che
-per le filettature è la parte più difficile.
+**Domanda aperta (RISOLTA) [v5]:** il metodo attuale produce oggi STL
+diretta, non codice parametrico. Decisione presa: il Livello 2 (Fase A)
+passa a un **doppio passaggio** — generazione di codice Python
+(CadQuery/OpenSCAD), poi esecuzione locale di quel codice per produrre sia
+STEP (B-Rep, quote esatte) sia STL (per lo slicer), dalla stessa sorgente
+parametrica. Non è un cambiamento cosmetico: apre due canali di ispezione
+indipendenti (B-Rep esatto vs. mesh tessellata) che permettono di isolare
+se uno scostamento dimensionale nasce nella generazione del codice o nella
+tessellazione/slicing a valle — impossibile da distinguere con la sola STL
+diretta usata finora. Vedi Livello 2 nello schema e nota sul Livello 6 più
+sotto.
 
 Bisogno reale identificato: **stabilità e controllo del workflow**, non
 potenza di calcolo — proteggere un metodo già funzionante da cambiamenti
@@ -144,11 +147,20 @@ LIVELLO 2.5 — NORMALIZZAZIONE SPECIFICA  [FASE A]
         |
         v
 LIVELLO 2 — GENERAZIONE GEOMETRICA (motore)  [A: cloud / B: locale]
-  Fase A: GPT/Gemini (invariato, metodo già validato da Fabrizio)
+  Fase A: GPT/Gemini, DOPPIO PASSAGGIO [v5, deciso, sostituisce STL diretta]:
+    1. generazione di codice Python (CadQuery/OpenSCAD)
+    2. esecuzione locale del codice -> STEP (B-Rep, quote esatte)
+                                     -> STL (per lo slicer)
+    Stessa sorgente parametrica, due canali di ispezione indipendenti: uno
+    scostamento dimensionale è isolabile come nato nel codice generato
+    (visibile su STEP) o nella tessellazione/slicing a valle (visibile solo
+    confrontando STEP vs STL) — impossibile da distinguere con la sola STL
+    diretta usata finora
   Candidato aggiuntivo [v4], NON validato: Zoo Text-to-CAD (KittyCAD API)
-    -> genera B-Rep/STEP nativamente, non mesh; richiede un proprio test
-       di fattibilità su feature filettate prima di essere equiparato a
-       GPT/Gemini (vedi tabella componenti)
+    -> genera B-Rep/STEP nativamente, non tessellazione; termine di
+       paragone o alternativa al doppio passaggio via codice, richiede un
+       proprio test di fattibilità su feature filettate prima di essere
+       equiparato a GPT/Gemini (vedi tabella componenti)
   Fase B (condizionata, vedi Rischio #1):
     Candidati: CAD-Recode / cadrille (Qwen2-1.5B/2B) — via preferita,
                produce codice CadQuery/Python parametrico
@@ -159,7 +171,8 @@ LIVELLO 2 — GENERAZIONE GEOMETRICA (motore)  [A: cloud / B: locale]
     geometricamente sbagliato in modo consistente). Serve a rendere
     il test del Rischio #1 confrontabile tra run, non a risolvere la
     precisione dimensionale — quella resta compito del Livello 3
-  Output: codice CadQuery/Python -> STL, oppure mesh diretta
+  Output: codice Python -> STEP + STL (Fase A), oppure mesh diretta
+          (via LLaMA-Mesh in Fase B, se scelta)
         |
         v
 LIVELLO 3 — VERIFICATORE GEOMETRICO, DOPPIA MODALITÀ  [FASE A]
@@ -180,7 +193,19 @@ LIVELLO 3 — VERIFICATORE GEOMETRICO, DOPPIA MODALITÀ  [FASE A]
    PASS |   FAIL -> retry L2 (vedi policy di retry sotto)
         v
 LIVELLO 4 — SLICING E STAMPA  [FASE A]
-  Slicer (parametri fissi e congelati, versionati)
+  [v6, deciso] PrusaSlicer, modalità CLI headless, containerizzato —
+  pattern di riferimento: Billa05/prusaslicer-cli-docker (CLI-only,
+  nessuna GUI). Comando: prusa-slicer-console --export-gcode
+  --load profilo.ini modello.stl -o output.gcode
+  Profilo come file .ini versionato nel repository — "parametri fissi e
+  congelati" del Livello 4 non è più uno stato nascosto in una GUI, è un
+  file tracciato in git
+  Default iniziali (PLA, negoziabili, NON ancora la versione finale):
+   - layer height: 0.2mm
+   - perimetri: 3
+   - temperatura ugello/piatto: DA DEFINIRE — dipende dal materiale/marca
+     filamento effettivo, domanda ancora aperta e collegata al campo
+     materiale/batch del Livello 6 (vedi Rischio #4)
   Stampa fisica
         |
         v
@@ -190,15 +215,26 @@ LIVELLO 5 — VALIDAZIONE FISICA (verità ultima)  [FASE A]
         |
         v
 LIVELLO 6 — DATASET CONGELATO (ground truth)  [FASE A]
-  Ogni caso: {prompt, specifica strutturata L2.5, STL,
-              parametri slicing, macchina, materiale/batch filamento,
-              data, misura fisica, esito PASS/FAIL}
+  Ogni caso: {prompt, specifica strutturata L2.5, codice Python generato,
+              STEP, STL, parametri slicing, macchina, materiale/batch
+              filamento, data, misura fisica, esito PASS/FAIL,
+              modello_di_riferimento (opzionale)}
   Campi minimi realmente misurabili — niente temperatura/umidità
   promesse ma mai registrate nella pratica
   Versionato, immutabile una volta validato
   REGOLA OPERATIVA: da ora in poi, ogni FAIL fisico va registrato con
   la stessa cura di ogni PASS — non solo "se disponibili" (vedi nota
   sul bias di sopravvivenza più sotto)
+  CAMPO DIAGNOSTICO [v5, deciso]: dove disponibile, ogni caso è
+  confrontato con un modello CAD costruito in modo convenzionale
+  (disegnato a mano, non generato da LLM) per la stessa feature. Il
+  confronto non è binario come il PASS/FAIL fisico: quantifica QUALE
+  parametro del codice generato si discosta dal riferimento e di quanto
+  (es. passo filettatura 0.98mm generato vs 1.00mm di riferimento).
+  Trasforma il dataset da registro di esiti a materiale diagnostico
+  utilizzabile per capire perché un caso fallisce, non solo che fallisce
+  — rilevante sia per il L3 (quali soglie impostare) sia per un
+  eventuale L8 (segnale di errore più ricco del solo PASS/FAIL)
         |
         v
 LIVELLO 7 — GROUNDING / RAG IBRIDO, IN DUE PARTI
@@ -323,6 +359,11 @@ Il loop di correzione non può essere illimitato:
    trasferibile a PETG su un'altra — questi campi (più la data) vanno
    registrati esplicitamente nello schema del Livello 6, tenendo il set a
    ciò che verrà davvero misurato in pratica.
+   **[v6]** Per lo stesso motivo, la temperatura ugello/piatto nel profilo
+   PrusaSlicer del Livello 4 resta esplicitamente **non definita** finché
+   materiale e marca del filamento non sono decisi — fissarla prima
+   creerebbe un parametro congelato ma arbitrario, invece che derivato dal
+   materiale realmente usato.
 5. **[v2] Il Livello 2.5 è a sua volta un punto di fallimento silenzioso se
    automatizzato.** Tradurre linguaggio naturale in specifica strutturata è
    un compito interpretativo: se lo fa un LLM senza supervisione, un errore
@@ -334,10 +375,12 @@ Il loop di correzione non può essere illimitato:
    autosufficiente. La Fase B dipende dalla Fase A (usa L3 come metro di
    giudizio, usa L6 come contenuto per L7) — non il contrario. Non si parte
    con il motore locale prima di avere il verificatore.
-7. **[v2] Ambiguità codice-vs-mesh dal cloud, da chiarire con Fabrizio.** La
-   modalità parametrica del L3 esiste solo se il cloud produce codice CAD,
-   non STL diretta. Va verificato cosa produce oggi il metodo attuale prima
-   di scrivere il Livello 3 — determina quale modalità sviluppare per prima.
+7. **[v2, RISOLTO in v5] Ambiguità codice-vs-mesh dal cloud.** La modalità
+   parametrica del L3 esiste solo se il cloud produce codice CAD, non STL
+   diretta. Chiarito: il metodo attuale produce oggi STL diretta.
+   Decisione presa (vedi Contesto e Livello 2): passaggio a doppia uscita
+   Python → STEP + STL, che sblocca la verifica parametrica esatta invece
+   di quella ricostruita da mesh.
 8. **[v2] Bias di sopravvivenza nel bootstrap retroattivo.** Se Fabrizio ha
    conservato solo i casi funzionanti, il dataset iniziale sarà tutto PASS:
    inutile per testare che il verificatore sappia bocciare, e privo di
@@ -404,6 +447,7 @@ un'assunzione arbitraria di questo progetto.
 | Open WebUI | riusato da NORTHSTREAM (`danielesalpietro/NORTHSTREAM`) | Interfaccia web — chat per interrogare il Livello 7 |
 | Landing/dashboard page | riadattata da NORTHSTREAM (`danielesalpietro/NORTHSTREAM`) | Interfaccia web — entry point statico verso lo stack Docker |
 | Flowise | motore di esecuzione scelto — **[v3] decisione presa** | L1, L2.5, L2, L7-consultivo — orchestrazione dei nodi LLM-centrici, non dei livelli deterministici (L3-L6, vedi Rischio #9) |
+| PrusaSlicer CLI | pattern di riferimento: `Billa05/prusaslicer-cli-docker` | Livello 4 — **[v6] decisione presa**: CLI headless containerizzata, profilo `.ini` versionato nel repository. Parametri di default (layer height, perimetri) fissati; temperatura ugello/piatto esplicitamente in sospeso, dipende dal materiale (vedi Rischio #4) |
 | RecursiveMAS | `RecursiveMAS/RecursiveMAS` | Ipotesi d'uso esplicita (non impegnativa): se in futuro il Livello 2 evolvesse in un processo multi-step (un agente genera, uno verifica, uno corregge), potrebbe orchestrare quel loop invece di scriverlo ad-hoc. Nessun ruolo nell'architettura attuale — voce speculativa, non un componente pianificato. **[v3]** La sua web UI (Gradio/HOUSE) è stata valutata e scartata a favore di Open WebUI per l'interfaccia di CALIPER |
 
 ## Stato attuale (cosa esiste davvero)
@@ -422,44 +466,67 @@ un'assunzione arbitraria di questo progetto.
 - [x] **[v3]** Interfaccia web decisa: Open WebUI (chat) + landing/
       dashboard page, entrambe riadattate da NORTHSTREAM — non ancora
       integrate
+- [x] **[v5]** Risolto: il metodo produceva STL diretta — deciso il
+      passaggio a doppio output Python -> STEP + STL (vedi Livello 2 e
+      Rischio #7)
+- [x] **[v6]** Slicer del Livello 4 deciso: PrusaSlicer CLI headless,
+      containerizzato (pattern `Billa05/prusaslicer-cli-docker`) — profilo
+      `.ini` non ancora scritto, temperature ugello/piatto in sospeso
+      (dipendono dal materiale, vedi Rischio #4)
 - [ ] Schema di specifica strutturata (Livello 2.5) — **non ancora definito**
 - [ ] Formato preset (feature ricorrenti pre-configurate) — **non ancora
       definito**, dipende dallo schema del L2.5
 - [ ] Scaffold Docker (Flowise + stream-agent adattato + Qdrant + Open
-      WebUI + landing page) — **non ancora scritto**
+      WebUI + landing page + PrusaSlicer CLI) — **non ancora scritto**
 - [ ] Adattamento dello stream-agent da consumer Kafka a indexer del
       Livello 6 — **non ancora scritto** (vedi Rischio #10)
 - [ ] Meccanismo di conferma umana della specifica L2.5 — **non ancora
       progettato** (obbligatorio se il L2.5 è automatizzato via LLM,
       vedi Rischio #5)
-- [ ] Chiarito con Fabrizio: il cloud produce oggi codice CAD o STL/mesh
-      diretta? — **domanda aperta, condiziona l'ordine di sviluppo del L3**
+- [ ] **[v5]** Doppio passaggio del Livello 2 (Python -> STEP + STL) —
+      **non ancora implementato**, decisione presa ma codice non scritto
 - [ ] Codice del verificatore geometrico (Livello 3) — **non ancora scritto**
-- [ ] Dataset congelato (Livello 6), con campi macchina/materiale/data
-      — **non ancora estratto/strutturato**
+- [ ] Dataset congelato (Livello 6), con campi macchina/materiale/data e
+      confronto con modello CAD di riferimento — **non ancora
+      estratto/strutturato**
+- [ ] **[v5]** Modelli CAD di riferimento (disegnati in modo convenzionale)
+      per i casi già validati fisicamente — **non ancora fatto**,
+      necessario per il campo diagnostico del Livello 6
 - [ ] Test di fattibilità del motore locale (Rischio #1) — **non eseguito**
 - [ ] Integrazione end-to-end tra i componenti — **mai testata insieme**
 
 ## Prossimi passi proposti (Fase A, in parallelo)
 
-0. **Chiarire con Fabrizio**: il metodo attuale ottiene dal cloud codice
-   parametrico (OpenSCAD/CadQuery) o STL/mesh diretta? (vedi Rischio #7).
-   Determina quale modalità del Livello 3 sviluppare per prima — è un
-   blocco, non una nota a margine.
+0. ~~Chiarire con Fabrizio: il cloud produce codice o STL diretta?~~
+   **[v5] RISOLTO** — vedi Contesto e Rischio #7: produce STL diretta,
+   deciso il passaggio a doppio output Python → STEP + STL.
 1. Definire lo schema JSON della specifica strutturata (Livello 2.5), con
    il meccanismo di conferma umana obbligatorio (vedi Rischio #5).
 2. Prototipare il Livello 3 in isolamento (verifica mesh universale +
    verifica parametrica dove applicabile), testabile subito su STL
    qualsiasi, indipendente dai dati riservati di Fabrizio.
-3. In parallelo: bootstrap retroattivo — documentare i casi storici già
+3. **[v5]** Implementare il doppio passaggio del Livello 2 (Python →
+   STEP + STL) e verificare che i due output derivino coerentemente dalla
+   stessa sorgente parametrica prima di integrarlo nel resto della
+   pipeline.
+4. In parallelo: bootstrap retroattivo — documentare i casi storici già
    validati da Fabrizio, che diventano sia il primo contenuto del Livello 6
-   sia i test case del Livello 3.
-4. **[v3]** Scaffold Docker del motore di esecuzione e dell'interfaccia
+   sia i test case del Livello 3. **[v5]** Dove possibile, accompagnarli
+   con un modello CAD di riferimento costruito in modo convenzionale per
+   lo stesso pezzo, per popolare fin da subito il campo diagnostico del
+   Livello 6.
+5. **[v3]** Scaffold Docker del motore di esecuzione e dell'interfaccia
    web decisi sopra: Flowise, stream-agent di NORTHSTREAM adattato al
    Livello 6 (Qdrant + Ollama), Open WebUI, landing/dashboard page. Passo
-   infrastrutturale, indipendente dal contenuto dei passi 0-3 — può
+   infrastrutturale, indipendente dal contenuto dei passi 1-4 — può
    partire in parallelo, ma resta vuoto/non testabile finché L2.5 e L3
    (passi 1-2) non esistono da collegare.
+6. **[v6]** Scrivere il profilo `.ini` iniziale di PrusaSlicer (layer
+   height 0.2mm, 3 perimetri) e containerizzare la CLI seguendo il pattern
+   `Billa05/prusaslicer-cli-docker`. Temperatura ugello/piatto resta
+   esplicitamente da definire finché la domanda su materiale/marca
+   filamento non è risolta (vedi Rischio #4) — non bloccante per lo
+   scaffold, bloccante per il primo caso reale.
 
 La Fase B (motore locale, L7-integrato, fine-tuning) resta condizionata
 all'esito del test di fattibilità del Rischio #1, e dipende dal

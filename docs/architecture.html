@@ -416,8 +416,8 @@
         <div class="subcards">
           <div class="subcard a">
             <div class="stitle">FASE A — Cloud</div>
-            <p>GPT/Gemini — invariato, metodo già validato da Fabrizio.</p>
-            <p><em>[v4] Candidato aggiuntivo, non validato:</em> Zoo Text-to-CAD (KittyCAD API) — genera B-Rep/STEP nativamente, non mesh. Richiede un proprio test di fattibilità su feature filettate prima di essere equiparato a GPT/Gemini.</p>
+            <p>GPT/Gemini. <strong>[v5] Doppio passaggio</strong> (deciso, sostituisce STL diretta): 1) generazione di codice Python (CadQuery/OpenSCAD) — 2) esecuzione locale del codice → STEP (B-Rep, quote esatte) + STL (per lo slicer), dalla stessa sorgente parametrica. Due canali di ispezione indipendenti: uno scostamento è isolabile come nato nel codice (visibile su STEP) o nella tessellazione/slicing a valle (visibile solo confrontando STEP vs STL).</p>
+            <p><em>[v4] Candidato aggiuntivo, non validato:</em> Zoo Text-to-CAD (KittyCAD API) — genera B-Rep/STEP nativamente, non tessellazione. Termine di paragone o alternativa al doppio passaggio via codice; richiede un proprio test di fattibilità su feature filettate prima di essere equiparato a GPT/Gemini.</p>
           </div>
           <div class="subcard b">
             <div class="stitle">FASE B — Locale (condizionata)</div>
@@ -428,7 +428,7 @@
             </ul>
           </div>
         </div>
-        <p>Output: codice CadQuery/Python → STL, oppure mesh diretta.</p>
+        <p>Output: codice Python → STEP + STL (Fase A), oppure mesh diretta (via LLaMA-Mesh in Fase B, se scelta).</p>
         <a class="risk-chip" href="#rischio-1">⚠ Rischio #1 — massima priorità: motore locale non verificato sul caso d'uso</a>
       </div>
     </div>
@@ -465,7 +465,12 @@
         <span class="phase-tag a">Fase A</span>
       </div>
       <div class="node-body">
-        <p>Slicer con parametri fissi e congelati, versionati. Stampa fisica.</p>
+        <p><strong>[v6, deciso]</strong> PrusaSlicer, modalità CLI headless, containerizzato — pattern di riferimento: <code>Billa05/prusaslicer-cli-docker</code> (CLI-only, nessuna GUI).</p>
+        <div class="example">prusa-slicer-console --export-gcode
+ --load profilo.ini modello.stl -o output.gcode</div>
+        <p>Profilo come file <code>.ini</code> versionato nel repository — "parametri fissi e congelati" non è più uno stato nascosto in una GUI, è un file tracciato in git.</p>
+        <p><em>Default iniziali (PLA, negoziabili):</em> layer height 0.2mm, 3 perimetri. Temperatura ugello/piatto <strong>DA DEFINIRE</strong> — dipende dal materiale/marca filamento, domanda aperta collegata al Livello 6.</p>
+        <p>Stampa fisica.</p>
       </div>
     </div>
 
@@ -491,11 +496,13 @@
         <span class="phase-tag a">Fase A</span>
       </div>
       <div class="node-body">
-        <div class="example">{prompt, specifica strutturata L2.5, STL,
- parametri slicing, macchina, materiale/batch filamento,
- data, misura fisica, esito PASS/FAIL}</div>
+        <div class="example">{prompt, specifica strutturata L2.5, codice Python generato,
+ STEP, STL, parametri slicing, macchina, materiale/batch
+ filamento, data, misura fisica, esito PASS/FAIL,
+ modello_di_riferimento (opzionale)}</div>
         <p>Campi minimi realmente misurabili — niente temperatura/umidità promesse ma mai registrate nella pratica. Versionato, immutabile una volta validato.</p>
         <p><strong>Regola operativa:</strong> da ora in poi, ogni FAIL fisico va registrato con la stessa cura di ogni PASS — non solo "se disponibili".</p>
+        <p><strong>[v5] Campo diagnostico (deciso):</strong> dove disponibile, ogni caso è confrontato con un modello CAD costruito in modo convenzionale (disegnato a mano, non generato da LLM) per la stessa feature. Non binario come il PASS/FAIL fisico: quantifica <em>quale</em> parametro del codice generato si discosta dal riferimento e di quanto (es. passo filettatura 0.98mm generato vs 1.00mm di riferimento) — materiale diagnostico per il L3 (quali soglie impostare) e per un eventuale L8.</p>
         <div class="note-box"><strong>Nota di design.</strong> Il Livello 6 è deliberatamente a valle della validazione fisica, non a monte: un dato entra nel dataset solo dopo essere stato misurato fisicamente, mai prima.</div>
         <a class="risk-chip" href="#rischio-8">⚠ Rischio #8 — bias di sopravvivenza nel bootstrap retroattivo</a>
       </div>
@@ -582,10 +589,10 @@
       <li id="rischio-1"><p><strong>Massima priorità.</strong> Il motore di generazione locale (L2, Fase B) è l'anello debole dell'architettura: CAD-Recode/cadrille sono modelli 1.5–2B addestrati su dataset sintetici stile DeepCAD, quasi certamente fuori dominio per filettature tolleranziate; LLaMA-Mesh genera mesh artistiche inadatte a 0.3mm. Prima di investire in Fase B, va eseguito un test di fattibilità isolato contro il Livello 3. <strong>[v4]</strong> Conferma esterna: il paper Text-to-CadQuery (arXiv 2505.06507) osserva miglioramenti consistenti scalando la dimensione del modello — stesso motivo per cui un locale 1.5–2B non può essere assunto equivalente a GPT/Gemini senza test.</p></li>
       <li id="rischio-2"><p><strong>Tensione tra bisogno dichiarato e soluzione originaria.</strong> Il bisogno reale è la stabilità del workflow contro derive del cloud, non necessariamente l'autonomia da esso. La Fase A risolve già gran parte di questo bisogno da sola, a basso rischio.</p></li>
       <li id="rischio-3"><p><strong>Verifica parametrica preferita alla verifica su mesh, dove possibile</strong> — istanza del principio "l'IA scrive il programma, il computer esegue". La verifica di integrità mesh resta comunque sempre necessaria, indipendentemente dalla via, perché serve allo slicer. <strong>[v4]</strong> Vedi l'aneddoto reale sulla funzione BOSL2 inventata nel nodo Livello 3 sopra — esempio concreto del tipo di errore che questa verifica deve intercettare.</p></li>
-      <li id="rischio-4"><p><strong>Variabili confondenti nel dataset congelato.</strong> La misura fisica dipende da macchina e materiale/batch filamento, non solo dai parametri di slicing: un caso validato in PLA su una macchina non è ground truth trasferibile a PETG su un'altra.</p></li>
+      <li id="rischio-4"><p><strong>Variabili confondenti nel dataset congelato.</strong> La misura fisica dipende da macchina e materiale/batch filamento, non solo dai parametri di slicing: un caso validato in PLA su una macchina non è ground truth trasferibile a PETG su un'altra. <strong>[v6]</strong> Per lo stesso motivo, la temperatura ugello/piatto nel profilo PrusaSlicer del Livello 4 resta esplicitamente non definita finché materiale e marca del filamento non sono decisi.</p></li>
       <li id="rischio-5"><p><strong>[v2] Il Livello 2.5 è a sua volta un punto di fallimento silenzioso se automatizzato.</strong> Un errore di normalizzazione produce un L3 che verifica correttamente contro una specifica sbagliata — PASS formalmente corretto, sostanzialmente falso, invisibile fino alla stampa. Mitigazione obbligatoria: conferma umana esplicita.</p></li>
       <li id="rischio-6"><p><strong>[v2] Direzione della dipendenza tra fasi, corretta.</strong> La Fase A è autosufficiente. La Fase B dipende dalla Fase A (usa L3 come metro di giudizio, usa L6 come contenuto per L7) — non il contrario.</p></li>
-      <li id="rischio-7"><p><strong>[v2] Ambiguità codice-vs-mesh dal cloud, da chiarire con Fabrizio.</strong> La modalità parametrica del L3 esiste solo se il cloud produce codice CAD, non STL diretta — da verificare prima di scrivere il Livello 3.</p></li>
+      <li id="rischio-7"><p><strong>[v2, RISOLTO in v5] Ambiguità codice-vs-mesh dal cloud.</strong> La modalità parametrica del L3 esiste solo se il cloud produce codice CAD, non STL diretta. Chiarito: il metodo attuale produce oggi STL diretta. Decisione presa: passaggio a doppia uscita Python → STEP + STL (vedi nodo Livello 2 sopra), che sblocca la verifica parametrica esatta.</p></li>
       <li id="rischio-8"><p><strong>[v2] Bias di sopravvivenza nel bootstrap retroattivo.</strong> Se sono stati conservati solo i casi funzionanti, il dataset iniziale sarà tutto PASS: inutile per testare che il verificatore sappia bocciare. Da qui in avanti i FAIL fisici vanno registrati con lo stesso rigore dei PASS.</p></li>
       <li id="rischio-9"><p><strong>[v3] Flowise non è un motore per step deterministici o con side-effect fisici.</strong> Orchestra bene i nodi LLM-centrici (L1, L2.5, L2, L7-consultivo), ma L3-L6 devono restare script esterni, richiamati come Custom Tool/chiamata HTTP — non riscritti dentro un nodo Flowise. Farlo reintrodurrebbe l'incertezza che il Livello 3 esiste per eliminare.</p></li>
       <li id="rischio-10"><p><strong>[v3] Lo stream-agent di NORTHSTREAM non è riusabile "as-is".</strong> È scritto per consumare un flusso Kafka continuo (eventi CDC), non un dataset statico. Adottarlo per il Livello 7 richiede di sostituire il consumer loop con un indexer batch/incrementale sul Livello 6 — un adattamento del componente, non solo una configurazione diversa.</p></li>
