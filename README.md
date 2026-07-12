@@ -91,7 +91,9 @@ answer.
 
 ## 3. Approach (summary)
 
-The full architecture is described in [`docs/architecture.md`](docs/architecture.md).
+The full architecture is described in
+[`docs/architettura-prototipo-mesh-llm.md`](docs/architettura-prototipo-mesh-llm.md)
+(see also the visual [architecture diagram](docs/architecture.html)).
 In summary, the design separates concerns into a sequenced pipeline:
 
 1. **Specification normalization** — natural language to structured,
@@ -185,8 +187,9 @@ this project can receive right now.
 ## 7. Status
 
 Architecture defined. No verification code written yet. No dataset
-collected yet. See [`docs/architecture.md`](docs/architecture.md) for the
-current design and its own explicit list of unresolved dependencies.
+collected yet. See
+[`docs/architettura-prototipo-mesh-llm.md`](docs/architettura-prototipo-mesh-llm.md)
+for the current design and its own explicit list of unresolved dependencies.
 
 ## Naming
 
