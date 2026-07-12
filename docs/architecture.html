@@ -507,7 +507,7 @@
         <div><span class="num">07</span><h3>Grounding / RAG ibrido</h3></div>
       </div>
       <div class="node-body">
-        <p>Pattern NORTHSTREAM — Qdrant (vector store), retrieval ibrido: filtro esatto sui campi strutturati + similarità semantica sul resto del prompt. Necessario perché "M6 tol.0.3" e "M8 tol.0.3" sono simili per un embedding testuale puro ma geometricamente diversi.</p>
+        <p>Adattamento dello <strong>stream-agent di NORTHSTREAM</strong> (FastAPI + Qdrant + Ollama) — retrieval ibrido: filtro esatto sui campi strutturati + similarità semantica sul resto del prompt. Necessario perché "M6 tol.0.3" e "M8 tol.0.3" sono simili per un embedding testuale puro ma geometricamente diversi.</p>
         <div class="subcards">
           <div class="subcard a">
             <div class="stitle">L7-CONSULTIVO — Fase A</div>
@@ -519,6 +519,7 @@
           </div>
         </div>
         <div class="note-box"><strong>Nota di design.</strong> Il Livello 7 è ibrido per costruzione: senza filtro esatto sui parametri strutturati, il retrieval confonderebbe pezzi geometricamente diversi ma testualmente simili.</div>
+        <a class="risk-chip" href="#rischio-10">⚠ Rischio #10 — lo stream-agent consuma Kafka, non un dataset statico: va adattato, non riusato as-is</a>
       </div>
     </div>
 
@@ -536,6 +537,39 @@
       </div>
     </div>
 
+    <div class="connector"><svg viewBox="0 0 14 34"><line x1="7" y1="0" x2="7" y2="26"/><path d="M7,34 L2,24 L12,24 Z"/></svg></div>
+
+    <!-- Execution engine & web UI (cross-cutting) -->
+    <div class="node">
+      <div class="node-head">
+        <div><span class="num">⚙</span><h3>Motore di esecuzione &amp; interfaccia web <em>[v3]</em></h3></div>
+      </div>
+      <div class="node-body">
+        <p>Componente trasversale, non un livello della pipeline: orchestra e rende accessibili L1→L8, non li sostituisce.</p>
+        <div class="subcards">
+          <div class="subcard a">
+            <div class="stitle">Flowise — motore di esecuzione</div>
+            <p>Grafo drag-and-drop LangChain-based, nodo Qdrant nativo. Orchestra i nodi LLM-centrici: L1, L2.5, L2, L7-consultivo.</p>
+          </div>
+          <div class="subcard b">
+            <div class="stitle">Script esterni — L3, L4, L5, L6</div>
+            <p>Restano deterministici, fuori da Flowise. Richiamati come Custom Tool / chiamata HTTP, mai riscritti dentro un nodo di flusso.</p>
+          </div>
+        </div>
+        <div class="subcards">
+          <div class="subcard a">
+            <div class="stitle">Open WebUI — interfaccia di chat</div>
+            <p>Riusata da NORTHSTREAM. Interroga il Livello 7 (dataset + retrieval) via endpoint OpenAI-compatible — non esegue la pipeline.</p>
+          </div>
+          <div class="subcard a">
+            <div class="stitle">Landing / dashboard page</div>
+            <p>Riadattata da NORTHSTREAM (<code>index.html</code> + <code>dashboard.html</code>). Entry point statico verso Flowise, Open WebUI e stato dei servizi Docker.</p>
+          </div>
+        </div>
+        <a class="risk-chip" href="#rischio-9">⚠ Rischio #9 — Flowise non orchestra step deterministici/fisici</a>
+      </div>
+    </div>
+
   </main>
 
   <section class="risks">
@@ -550,6 +584,8 @@
       <li id="rischio-6"><p><strong>[v2] Direzione della dipendenza tra fasi, corretta.</strong> La Fase A è autosufficiente. La Fase B dipende dalla Fase A (usa L3 come metro di giudizio, usa L6 come contenuto per L7) — non il contrario.</p></li>
       <li id="rischio-7"><p><strong>[v2] Ambiguità codice-vs-mesh dal cloud, da chiarire con Fabrizio.</strong> La modalità parametrica del L3 esiste solo se il cloud produce codice CAD, non STL diretta — da verificare prima di scrivere il Livello 3.</p></li>
       <li id="rischio-8"><p><strong>[v2] Bias di sopravvivenza nel bootstrap retroattivo.</strong> Se sono stati conservati solo i casi funzionanti, il dataset iniziale sarà tutto PASS: inutile per testare che il verificatore sappia bocciare. Da qui in avanti i FAIL fisici vanno registrati con lo stesso rigore dei PASS.</p></li>
+      <li id="rischio-9"><p><strong>[v3] Flowise non è un motore per step deterministici o con side-effect fisici.</strong> Orchestra bene i nodi LLM-centrici (L1, L2.5, L2, L7-consultivo), ma L3-L6 devono restare script esterni, richiamati come Custom Tool/chiamata HTTP — non riscritti dentro un nodo Flowise. Farlo reintrodurrebbe l'incertezza che il Livello 3 esiste per eliminare.</p></li>
+      <li id="rischio-10"><p><strong>[v3] Lo stream-agent di NORTHSTREAM non è riusabile "as-is".</strong> È scritto per consumare un flusso Kafka continuo (eventi CDC), non un dataset statico. Adottarlo per il Livello 7 richiede di sostituire il consumer loop con un indexer batch/incrementale sul Livello 6 — un adattamento del componente, non solo una configurazione diversa.</p></li>
     </ol>
   </section>
 

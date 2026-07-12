@@ -75,26 +75,47 @@ normalizzazione): per le feature note, gran parte del L2.5 non richiede più
 interpretazione libera da parte di un LLM, perché il preset la vincola in
 anticipo.
 
-**Motore di esecuzione — decisione esplicita.** Tre opzioni erano sul
-tavolo:
+**Motore di esecuzione — decisione esplicita (revisionata, v3).** Tre
+opzioni erano originariamente sul tavolo:
 
 1. Costruire un motore di workflow proprio (grafo, esecuzione, UI) —
    scartata: infrastruttura enorme, indipendente dal vero differenziatore
    del progetto (verifica deterministica + dataset fisico), rischio di
    disperdere lo sforzo prima ancora di validare il Rischio #1.
 2. Riusare n8n, scrivendo i nodi di questo progetto come custom node
-   package installabile in un'istanza n8n esistente — orchestrazione
-   (grafo, retry, UI) fornita da n8n, il progetto resta scoped al proprio
-   dominio.
+   package installabile in un'istanza n8n esistente.
 3. Un runner leggero, pipeline dichiarativa (YAML/JSON) eseguita da script,
    senza UI a grafo.
 
-**Scelta: opzione 3 ora, opzione 2 come target dichiarato più avanti.** La
-pipeline dichiarativa è a basso costo, testabile subito, e coerente con lo
-stato attuale (nessun codice scritto — vedi "Prossimi passi"). I nodi vanno
-però scritti fin da subito con confini di input/output puliti, in modo da
-poter diventare custom node n8n in un secondo momento senza riscrittura
-strutturale. Non si promette un'interfaccia a grafo che non esiste ancora.
+**Scelta aggiornata: Flowise, scoped ai nodi LLM-centrici.** Flowise
+(LangChain-based, grafo drag-and-drop, nodo Qdrant nativo) orchestra i
+livelli conversazionali/LLM della pipeline — L1 (input), L2.5
+(normalizzazione), L2 (generazione), L7-consultivo (retrieval) — dove il
+concetto di "chatflow/agent flow" è un fit naturale. Non è però un motore
+per step deterministici o con side-effect fisici: L3 (verifica geometrica),
+L4 (slicing), L5 (misura fisica), L6 (scrittura dataset) restano script
+esterni, esposti a Flowise come Custom Tool / chiamata HTTP, non riscritti
+al suo interno — altrimenti si perderebbe la garanzia di determinismo che
+il Livello 3 richiede (vedi Rischio #9). Questo rende superflua, per ora,
+la scelta tra le opzioni 2 e 3 originarie: Flowise copre la parte
+orchestrata via UI che n8n avrebbe coperto, restando scoped alla porzione
+LLM invece che a tutta la pipeline.
+
+## Interfaccia web — decisione esplicita
+
+Due componenti distinti, entrambi ripresi da NORTHSTREAM
+(`danielesalpietro/NORTHSTREAM`) invece che dalla web UI Gradio di
+RecursiveMAS (scartata per questo scopo):
+
+- **Open WebUI** — interfaccia di chat, già usata in NORTHSTREAM per
+  parlare con Ollama e con lo stream-agent tramite un endpoint
+  OpenAI-compatible. Qui diventa il modo di interrogare in linguaggio
+  naturale il Livello 7 (dataset congelato + retrieval), non di eseguire
+  la pipeline: l'esecuzione resta compito di Flowise.
+- **Landing / dashboard page** — le pagine statiche di overview di
+  NORTHSTREAM (`index.html` + `dashboard.html`), riadattate come punto
+  d'ingresso allo stack Docker di CALIPER: link a Flowise, a Open WebUI,
+  allo stato dei servizi. Nessuna logica applicativa propria.
 
 
 ```
@@ -176,12 +197,17 @@ LIVELLO 6 — DATASET CONGELATO (ground truth)  [FASE A]
   sul bias di sopravvivenza più sotto)
         |
         v
-LIVELLO 7 — GROUNDING / RAG IBRIDO (pattern NORTHSTREAM), IN DUE PARTI
-  Qdrant (vector store), retrieval ibrido:
+LIVELLO 7 — GROUNDING / RAG IBRIDO, IN DUE PARTI
+  Adattamento dello stream-agent di NORTHSTREAM (danielesalpietro/
+  NORTHSTREAM): FastAPI + Qdrant + Ollama, retrieval ibrido:
    - filtro esatto sui campi strutturati (feature, nominal, tolerance...)
    - similarità semantica solo sul resto del prompt
   Necessario perché "M6 tol.0.3" e "M8 tol.0.3" sono simili per un
   embedding testuale puro ma geometricamente diversi
+  ADATTAMENTO RICHIESTO (non è riuso as-is, vedi Rischio #10): la
+  sorgente consuma uno stream Kafka in continuo; qui il consumer loop va
+  sostituito con un indexer batch/incrementale sul Livello 6 (dataset
+  statico, non eventi CDC)
 
   L7-CONSULTIVO [FASE A, disponibile solo dopo bootstrap L6]
     Lookup "un caso quasi identico esiste già, con questi parametri"
@@ -297,6 +323,18 @@ Il loop di correzione non può essere illimitato:
    segnale negativo per un eventuale fine-tuning futuro. Da qui in avanti i
    FAIL fisici vanno registrati con lo stesso rigore dei PASS, come regola
    operativa e non come nota facoltativa.
+9. **[v3] Flowise non è un motore per step deterministici o con
+   side-effect fisici.** Orchestra bene i nodi LLM-centrici (L1, L2.5, L2,
+   L7-consultivo), ma L3 (verifica geometrica), L4 (slicing), L5 (misura
+   fisica) e L6 (scrittura dataset) devono restare script esterni,
+   richiamati da Flowise come Custom Tool/chiamata HTTP — non riscritti
+   dentro un nodo Flowise. Riscriverli lì reintrodurrebbe la stessa
+   incertezza che il Livello 3 esiste per eliminare.
+10. **[v3] Lo stream-agent di NORTHSTREAM non è riusabile "as-is".** È
+    scritto per consumare un flusso Kafka continuo (eventi CDC), non un
+    dataset statico. Adottarlo per il Livello 7 richiede di sostituire il
+    consumer loop con un indexer batch/incrementale sul Livello 6 —
+    un adattamento del componente, non solo una configurazione diversa.
 
 ## Bootstrap retroattivo del dataset (parallelo al primo prototipo)
 
@@ -328,8 +366,11 @@ slicing.
 |---|---|---|
 | CAD-Recode | `filaPro/cad-recode` | Livello 2 — generazione codice CAD parametrico |
 | LLaMA-Mesh | `nv-tlabs/LLaMA-Mesh` | Livello 2 — generazione mesh diretta |
-| Qdrant + Ollama (pattern) | dimostrato in NORTHSTREAM (`danielesalpietro/NORTHSTREAM`) | Livello 7 — grounding/RAG |
-| RecursiveMAS | `RecursiveMAS/RecursiveMAS` | Ipotesi d'uso esplicita (non impegnativa): se in futuro il Livello 2 evolvesse in un processo multi-step (un agente genera, uno verifica, uno corregge), potrebbe orchestrare quel loop invece di scriverlo ad-hoc. Nessun ruolo nell'architettura attuale — voce speculativa, non un componente pianificato |
+| stream-agent (Qdrant + Ollama) | adottato da NORTHSTREAM (`danielesalpietro/NORTHSTREAM`) | Livello 7 — grounding/RAG ibrido; **[v3] decisione presa**, da riadattare da stream Kafka a dataset statico (vedi Rischio #10) |
+| Open WebUI | riusato da NORTHSTREAM (`danielesalpietro/NORTHSTREAM`) | Interfaccia web — chat per interrogare il Livello 7 |
+| Landing/dashboard page | riadattata da NORTHSTREAM (`danielesalpietro/NORTHSTREAM`) | Interfaccia web — entry point statico verso lo stack Docker |
+| Flowise | motore di esecuzione scelto — **[v3] decisione presa** | L1, L2.5, L2, L7-consultivo — orchestrazione dei nodi LLM-centrici, non dei livelli deterministici (L3-L6, vedi Rischio #9) |
+| RecursiveMAS | `RecursiveMAS/RecursiveMAS` | Ipotesi d'uso esplicita (non impegnativa): se in futuro il Livello 2 evolvesse in un processo multi-step (un agente genera, uno verifica, uno corregge), potrebbe orchestrare quel loop invece di scriverlo ad-hoc. Nessun ruolo nell'architettura attuale — voce speculativa, non un componente pianificato. **[v3]** La sua web UI (Gradio/HOUSE) è stata valutata e scartata a favore di Open WebUI per l'interfaccia di CALIPER |
 
 ## Stato attuale (cosa esiste davvero)
 
@@ -337,15 +378,23 @@ slicing.
       forma strutturata/dataset
 - [x] Candidati per Livello 2 (Fase B) identificati e verificati come reali,
       ma **non testati sul caso d'uso specifico** (vedi Rischio #1)
-- [x] Pattern di grounding (Livello 7) dimostrato in un dominio diverso
-      (NORTHSTREAM), da riadattare
+- [x] Componente di grounding (Livello 7) identificato in modo concreto:
+      stream-agent di NORTHSTREAM (Qdrant + Ollama), da riadattare da
+      stream Kafka a dataset statico (vedi Rischio #10)
 - [x] Concetto del verificatore (Livello 3) definito, ora a doppia modalità
+- [x] **[v3]** Motore di esecuzione deciso: Flowise, scoped ai nodi
+      LLM-centrici (L1, L2.5, L2, L7-consultivo) — non ancora installato
+      né configurato
+- [x] **[v3]** Interfaccia web decisa: Open WebUI (chat) + landing/
+      dashboard page, entrambe riadattate da NORTHSTREAM — non ancora
+      integrate
 - [ ] Schema di specifica strutturata (Livello 2.5) — **non ancora definito**
 - [ ] Formato preset (feature ricorrenti pre-configurate) — **non ancora
       definito**, dipende dallo schema del L2.5
-- [ ] Runner della pipeline dichiarativa (opzione 3) — **non ancora
-      scritto**; confini nodo I/O da progettare pensando a una futura
-      migrazione a custom node n8n (opzione 2)
+- [ ] Scaffold Docker (Flowise + stream-agent adattato + Qdrant + Open
+      WebUI + landing page) — **non ancora scritto**
+- [ ] Adattamento dello stream-agent da consumer Kafka a indexer del
+      Livello 6 — **non ancora scritto** (vedi Rischio #10)
 - [ ] Meccanismo di conferma umana della specifica L2.5 — **non ancora
       progettato** (obbligatorio se il L2.5 è automatizzato via LLM,
       vedi Rischio #5)
@@ -371,6 +420,12 @@ slicing.
 3. In parallelo: bootstrap retroattivo — documentare i casi storici già
    validati da Fabrizio, che diventano sia il primo contenuto del Livello 6
    sia i test case del Livello 3.
+4. **[v3]** Scaffold Docker del motore di esecuzione e dell'interfaccia
+   web decisi sopra: Flowise, stream-agent di NORTHSTREAM adattato al
+   Livello 6 (Qdrant + Ollama), Open WebUI, landing/dashboard page. Passo
+   infrastrutturale, indipendente dal contenuto dei passi 0-3 — può
+   partire in parallelo, ma resta vuoto/non testabile finché L2.5 e L3
+   (passi 1-2) non esistono da collegare.
 
 La Fase B (motore locale, L7-integrato, fine-tuning) resta condizionata
 all'esito del test di fattibilità del Rischio #1, e dipende dal

@@ -289,14 +289,18 @@
       convention for that feature.
     </p>
     <p>
-      Three ways to execute this pipeline were considered: a custom
-      workflow/graph engine; reusing an existing automation platform
-      such as n8n via a custom node package; or a lightweight
-      declarative runner with no graph UI. The project starts with the
-      declarative runner — lowest cost, testable immediately
-      — while designing node boundaries clean enough to become
-      an n8n node package later, without promising a graph interface
-      that does not exist yet.
+      <strong>[v3]</strong> Execution engine: <a href="https://flowiseai.com/">Flowise</a>
+      (LangChain-based, drag-and-drop, native Qdrant node) orchestrates the
+      LLM-centric nodes — input, specification normalization, generation,
+      consultive retrieval. It is not a fit for deterministic or
+      physical-side-effect steps (verification, slicing, physical
+      measurement, dataset write); those stay external scripts, invoked
+      as Custom Tool/HTTP calls, never rewritten inside a flow node.
+      Web interface: <a href="https://github.com/danielesalpietro/NORTHSTREAM">NORTHSTREAM</a>'s
+      Open WebUI (chat, to query the grounded dataset) and its landing/
+      dashboard page (static entry point to the Docker stack), reused in
+      place of a custom UI. Full detail in the
+      <a href="docs/architecture.html">architecture diagram</a>.
     </p>
   </section>
 
