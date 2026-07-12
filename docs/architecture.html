@@ -417,6 +417,7 @@
           <div class="subcard a">
             <div class="stitle">FASE A — Cloud</div>
             <p>GPT/Gemini — invariato, metodo già validato da Fabrizio.</p>
+            <p><em>[v4] Candidato aggiuntivo, non validato:</em> Zoo Text-to-CAD (KittyCAD API) — genera B-Rep/STEP nativamente, non mesh. Richiede un proprio test di fattibilità su feature filettate prima di essere equiparato a GPT/Gemini.</p>
           </div>
           <div class="subcard b">
             <div class="stitle">FASE B — Locale (condizionata)</div>
@@ -451,6 +452,7 @@
           <div class="outcome fail"><span class="label">FAIL</span><span class="desc">↺ retry Livello 2 — budget max 3–5 tentativi, poi fallback (Fase A: intervento umano · Fase B: escalation al cloud)</span></div>
         </div>
         <div class="note-box"><strong>Nota di design.</strong> Livelli 3 e 5 sono due arbitri di verità distinti, non intercambiabili: il L3 è veloce/automatico ma simulato, il L5 è lento/manuale ma cattura variabili reali che nessuna mesh può prevedere.</div>
+        <div class="note-box"><strong>[v4] Aneddoto reale.</strong> Un esempio di codice OpenSCAD/BOSL2 circolato per questo progetto usava <code>texture_thread()</code> con parametro <code>clearance=</code> — nessuna delle due esiste. La funzione reale è <code>screw_hole("M6x1", ...)</code> con <code>tolerance=</code>. Nome plausibile ma inventato: esattamente ciò che questo Livello deve intercettare.</div>
       </div>
     </div>
 
@@ -533,6 +535,7 @@
       </div>
       <div class="node-body">
         <p>Solo quando il dataset congelato è abbastanza grande. LoRA/QLoRA su Qwen2.5-Coder o simile, con i dati del Livello 6 come ground truth supervisionata.</p>
+        <p><em>[v4] Candidato dataset base:</em> Text-to-CadQuery (~170k coppie testo→CadQuery, exact match 69.3%, Chamfer −48.6%) — formato nativamente CadQuery, ma non fisicamente validato: utile per il pre-training, non sostituisce il Livello 6 come ground truth.</p>
         <div class="note-box"><strong>Nota di design.</strong> Intenzionalmente ultimo e opzionale: prematuro finché il dataset non dà segnale di addestramento reale; il RAG da solo può bastare a lungo prima di arrivarci.</div>
       </div>
     </div>
@@ -576,9 +579,9 @@
     <h2>Rischi e revisioni</h2>
     <p class="sub">Riferiti dai chip <span class="risk-chip" style="pointer-events:none">⚠ Rischio #N</span> nel diagramma sopra. Testo completo nel documento esteso.</p>
     <ol class="risk-list">
-      <li id="rischio-1"><p><strong>Massima priorità.</strong> Il motore di generazione locale (L2, Fase B) è l'anello debole dell'architettura: CAD-Recode/cadrille sono modelli 1.5–2B addestrati su dataset sintetici stile DeepCAD, quasi certamente fuori dominio per filettature tolleranziate; LLaMA-Mesh genera mesh artistiche inadatte a 0.3mm. Prima di investire in Fase B, va eseguito un test di fattibilità isolato contro il Livello 3.</p></li>
+      <li id="rischio-1"><p><strong>Massima priorità.</strong> Il motore di generazione locale (L2, Fase B) è l'anello debole dell'architettura: CAD-Recode/cadrille sono modelli 1.5–2B addestrati su dataset sintetici stile DeepCAD, quasi certamente fuori dominio per filettature tolleranziate; LLaMA-Mesh genera mesh artistiche inadatte a 0.3mm. Prima di investire in Fase B, va eseguito un test di fattibilità isolato contro il Livello 3. <strong>[v4]</strong> Conferma esterna: il paper Text-to-CadQuery (arXiv 2505.06507) osserva miglioramenti consistenti scalando la dimensione del modello — stesso motivo per cui un locale 1.5–2B non può essere assunto equivalente a GPT/Gemini senza test.</p></li>
       <li id="rischio-2"><p><strong>Tensione tra bisogno dichiarato e soluzione originaria.</strong> Il bisogno reale è la stabilità del workflow contro derive del cloud, non necessariamente l'autonomia da esso. La Fase A risolve già gran parte di questo bisogno da sola, a basso rischio.</p></li>
-      <li id="rischio-3"><p><strong>Verifica parametrica preferita alla verifica su mesh, dove possibile</strong> — istanza del principio "l'IA scrive il programma, il computer esegue". La verifica di integrità mesh resta comunque sempre necessaria, indipendentemente dalla via, perché serve allo slicer.</p></li>
+      <li id="rischio-3"><p><strong>Verifica parametrica preferita alla verifica su mesh, dove possibile</strong> — istanza del principio "l'IA scrive il programma, il computer esegue". La verifica di integrità mesh resta comunque sempre necessaria, indipendentemente dalla via, perché serve allo slicer. <strong>[v4]</strong> Vedi l'aneddoto reale sulla funzione BOSL2 inventata nel nodo Livello 3 sopra — esempio concreto del tipo di errore che questa verifica deve intercettare.</p></li>
       <li id="rischio-4"><p><strong>Variabili confondenti nel dataset congelato.</strong> La misura fisica dipende da macchina e materiale/batch filamento, non solo dai parametri di slicing: un caso validato in PLA su una macchina non è ground truth trasferibile a PETG su un'altra.</p></li>
       <li id="rischio-5"><p><strong>[v2] Il Livello 2.5 è a sua volta un punto di fallimento silenzioso se automatizzato.</strong> Un errore di normalizzazione produce un L3 che verifica correttamente contro una specifica sbagliata — PASS formalmente corretto, sostanzialmente falso, invisibile fino alla stampa. Mitigazione obbligatoria: conferma umana esplicita.</p></li>
       <li id="rischio-6"><p><strong>[v2] Direzione della dipendenza tra fasi, corretta.</strong> La Fase A è autosufficiente. La Fase B dipende dalla Fase A (usa L3 come metro di giudizio, usa L6 come contenuto per L7) — non il contrario.</p></li>

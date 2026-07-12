@@ -145,6 +145,10 @@ LIVELLO 2.5 — NORMALIZZAZIONE SPECIFICA  [FASE A]
         v
 LIVELLO 2 — GENERAZIONE GEOMETRICA (motore)  [A: cloud / B: locale]
   Fase A: GPT/Gemini (invariato, metodo già validato da Fabrizio)
+  Candidato aggiuntivo [v4], NON validato: Zoo Text-to-CAD (KittyCAD API)
+    -> genera B-Rep/STEP nativamente, non mesh; richiede un proprio test
+       di fattibilità su feature filettate prima di essere equiparato a
+       GPT/Gemini (vedi tabella componenti)
   Fase B (condizionata, vedi Rischio #1):
     Candidati: CAD-Recode / cadrille (Qwen2-1.5B/2B) — via preferita,
                produce codice CadQuery/Python parametrico
@@ -275,6 +279,13 @@ Il loop di correzione non può essere illimitato:
    **Prima di investire nella Fase B, va eseguito un test di fattibilità
    isolato**: stessi prompt già validati da Fabrizio in cloud, sottoposti al
    motore locale candidato, e confrontati contro il Livello 3.
+   **[v4] Conferma esterna indipendente:** il paper Text-to-CadQuery (arXiv
+   2505.06507, dataset di ~170k coppie testo→CadQuery, exact match top-1
+   69.3% contro 58.8% del baseline, Chamfer Distance −48.6%) osserva
+   miglioramenti consistenti scalando la dimensione del modello — lo stesso
+   motivo per cui non si può assumere che un modello locale da 1.5–2B
+   eguagli GPT/Gemini senza test. Non sostituisce il test di fattibilità
+   sopra, ma ne rinforza la premessa con un dato esterno.
 2. **Tensione tra bisogno dichiarato e soluzione originaria.** Il bisogno
    reale è la stabilità del workflow contro derive del modello cloud, non
    necessariamente l'autonomia da esso. La Fase A (L3+L6, cloud invariato)
@@ -296,6 +307,16 @@ Il loop di correzione non può essere illimitato:
    indipendentemente dalla via, perché serve allo slicer — non è quindi un
    fallback solo per la via LLaMA-Mesh, ma un controllo universale separato
    da quello dimensionale.
+   **[v4] Aneddoto reale, non ipotetico:** un esempio di codice
+   OpenSCAD/BOSL2 circolato per questo progetto usava una funzione
+   `texture_thread()` per fori filettati, con un parametro `clearance=`.
+   Nessuna delle due esiste in BOSL2 — la funzione reale è
+   `screw_hole("M6x1", ...)`, e il parametro di vestibilità si chiama
+   `tolerance=`, non `clearance=`. Nome plausibile ma inventato, su un
+   tema tecnico specifico: è esattamente il tipo di errore silenzioso
+   contro cui la verifica parametrica di questo Livello è progettata, e
+   un promemoria che vale anche per il codice CadQuery/OpenSCAD generato
+   dal Livello 2 stesso, non solo per esempi esterni.
 4. **Variabili confondenti nel dataset congelato.** La misura fisica dipende
    da macchina, materiale/batch di filamento, non solo dai parametri di
    slicing. Un caso validato in PLA su una macchina non è ground truth
@@ -360,12 +381,25 @@ verifica può essere resa deterministica e automatica — uno script misura
 la mesh generata e rifiuta l'output se fuori tolleranza, prima ancora dello
 slicing.
 
+**[v4] Convalida esterna indipendente.** Leo AI (`getleo.ai`) — prodotto
+commerciale chiuso, nessun repository pubblico, **non un componente da
+integrare** — arriva a una conclusione strutturalmente simile per una
+strada indipendente: posiziona il proprio valore non nella generazione ma
+nella validazione (accesso certificato SOC-2 a standard ingegneristici,
+integrazione PDM/PLM, ricerca componenti geometry-aware su B-rep). È più
+vicino ai nostri Livelli 3+7 che al Livello 2. Non cambia l'architettura,
+ma è una seconda conferma indipendente — dopo l'analogia Mike OSS — che
+"la generazione richiede una validazione separata e deterministica" non è
+un'assunzione arbitraria di questo progetto.
+
 ## Componenti verificati (repository reali)
 
 | Componente | Repository | Ruolo nell'architettura |
 |---|---|---|
 | CAD-Recode | `filaPro/cad-recode` | Livello 2 — generazione codice CAD parametrico |
 | LLaMA-Mesh | `nv-tlabs/LLaMA-Mesh` | Livello 2 — generazione mesh diretta |
+| Zoo Text-to-CAD (KittyCAD) | `KittyCAD/kittycad.py` (API client; servizio cloud proprietario) | Livello 2 — **[v4] candidato Fase A aggiuntivo**, non un sostituto validato di GPT/Gemini. Genera B-Rep/STEP nativamente (non mesh), a differenza dei modelli text-to-3D generici — rilevante perché rende irrilevante la domanda aperta "codice o mesh?" per questo candidato. **Non testato** su feature filettate tolleranziate: richiede un proprio test di fattibilità, distinto da quello del Rischio #1 (che riguarda i candidati locali, non quelli cloud) |
+| Text-to-CadQuery (dataset) | `Text-to-CadQuery/Text-to-CadQuery` | Livello 8 — **[v4] candidato dataset per fine-tuning**: ~170k coppie testo→CadQuery (estensione di Text2CAD), top-1 exact match 69.3% (da 58.8%), Chamfer Distance −48.6%. Formato nativamente CadQuery, coerente col Rischio #3. **Non sostituisce il Livello 6**: non è dataset fisicamente validato, resta un candidato per il pre-training/base model, non per il ground truth |
 | stream-agent (Qdrant + Ollama) | adottato da NORTHSTREAM (`danielesalpietro/NORTHSTREAM`) | Livello 7 — grounding/RAG ibrido; **[v3] decisione presa**, da riadattare da stream Kafka a dataset statico (vedi Rischio #10) |
 | Open WebUI | riusato da NORTHSTREAM (`danielesalpietro/NORTHSTREAM`) | Interfaccia web — chat per interrogare il Livello 7 |
 | Landing/dashboard page | riadattata da NORTHSTREAM (`danielesalpietro/NORTHSTREAM`) | Interfaccia web — entry point statico verso lo stack Docker |
