@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CALIPER — Architettura del pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAFAF8;
+    --paper-dim:#F3F1EA;
+    --ink:#16181A;
+    --graphite:#5C5F63;
+    --line:#D9D6CC;
+    --blueprint:#1F3A5F;
+    --blueprint-dim:#E7ECF2;
+    --tolerance:#C4471F;
+    --tolerance-dim:#F7E9E3;
+    --ok:#2E6E3E;
+    --max:920px;
+  }
+
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Source Serif 4', Georgia, serif;
+    font-size:16px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  a{ color:var(--blueprint); }
+
+  .wrap{ max-width:var(--max); margin:0 auto; padding:0 24px 80px 24px; }
+
+  code, pre{
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  /* ---------- Header ---------- */
+
+  header.top{
+    border-bottom:1px solid var(--ink);
+    padding:36px 0 28px 0;
+  }
+  .backlink{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--graphite);
+    display:block;
+    margin-bottom:18px;
+  }
+  h1.title{
+    font-family:'Newsreader', Georgia, serif;
+    font-weight:600;
+    font-size:clamp(30px, 5vw, 44px);
+    margin:0 0 8px 0;
+    letter-spacing:-0.01em;
+  }
+  .subtitle{
+    font-style:italic;
+    color:var(--graphite);
+    max-width:640px;
+    margin:0;
+  }
+  .doc-link{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    color:var(--graphite);
+    margin-top:16px;
+  }
+
+  /* ---------- Legend ---------- */
+
+  .legend{
+    display:flex;
+    gap:22px;
+    flex-wrap:wrap;
+    margin:26px 0 0 0;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--graphite);
+  }
+  .legend .item{ display:flex; align-items:center; gap:7px; }
+  .dot{ width:10px; height:10px; border-radius:2px; display:inline-block; }
+  .dot.a{ background:var(--blueprint); }
+  .dot.b{ background:var(--tolerance); border:1px dashed var(--tolerance); }
+
+  /* ---------- Fasatura summary ---------- */
+
+  .fasatura{ padding:34px 0; border-bottom:1px solid var(--line); }
+  .fasatura h2{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--graphite);
+    margin:0 0 16px 0;
+  }
+  .phase-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .phase-card{
+    border:1px solid var(--line);
+    padding:16px 18px;
+    background:var(--paper-dim);
+  }
+  .phase-card.a{ border-left:3px solid var(--blueprint); }
+  .phase-card.b{ border-left:3px dashed var(--tolerance); }
+  .phase-card .ptitle{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:0.04em;
+    margin-bottom:8px;
+  }
+  .phase-card.a .ptitle{ color:var(--blueprint); }
+  .phase-card.b .ptitle{ color:var(--tolerance); }
+  .phase-card p{ margin:0; font-size:14.5px; color:var(--graphite); }
+  .dependency-note{
+    margin-top:16px;
+    font-size:14px;
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--ink);
+    background:var(--paper);
+    border:1px dashed var(--line);
+    padding:12px 14px;
+  }
+
+  /* ---------- Pipeline ---------- */
+
+  .pipeline{ padding:40px 0 0 0; }
+
+  .connector{
+    display:flex;
+    justify-content:center;
+    height:34px;
+  }
+  .connector svg{ width:14px; height:34px; }
+  .connector line{ stroke:var(--ink); stroke-width:1.4; }
+  .connector path{ fill:var(--ink); }
+
+  .node{
+    border:1px solid var(--ink);
+    background:var(--paper);
+    position:relative;
+  }
+  .node.phase-b{ border-style:dashed; }
+
+  .node-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:12px;
+    flex-wrap:wrap;
+    padding:14px 20px;
+    border-bottom:1px solid var(--line);
+    background:var(--paper-dim);
+  }
+  .node-head .num{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--tolerance);
+    margin-right:10px;
+  }
+  .node-head h3{
+    font-family:'Newsreader', Georgia, serif;
+    font-weight:600;
+    font-size:19px;
+    margin:0;
+    display:inline;
+  }
+  .phase-tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    padding:2px 8px;
+    border-radius:2px;
+    white-space:nowrap;
+  }
+  .phase-tag.a{ background:var(--blueprint-dim); color:var(--blueprint); }
+  .phase-tag.b{ background:var(--tolerance-dim); color:var(--tolerance); }
+
+  .node-body{ padding:18px 20px 20px 20px; }
+  .node-body p{ margin:0 0 12px 0; font-size:15px; }
+  .node-body p:last-child{ margin-bottom:0; }
+
+  .example{
+    background:var(--paper-dim);
+    border:1px solid var(--line);
+    padding:10px 14px;
+    font-size:12.5px;
+    line-height:1.6;
+    margin:0 0 12px 0;
+    overflow-x:auto;
+    white-space:pre-wrap;
+    color:var(--ink);
+  }
+
+  .mechanism{
+    font-size:13.5px;
+    color:var(--graphite);
+    border-left:2px solid var(--line);
+    padding-left:12px;
+    margin:0 0 12px 0;
+  }
+
+  /* risk chip */
+  .risk-chip{
+    display:inline-block;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    color:var(--tolerance);
+    border:1px solid var(--tolerance);
+    padding:2px 8px;
+    border-radius:2px;
+    text-decoration:none;
+    margin:2px 6px 2px 0;
+  }
+  .risk-chip:hover{ background:var(--tolerance); color:var(--paper); }
+
+  /* design note */
+  .note-box{
+    margin-top:14px;
+    font-size:13.5px;
+    color:var(--graphite);
+    background:var(--paper-dim);
+    border-left:2px solid var(--blueprint);
+    padding:8px 12px;
+  }
+  .note-box strong{ color:var(--ink); }
+
+  /* sub-cards (branches) */
+  .subcards{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-bottom:14px;
+  }
+  .subcard{
+    border:1px solid var(--line);
+    padding:12px 14px;
+  }
+  .subcard.a{ border-left:3px solid var(--blueprint); }
+  .subcard.b{ border-left:3px dashed var(--tolerance); }
+  .subcard .stitle{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    font-weight:600;
+    margin-bottom:6px;
+  }
+  .subcard.a .stitle{ color:var(--blueprint); }
+  .subcard.b .stitle{ color:var(--tolerance); }
+  .subcard p{ font-size:14px; margin:0 0 8px 0; }
+  .subcard ul{ margin:0; padding-left:18px; font-size:13.5px; }
+  .subcard li{ margin-bottom:4px; }
+
+  /* outcome row (PASS/FAIL) */
+  .outcome-row{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-top:6px;
+  }
+  .outcome{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    padding:8px 12px;
+    border:1px solid var(--line);
+    flex:1;
+    min-width:220px;
+  }
+  .outcome.pass{ border-left:3px solid var(--ok); }
+  .outcome.fail{ border-left:3px solid var(--tolerance); }
+  .outcome .label{ font-weight:600; display:block; margin-bottom:3px; }
+  .outcome.pass .label{ color:var(--ok); }
+  .outcome.fail .label{ color:var(--tolerance); }
+  .outcome .desc{ color:var(--graphite); }
+
+  /* ---------- Risks appendix ---------- */
+
+  .risks{ padding:44px 0 0 0; border-top:1px solid var(--ink); margin-top:56px; }
+  .risks h2{
+    font-family:'Newsreader', Georgia, serif;
+    font-weight:600;
+    font-size:24px;
+    margin:0 0 6px 0;
+  }
+  .risks .sub{ color:var(--graphite); font-size:14px; margin-bottom:24px; }
+
+  ol.risk-list{ margin:0; padding:0; list-style:none; counter-reset:risk; }
+  ol.risk-list li{
+    counter-increment:risk;
+    padding:16px 0;
+    border-top:1px solid var(--line);
+    display:grid;
+    grid-template-columns:80px 1fr;
+    gap:14px;
+    scroll-margin-top:20px;
+  }
+  ol.risk-list li:first-child{ border-top:none; }
+  ol.risk-list li::before{
+    content:"RISCHIO #" counter(risk);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--tolerance);
+  }
+  ol.risk-list li p{ margin:0; font-size:14.5px; }
+  ol.risk-list li p strong{ font-weight:600; }
+
+  /* ---------- Footer ---------- */
+
+  footer{
+    border-top:1px solid var(--ink);
+    padding:24px 0 0 0;
+    margin-top:60px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--graphite);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  footer a{ color:var(--graphite); }
+
+  @media (max-width: 680px){
+    .phase-grid, .subcards{ grid-template-columns:1fr; }
+    .node-head{ flex-direction:column; align-items:flex-start; }
+    ol.risk-list li{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="backlink" href="../index.html">← CALIPER</a>
+    <h1 class="title">Architettura del pipeline</h1>
+    <p class="subtitle">Otto livelli, due fasi sequenziate — dal prompt in linguaggio naturale alla verità misurata fisicamente.</p>
+    <p class="doc-link">Versione estesa (testo completo, rischi, prossimi passi): <a href="architettura-prototipo-mesh-llm.md">architettura-prototipo-mesh-llm.md</a></p>
+    <div class="legend">
+      <span class="item"><span class="dot a"></span> Fase A — protezione del metodo (motore cloud, invariato)</span>
+      <span class="item"><span class="dot b"></span> Fase B — autonomia locale (condizionata, futura)</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="fasatura">
+    <h2>Fasatura del progetto</h2>
+    <div class="phase-grid">
+      <div class="phase-card a">
+        <div class="ptitle">FASE A — Protezione del metodo</div>
+        <p>L1, L2.5, L3, L4, L5, L6, L7-consultivo (tardivo). Il motore resta il cloud (GPT/Gemini), invariato. Rischio basso, valore immediato: se il modello cloud deriva, il verificatore lo intercetta e il dataset preserva ciò che funzionava.</p>
+      </div>
+      <div class="phase-card b">
+        <div class="ptitle">FASE B — Autonomia locale</div>
+        <p>L2 locale, L7-integrato, L8. Condizionata a un test di fattibilità esplicito (<a class="risk-chip" href="#rischio-1">Rischio #1</a>) prima di qualunque investimento.</p>
+      </div>
+    </div>
+    <div class="dependency-note">
+      Direzione della dipendenza: la Fase A è autosufficiente. La Fase B dipende dalla Fase A (usa L3 come metro di giudizio, usa L6 come contenuto per L7) — non il contrario. Non si parte con il motore locale prima di avere il verificatore.
+    </div>
+  </section>
+
+  <main class="pipeline">
+
+    <!-- L1 -->
+    <div class="node">
+      <div class="node-head">
+        <div><span class="num">01</span><h3>Input / Interfaccia</h3></div>
+      </div>
+      <div class="node-body">
+        <p>Prompt semantico-descrittivo in linguaggio naturale.</p>
+        <div class="example">"foro filettato M6, tolleranza 0.3mm, passo 1.0"</div>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 14 34"><line x1="7" y1="0" x2="7" y2="26"/><path d="M7,34 L2,24 L12,24 Z"/></svg></div>
+
+    <!-- L2.5 -->
+    <div class="node">
+      <div class="node-head">
+        <div><span class="num">02.5</span><h3>Normalizzazione specifica</h3></div>
+        <span class="phase-tag a">Fase A</span>
+      </div>
+      <div class="node-body">
+        <p>Prompt naturale → specifica strutturata (JSON). Necessario perché "tolleranza 0.3mm" da sola è ambigua e rende il PASS/FAIL del Livello 3 mal definito.</p>
+        <div class="example">{"feature": "thread", "nominal": "M6", "pitch": 1.0,
+ "tolerance": 0.3, "tolerance_type": "diametrale|per_lato|
+ su_nocciolo|su_cresta", "measured_as": "..."}</div>
+        <div class="mechanism">
+          <strong>Meccanismo tecnico</strong> (in aggiunta alla mitigazione, non in sua sostituzione): decoding vincolato allo schema JSON — vincola la sintassi, non la semantica. Per questo la conferma umana resta necessaria: due difese indipendenti, non alternative.
+        </div>
+        <a class="risk-chip" href="#rischio-5">⚠ Rischio #5 — punto di fallimento silenzioso se automatizzato senza supervisione</a>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 14 34"><line x1="7" y1="0" x2="7" y2="26"/><path d="M7,34 L2,24 L12,24 Z"/></svg></div>
+
+    <!-- L2 -->
+    <div class="node">
+      <div class="node-head">
+        <div><span class="num">02</span><h3>Generazione geometrica (motore)</h3></div>
+      </div>
+      <div class="node-body">
+        <div class="subcards">
+          <div class="subcard a">
+            <div class="stitle">FASE A — Cloud</div>
+            <p>GPT/Gemini — invariato, metodo già validato da Fabrizio.</p>
+          </div>
+          <div class="subcard b">
+            <div class="stitle">FASE B — Locale (condizionata)</div>
+            <ul>
+              <li>CAD-Recode / cadrille (Qwen2-1.5B/2B) — via preferita, codice CadQuery/Python parametrico</li>
+              <li>LLaMA-Mesh (mesh diretta) — via secondaria</li>
+              <li>temperature=0 → riproducibilità, non accuratezza</li>
+            </ul>
+          </div>
+        </div>
+        <p>Output: codice CadQuery/Python → STL, oppure mesh diretta.</p>
+        <a class="risk-chip" href="#rischio-1">⚠ Rischio #1 — massima priorità: motore locale non verificato sul caso d'uso</a>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 14 34"><line x1="7" y1="0" x2="7" y2="26"/><path d="M7,34 L2,24 L12,24 Z"/></svg></div>
+
+    <!-- L3 -->
+    <div class="node">
+      <div class="node-head">
+        <div><span class="num">03</span><h3>Verificatore geometrico, doppia modalità</h3></div>
+        <span class="phase-tag a">Fase A</span>
+      </div>
+      <div class="node-body">
+        <p>Script deterministico, <strong>non</strong> un LLM — più forte del pattern "LLM-as-judge" (probabilistico anche se indipendente). Qui il giudice è uno script o una misura fisica.</p>
+        <ul>
+          <li><strong>a) Verifica parametrica</strong> (primaria, se disponibile codice CAD) — confronto esatto contro la specifica L2.5, prima della tessellazione.</li>
+          <li><strong>b) Verifica mesh</strong> (sempre, universale) — manifold/watertight; se non c'è codice parametrico, misura dimensionale dalla mesh come fallback.</li>
+        </ul>
+        <div class="outcome-row">
+          <div class="outcome pass"><span class="label">PASS</span><span class="desc">→ Livello 4</span></div>
+          <div class="outcome fail"><span class="label">FAIL</span><span class="desc">↺ retry Livello 2 — budget max 3–5 tentativi, poi fallback (Fase A: intervento umano · Fase B: escalation al cloud)</span></div>
+        </div>
+        <div class="note-box"><strong>Nota di design.</strong> Livelli 3 e 5 sono due arbitri di verità distinti, non intercambiabili: il L3 è veloce/automatico ma simulato, il L5 è lento/manuale ma cattura variabili reali che nessuna mesh può prevedere.</div>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 14 34"><line x1="7" y1="0" x2="7" y2="26"/><path d="M7,34 L2,24 L12,24 Z"/></svg></div>
+
+    <!-- L4 -->
+    <div class="node">
+      <div class="node-head">
+        <div><span class="num">04</span><h3>Slicing e stampa</h3></div>
+        <span class="phase-tag a">Fase A</span>
+      </div>
+      <div class="node-body">
+        <p>Slicer con parametri fissi e congelati, versionati. Stampa fisica.</p>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 14 34"><line x1="7" y1="0" x2="7" y2="26"/><path d="M7,34 L2,24 L12,24 Z"/></svg></div>
+
+    <!-- L5 -->
+    <div class="node">
+      <div class="node-head">
+        <div><span class="num">05</span><h3>Validazione fisica (verità ultima)</h3></div>
+        <span class="phase-tag a">Fase A</span>
+      </div>
+      <div class="node-body">
+        <p>Misura reale (calibro), test funzionale (si avvita?). Dato non sostituibile da alcun simulatore.</p>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 14 34"><line x1="7" y1="0" x2="7" y2="26"/><path d="M7,34 L2,24 L12,24 Z"/></svg></div>
+
+    <!-- L6 -->
+    <div class="node">
+      <div class="node-head">
+        <div><span class="num">06</span><h3>Dataset congelato (ground truth)</h3></div>
+        <span class="phase-tag a">Fase A</span>
+      </div>
+      <div class="node-body">
+        <div class="example">{prompt, specifica strutturata L2.5, STL,
+ parametri slicing, macchina, materiale/batch filamento,
+ data, misura fisica, esito PASS/FAIL}</div>
+        <p>Campi minimi realmente misurabili — niente temperatura/umidità promesse ma mai registrate nella pratica. Versionato, immutabile una volta validato.</p>
+        <p><strong>Regola operativa:</strong> da ora in poi, ogni FAIL fisico va registrato con la stessa cura di ogni PASS — non solo "se disponibili".</p>
+        <div class="note-box"><strong>Nota di design.</strong> Il Livello 6 è deliberatamente a valle della validazione fisica, non a monte: un dato entra nel dataset solo dopo essere stato misurato fisicamente, mai prima.</div>
+        <a class="risk-chip" href="#rischio-8">⚠ Rischio #8 — bias di sopravvivenza nel bootstrap retroattivo</a>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 14 34"><line x1="7" y1="0" x2="7" y2="26"/><path d="M7,34 L2,24 L12,24 Z"/></svg></div>
+
+    <!-- L7 -->
+    <div class="node">
+      <div class="node-head">
+        <div><span class="num">07</span><h3>Grounding / RAG ibrido</h3></div>
+      </div>
+      <div class="node-body">
+        <p>Pattern NORTHSTREAM — Qdrant (vector store), retrieval ibrido: filtro esatto sui campi strutturati + similarità semantica sul resto del prompt. Necessario perché "M6 tol.0.3" e "M8 tol.0.3" sono simili per un embedding testuale puro ma geometricamente diversi.</p>
+        <div class="subcards">
+          <div class="subcard a">
+            <div class="stitle">L7-CONSULTIVO — Fase A</div>
+            <p>Disponibile solo dopo il bootstrap del L6. Lookup "un caso quasi identico esiste già" prima di generare — difesa contro le derive del cloud anche in Fase A.</p>
+          </div>
+          <div class="subcard b">
+            <div class="stitle">L7-INTEGRATO — Fase B</div>
+            <p>Lookup integrato nel loop di generazione locale: il modello locale si àncora a precedenti reali invece di generare a vuoto.</p>
+          </div>
+        </div>
+        <div class="note-box"><strong>Nota di design.</strong> Il Livello 7 è ibrido per costruzione: senza filtro esatto sui parametri strutturati, il retrieval confonderebbe pezzi geometricamente diversi ma testualmente simili.</div>
+      </div>
+    </div>
+
+    <div class="connector"><svg viewBox="0 0 14 34"><line x1="7" y1="0" x2="7" y2="26"/><path d="M7,34 L2,24 L12,24 Z"/></svg></div>
+
+    <!-- L8 -->
+    <div class="node phase-b">
+      <div class="node-head">
+        <div><span class="num">08</span><h3>Fine-tuning <em>(futuro, opzionale)</em></h3></div>
+        <span class="phase-tag b">Fase B</span>
+      </div>
+      <div class="node-body">
+        <p>Solo quando il dataset congelato è abbastanza grande. LoRA/QLoRA su Qwen2.5-Coder o simile, con i dati del Livello 6 come ground truth supervisionata.</p>
+        <div class="note-box"><strong>Nota di design.</strong> Intenzionalmente ultimo e opzionale: prematuro finché il dataset non dà segnale di addestramento reale; il RAG da solo può bastare a lungo prima di arrivarci.</div>
+      </div>
+    </div>
+
+  </main>
+
+  <section class="risks">
+    <h2>Rischi e revisioni</h2>
+    <p class="sub">Riferiti dai chip <span class="risk-chip" style="pointer-events:none">⚠ Rischio #N</span> nel diagramma sopra. Testo completo nel documento esteso.</p>
+    <ol class="risk-list">
+      <li id="rischio-1"><p><strong>Massima priorità.</strong> Il motore di generazione locale (L2, Fase B) è l'anello debole dell'architettura: CAD-Recode/cadrille sono modelli 1.5–2B addestrati su dataset sintetici stile DeepCAD, quasi certamente fuori dominio per filettature tolleranziate; LLaMA-Mesh genera mesh artistiche inadatte a 0.3mm. Prima di investire in Fase B, va eseguito un test di fattibilità isolato contro il Livello 3.</p></li>
+      <li id="rischio-2"><p><strong>Tensione tra bisogno dichiarato e soluzione originaria.</strong> Il bisogno reale è la stabilità del workflow contro derive del cloud, non necessariamente l'autonomia da esso. La Fase A risolve già gran parte di questo bisogno da sola, a basso rischio.</p></li>
+      <li id="rischio-3"><p><strong>Verifica parametrica preferita alla verifica su mesh, dove possibile</strong> — istanza del principio "l'IA scrive il programma, il computer esegue". La verifica di integrità mesh resta comunque sempre necessaria, indipendentemente dalla via, perché serve allo slicer.</p></li>
+      <li id="rischio-4"><p><strong>Variabili confondenti nel dataset congelato.</strong> La misura fisica dipende da macchina e materiale/batch filamento, non solo dai parametri di slicing: un caso validato in PLA su una macchina non è ground truth trasferibile a PETG su un'altra.</p></li>
+      <li id="rischio-5"><p><strong>[v2] Il Livello 2.5 è a sua volta un punto di fallimento silenzioso se automatizzato.</strong> Un errore di normalizzazione produce un L3 che verifica correttamente contro una specifica sbagliata — PASS formalmente corretto, sostanzialmente falso, invisibile fino alla stampa. Mitigazione obbligatoria: conferma umana esplicita.</p></li>
+      <li id="rischio-6"><p><strong>[v2] Direzione della dipendenza tra fasi, corretta.</strong> La Fase A è autosufficiente. La Fase B dipende dalla Fase A (usa L3 come metro di giudizio, usa L6 come contenuto per L7) — non il contrario.</p></li>
+      <li id="rischio-7"><p><strong>[v2] Ambiguità codice-vs-mesh dal cloud, da chiarire con Fabrizio.</strong> La modalità parametrica del L3 esiste solo se il cloud produce codice CAD, non STL diretta — da verificare prima di scrivere il Livello 3.</p></li>
+      <li id="rischio-8"><p><strong>[v2] Bias di sopravvivenza nel bootstrap retroattivo.</strong> Se sono stati conservati solo i casi funzionanti, il dataset iniziale sarà tutto PASS: inutile per testare che il verificatore sappia bocciare. Da qui in avanti i FAIL fisici vanno registrati con lo stesso rigore dei PASS.</p></li>
+    </ol>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; width:100%;">
+    <span>CALIPER — diagramma di architettura, versione condensata</span>
+    <span><a href="../index.html">index</a> · <a href="architettura-prototipo-mesh-llm.md">documento completo</a></span>
+  </div>
+</footer>
+
+</body>
+</html>
