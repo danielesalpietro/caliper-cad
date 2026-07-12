@@ -12,6 +12,11 @@ name: caliper
 #                      bisogno di raggiungere nessun altro container.
 #   prusaslicer     -> network_mode: none. CLI batch, solo file, nessuna
 #                      rete necessaria in nessuna direzione.
+#   verifier-executor -> network_mode: none. Esegue codice CadQuery
+#                      generato da un LLM (non fidato): nessuna rete ne'
+#                      in ne' out, comunica col verifier SOLO tramite il
+#                      volume verifier_exec (file di job/risultato), mai
+#                      HTTP diretto.
 # ------------------------------------------------------------------------
 
 networks:
@@ -23,6 +28,7 @@ volumes:
   qdrant_data:
   flowise_data:
   open_webui_data:
+  verifier_exec:
 
 services:
 
@@ -81,6 +87,38 @@ services:
     depends_on:
       - ollama
       - qdrant
+
+  # ---------------- Livello 3 — verificatore ----------------
+  # Script deterministico, NON un nodo Flowise (Rischio #9): richiamabile
+  # via HTTP dall'orchestratore esterno (services/orchestrator/), non da
+  # un Custom Tool dentro Flowise — vedi note su quel bug in
+  # docs/architettura-prototipo-mesh-llm.md. Controllo statico sempre;
+  # esecuzione+misura delegata a verifier-executor via volume condiviso.
+  verifier:
+    build: ./services/verifier
+    container_name: caliper-verifier
+    restart: unless-stopped
+    networks: [caliper-ai]
+    ports:
+      - "8600:8600"
+    volumes:
+      - verifier_exec:/exec
+    depends_on:
+      - verifier-executor
+
+  # ---------------- Livello 3 — esecutore isolato ----------------
+  # Esegue codice CadQuery generato da un LLM: non fidato per
+  # definizione. network_mode: none (nessuna rete, ne' in ne' out) —
+  # comunica col verifier SOLO tramite il volume verifier_exec (file di
+  # job/risultato), mai HTTP diretto. Limiti di CPU/memoria per singolo
+  # job dentro run_and_measure.py, non solo a livello container.
+  verifier-executor:
+    build: ./services/verifier/executor
+    container_name: caliper-verifier-executor
+    restart: unless-stopped
+    network_mode: "none"
+    volumes:
+      - verifier_exec:/exec
 
   # ---------------- Motore di esecuzione — L1, L2.5, L2, L7-consultivo ----------------
   # Le API key dei provider LLM (OpenAI/Gemini/Claude) si configurano

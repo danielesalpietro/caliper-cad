@@ -189,6 +189,13 @@ LIVELLO 3 — VERIFICATORE GEOMETRICO, DOPPIA MODALITÀ  [FASE A]
       - se non c'è codice parametrico (es. via LLaMA-Mesh): misura
         dimensionale ricostruita dalla mesh come fallback
   Output: PASS / FAIL con delta numerico, contro la specifica L2.5
+  [v12, deciso] Prima versione scritta e verificata: servizio FastAPI
+  (services/verifier/), NON un nodo Flowise (Rischio #9) — richiamabile
+  come HTTP tool. Solo controllo statico per ora: sintassi Python
+  (ast.parse), presenza di "import cadquery", assegnazione a "result".
+  Nessuna esecuzione del codice ne' verifica geometrica ancora (fase
+  successiva). Testato sui due output reali del Livello 2 (vedi Stato
+  attuale): entrambi bocciati correttamente, un esempio valido promosso.
         |
    PASS |   FAIL -> retry L2 (vedi policy di retry sotto)
         v
@@ -555,8 +562,99 @@ un'assunzione arbitraria di questo progetto.
       Nota di processo: l'estrazione automatica del chatflow via browser
       non è riuscita in modo affidabile (interazioni UI intermittenti) —
       esportato manualmente dall'utente dalla UI di Flowise invece.
-- [ ] Formato preset (feature ricorrenti pre-configurate) — **non ancora
-      definito**, dipende dallo schema del L2.5
+- [x] **[v12]** Chatflow Livello 2 (Generazione) costruito: Prompt
+      Template → ChatOpenAI (GPT) → LLM Chain, output codice CadQuery
+      testuale (nessun Structured Output Parser, coerente col fatto che
+      l'output è codice non JSON). **Due iterazioni testate su GPT reale,
+      entrambe bocciate**: primo tentativo con API CadQuery inventata
+      (`.helix()` non esiste — verificato, il metodo reale è
+      `cq.Wire.makeHelix`) e commenti privi di `#`; secondo tentativo
+      (prompt affinato) ha corretto l'API ma ha rinunciato a costruire una
+      vera filettatura (cilindro liscio, `pitch` mai usato), inventato
+      `length=10` senza flag, e segnalato come MISSING due campi
+      (`feature`, `measured_as`) che erano invece presenti nell'input —
+      pattern "whack-a-mole": un bug corretto, un altro emerso altrove.
+      Conferma empirica diretta del Rischio #1/#3/#5 anche sul percorso
+      "validato" (GPT, non un modello locale) — motivazione per fermare
+      l'iterazione sul prompt e passare al Livello 3 invece di rincorrere
+      la correttezza via prompt engineering.
+- [x] **[v12]** Livello 3 — prima versione scritta e verificata:
+      `services/verifier/` (FastAPI, `POST /verify`), solo controllo
+      statico (sintassi Python, `import cadquery`, variabile `result`),
+      nessuna esecuzione del codice. Testato sui due output reali del
+      Chatflow L2 sopra: **entrambi bocciati correttamente**, un esempio
+      valido promosso. Limite noto documentato nel codice: una riga come
+      `MISSING: campo` è sintassi Python legale di per sé (bare variable
+      annotation, PEP 526) — il controllo ha funzionato sui due casi reali
+      perché contenevano anche altre righe non annotabili, ma non è una
+      garanzia strutturale contro un output che fosse fatto *solo* di
+      righe in quella forma.
+- [x] **[v13]** Orchestrazione L2→L3 collegata, fuori da Flowise:
+      `services/orchestrator/generate_and_verify.py`. Decisione esplicita
+      di NON usare i nodi Custom Tool/Request Post di Flowise per questo
+      collegamento — hanno bug documentati sull'interpolazione delle
+      variabili (issue FlowiseAI/Flowise #4470, #5150), stessa categoria
+      dei bug già incontrati (ReActAgent, fetch di ChatOllama). Lo script
+      risolve il Chatflow L2 per nome via API Flowise, chiama
+      `/api/v1/prediction/{id}`, passa il codice ottenuto al `verifier`.
+      **Nessun retry automatico ancora**: la Policy di retry richiede
+      "variazione tra un tentativo e l'altro, non semplice ripetizione",
+      che con `temperature=0` su L2 non avrebbe senso finché non si
+      decide la strategia di variazione — lasciato aperto.
+      **Test end-to-end reale**: dopo l'affinamento del prompt L2 (vedi
+      voce precedente), l'API CadQuery è ora corretta
+      (`cq.Wire.makeHelix`) e ogni riga usa `#` correttamente — i due
+      problemi principali sono risolti. Il verifier boccia comunque
+      (`result_variable: FAIL`) perché il modello, correttamente, **non
+      inventa** il profilo geometrico della filettatura (lascia
+      `# MISSING: Profile definition needed`, non assegna `result`).
+      Non è un errore del modello: lo schema L2.5 non specifica da
+      nessuna parte la forma del profilo (es. angolo a 60° delle
+      filettature ISO metriche) — è esattamente il buco già previsto
+      dalla voce "Formato preset" sotto, ora con una conferma empirica
+      concreta invece che solo teorica.
+- [x] **[v14]** Formato preset — primo preset definito e collegato:
+      `services/orchestrator/presets.json`, registro per classe di
+      feature. Solo "thread" (filettatura ISO metrica) e' `defined:
+      true` per ora — standard "ISO 68-1", angolo profilo 60°,
+      `default_tolerance_type: "diametrale"`. press_fit, snap_fit, hole,
+      boss, other restano `defined: false` con una nota su cosa
+      servirebbe, non inventati. `apply_preset()` arricchisce la spec
+      L2.5 con `thread_standard`/`thread_profile_angle_deg` prima di
+      passarla a L2 — senza questo L2 non ha la geometria minima per
+      costruire un profilo (vedi voce precedente).
+- [x] **[v14]** Livello 3 — fase 2 (esecuzione + misura) scritta e
+      verificata: nuovo container `verifier-executor`
+      (`services/verifier/executor/`), CadQuery 2.8.0 reale (non solo
+      controllo statico). **Decisione di sandboxing esplicita**: niente
+      socket Docker montato nel verifier (avrebbe dato al verifier
+      controllo sull'host) — `verifier-executor` ha `network_mode: none`
+      (nessuna rete ne' in ne' out) e comunica col verifier SOLO tramite
+      il volume condiviso `verifier_exec` (file di job/risultato), mai
+      HTTP diretto. Limiti di CPU (10s) e memoria (2GB) per singolo job
+      via `resource.setrlimit`, non solo isolamento a livello container.
+      **Bug reale trovato e corretto durante il test**: OpenBLAS (usato
+      da numpy/cadquery) prealloca memoria per thread in base ai core
+      visibili, non alla dimensione del problema — con `RLIMIT_AS` a
+      1GB falliva l'allocazione anche per uno sweep minuscolo. Risolto
+      fissando `OPENBLAS_NUM_THREADS=1`/`OMP_NUM_THREADS=1` e alzando il
+      limite a 2GB.
+      **Verificato**: timeout CPU testato con un ciclo infinito reale
+      (bocciato correttamente a ~10.6s); il codice del profilo filettato
+      con angolo 60° (vedi voce precedente) ora **esegue senza errori e
+      produce un solido manifold valido** — ma il controllo dimensionale
+      nuovo lo boccia comunque: bounding box misurato 2.0mm contro un
+      nominale M6 di 6.0mm (delta 4.0mm, ben oltre tolleranza 0.3mm).
+      Causa isolata: il profilo a V viene costruito con coordinate
+      locali non allineate alla posizione reale dell'elica nello spazio
+      3D — geometricamente valido ma nel posto sbagliato. **Prova diretta
+      del perche' serve il controllo dimensionale oltre al manifold
+      check**: codice sintatticamente perfetto, API corretta, esecuzione
+      pulita, solido tecnicamente valido — e comunque dimensionalmente
+      sbagliato del 200%. Un esempio con dimensioni corrette (cilindro
+      semplice, non un thread reale) verificato PASS end-to-end.
+      Immagine `verifier-executor`: ~2.77GB (CadQuery+OCP+VTK+numpy+
+      scipy) — aggiornare la stima di capacity in README.md.
 - [ ] **[v7]** Path di mount attesi dall'immagine `billa05/prusacli` —
       **non verificati direttamente** (solo dedotti dalla descrizione del
       repository), da confermare prima del primo uso reale

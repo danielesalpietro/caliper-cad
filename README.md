@@ -212,6 +212,8 @@ architecture doc's risk list. Retrying usually works.
 | `ollama` | local model runtime for the retrieval agent (embedding + chat) | `ollama/ollama` | ~4 GB + models |
 | `qdrant` | vector store for the retrieval agent | `qdrant/qdrant` | ~75 MB |
 | `stream-agent` | retrieval/grounding agent (Livello 7) — adapted from [NORTHSTREAM](https://github.com/danielesalpietro/NORTHSTREAM): indexes the frozen dataset from disk instead of consuming a Kafka stream | built locally | ~300 MB |
+| `verifier` | deterministic verifier (Livello 3) — not a Flowise node (Rischio #9), callable as an HTTP tool. Static checks (Python syntax, `import cadquery`, `result` assignment) always; delegates execution + dimensional measurement to `verifier-executor` via a shared volume | built locally | ~150 MB |
+| `verifier-executor` | isolated execution of LLM-generated CadQuery code (Livello 3, phase 2) — `network_mode: none`, communicates with `verifier` only through the `verifier_exec` volume (job/result files), per-job CPU/memory limits via `resource.setrlimit`. Runs the code, measures the bounding box, compares against the spec's `nominal`±`tolerance` where a preset defines the check | built locally | ~2.8 GB (CadQuery + OCP + VTK) |
 | `open-webui` | chat interface to query the grounded dataset | `ghcr.io/open-webui/open-webui` | ~1.4 GB |
 | `landing-page` | static entry point linking to the other services | `nginx:alpine` | ~40 MB |
 | `prusaslicer` | slicing (Livello 4) — CLI-only, invoked on demand, not a running service; see [prusaslicer-cli-docker](https://github.com/danielesalpietro/prusaslicer-cli-docker) | `billa05/prusacli` | 366 MB |
@@ -221,19 +223,25 @@ architecture doc's risk list. Retrying usually works.
 network. Services that don't are isolated: `landing-page` is static and
 has no backend calls to make; `prusaslicer` runs with `network_mode:
 none` — a file-in, file-out batch job, not a server, has no legitimate
-reason to reach the network in either direction. The same principle used
+reason to reach the network in either direction. `verifier-executor` also
+runs with `network_mode: none`, for a different reason: it executes
+LLM-generated code, which is untrusted by definition — it talks to
+`verifier` only through a shared volume (job/result files), never over
+HTTP, and never gets a socket to the Docker host. The same principle used
 elsewhere in this design (verification separate from generation, dataset
 separate from simulation) applied to container boundaries: isolate what
 doesn't need to talk to anything, share a network only where two services
 genuinely depend on each other.
 
-**Capacity.** ~10 GB compressed image pull (~15–18 GB once
-extracted/running), dominated by `ollama` and `open-webui`. RAM: roughly
-5–8 GB peak across all containers plus the two local models loaded
-(`granite4:1b`, `granite-embedding:30m`). VRAM: ~2.5–3.5 GB for those same
-models — modest relative to a current mid/high-range GPU. None of this is
-required to read or evaluate the architecture; it only matters once
-running the stack locally.
+**Capacity.** ~13 GB compressed image pull (~18–21 GB once
+extracted/running), dominated by `ollama`, `open-webui`, and
+`verifier-executor` (CadQuery/OCP/VTK, ~2.8 GB). RAM: roughly 5–8 GB peak
+across all containers plus the two local models loaded (`granite4:1b`,
+`granite-embedding:30m`); add ~1–2 GB transiently when `verifier-executor`
+runs a job (capped at 2 GB per job via `RLIMIT_AS`). VRAM: ~2.5–3.5 GB for
+those same models — modest relative to a current mid/high-range GPU. None
+of this is required to read or evaluate the architecture; it only matters
+once running the stack locally.
 
 Configuration template: [`.env.example`](.env.example). Slicing profile:
 [`config/prusaslicer/caliper-pla.ini`](config/prusaslicer/caliper-pla.ini).

@@ -1,0 +1,29 @@
+{
+  "thread": {
+    "defined": true,
+    "standard": "ISO 68-1",
+    "profile_angle_deg": 60,
+    "default_tolerance_type": "diametrale",
+    "notes": "Profilo a V simmetrico, angolo incluso 60 gradi (filettatura metrica ISO). Approssimazione triangolare senza troncatura su cresta/nocciolo, adeguata per accoppiamenti funzionali stampati in 3D (vedi Contesto in architettura-prototipo-mesh-llm.md — metodo di partenza gia' validato con questo approccio)."
+  },
+  "press_fit": {
+    "defined": false,
+    "notes": "Non ancora definito. Servono almeno: interferenza diametrale attesa, materiale/rigidita' per stimare la forza di inserimento."
+  },
+  "snap_fit": {
+    "defined": false,
+    "notes": "Non ancora definito. Serve almeno: geometria del gancio (sbalzo, spessore, angolo di ritorno)."
+  },
+  "hole": {
+    "defined": false,
+    "notes": "Non ancora definito — probabilmente non serve un preset dedicato (foro liscio e' geometria diretta, non richiede profilo standard come una filettatura)."
+  },
+  "boss": {
+    "defined": false,
+    "notes": "Non ancora definito."
+  },
+  "other": {
+    "defined": false,
+    "notes": "Nessun preset per definizione — feature non ricorrente/non catalogata."
+  }
+}
