@@ -1,0 +1,160 @@
+name: caliper
+
+# ------------------------------------------------------------------------
+# Reti: isolate dove non serve comunicazione, condivise dove serve.
+#
+#   caliper-ai      -> ollama, qdrant, flowise, stream-agent, open-webui.
+#                      Comunicano davvero fra loro (Flowise/stream-agent
+#                      leggono Ollama e Qdrant; Open WebUI parla con
+#                      stream-agent via endpoint OpenAI-compatible e con
+#                      Ollama via la sua connessione nativa).
+#   caliper-public  -> solo landing-page. Pagina statica con link, non ha
+#                      bisogno di raggiungere nessun altro container.
+#   prusaslicer     -> network_mode: none. CLI batch, solo file, nessuna
+#                      rete necessaria in nessuna direzione.
+# ------------------------------------------------------------------------
+
+networks:
+  caliper-ai:
+  caliper-public:
+
+volumes:
+  ollama_data:
+  qdrant_data:
+  flowise_data:
+  open_webui_data:
+
+services:
+
+  # ---------------- Livello 7 — vector store ----------------
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: caliper-qdrant
+    restart: unless-stopped
+    networks: [caliper-ai]
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  # ---------------- Livello 7 — modelli locali ----------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: caliper-ollama
+    restart: unless-stopped
+    networks: [caliper-ai]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # Richiede NVIDIA Container Toolkit installato sull'host (vedi
+    # nvidia-smi: RTX 5080 16GB, verificata disponibile e quasi libera).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # ---------------- Livello 7 — grounding agent ----------------
+  # Adattato da NORTHSTREAM (vedi Rischio #10): indicizza il Livello 6
+  # da disco invece di consumare uno stream Kafka. Codice in
+  # services/stream-agent/ — vedi app.py per il dettaglio dell'adattamento.
+  stream-agent:
+    build: ./services/stream-agent
+    container_name: caliper-stream-agent
+    restart: unless-stopped
+    networks: [caliper-ai]
+    ports:
+      - "8500:8500"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      QDRANT_URL: http://qdrant:6333
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-granite4:1b}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-granite-embedding:30m}
+      DATASET_DIR: /data/dataset
+      POLL_INTERVAL_SECONDS: "30"
+    volumes:
+      - ${DATA_DIR:-./data}/dataset:/data/dataset:ro
+    depends_on:
+      - ollama
+      - qdrant
+
+  # ---------------- Motore di esecuzione — L1, L2.5, L2, L7-consultivo ----------------
+  # Le API key dei provider LLM (OpenAI/Gemini/Claude) si configurano
+  # dentro la UI di Flowise come credenziali cifrate (FLOWISE_SECRETKEY_OVERWRITE),
+  # non come variabili d'ambiente del container — quelle in .env.example
+  # sono di riferimento per eventuali script esterni (L3, ecc.).
+  flowise:
+    image: flowiseai/flowise:latest
+    container_name: caliper-flowise
+    restart: always
+    networks: [caliper-ai]
+    ports:
+      - "${FLOWISE_PORT:-3000}:${FLOWISE_PORT:-3000}"
+    environment:
+      PORT: ${FLOWISE_PORT:-3000}
+      FLOWISE_USERNAME: ${FLOWISE_USERNAME:-}
+      FLOWISE_PASSWORD: ${FLOWISE_PASSWORD:-}
+      FLOWISE_SECRETKEY_OVERWRITE: ${FLOWISE_SECRETKEY_OVERWRITE:-}
+    volumes:
+      - flowise_data:/root/.flowise
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${FLOWISE_PORT:-3000}/api/v1/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      - ollama
+      - qdrant
+
+  # ---------------- Interfaccia di chat — interroga il Livello 7 ----------------
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: caliper-open-webui
+    restart: unless-stopped
+    networks: [caliper-ai]
+    ports:
+      - "${OPEN_WEBUI_PORT:-3010}:8080"
+    environment:
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-}
+      OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      - open_webui_data:/app/backend/data
+    depends_on:
+      - ollama
+      - stream-agent
+
+  # ---------------- Entry point statico verso lo stack ----------------
+  # Isolata: pagina puramente statica, nessuna chiamata verso altri
+  # container (il browser dell'utente naviga direttamente alle porte
+  # pubblicate qui sotto, il container non deve raggiungerle).
+  landing-page:
+    image: nginx:alpine
+    container_name: caliper-landing
+    restart: unless-stopped
+    networks: [caliper-public]
+    ports:
+      - "${LANDING_PAGE_PORT:-8000}:80"
+    volumes:
+      - ./services/landing/dashboard.html:/usr/share/nginx/html/index.html:ro
+
+  # ---------------- Livello 4 — slicing ----------------
+  # CLI batch, non un servizio long-running: non parte con "docker compose
+  # up" di default (profilo "tools"), si invoca on-demand con
+  # "docker compose run prusaslicer ...". Nessuna rete necessaria.
+  # TODO: verificare i path di mount attesi dall'immagine
+  # billa05/prusacli (non ispezionati direttamente) prima del primo uso
+  # reale — quelli sotto sono una convenzione ragionevole, non confermata.
+  prusaslicer:
+    image: billa05/prusacli:latest
+    container_name: caliper-prusaslicer
+    profiles: ["tools"]
+    network_mode: "none"
+    volumes:
+      - ${DATA_DIR:-./data}/models:/models
+      - ${DATA_DIR:-./data}/gcode:/gcode
+      - ./config/prusaslicer:/config:ro

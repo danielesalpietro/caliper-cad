@@ -427,3 +427,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# CALIPER — artefatti runtime dello stack Docker (specs/models/gcode/dataset
+# generati, non versionati; il profilo PrusaSlicer versionato vive invece in
+# config/prusaslicer/, non qui)
+/data/

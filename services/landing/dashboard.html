@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CALIPER — local stack dashboard</title>
+<style>
+  body{
+    margin:0;
+    background:#FAFAF8;
+    color:#16181A;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    padding:48px 24px;
+  }
+  .wrap{ max-width:640px; margin:0 auto; }
+  h1{ font-size:24px; margin:0 0 8px 0; }
+  p.sub{ color:#5C5F63; margin:0 0 32px 0; }
+  ul{ list-style:none; margin:0; padding:0; }
+  li{
+    border:1px solid #D9D6CC;
+    border-radius:6px;
+    padding:16px 18px;
+    margin-bottom:12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  li a{ color:#1F3A5F; font-weight:600; text-decoration:none; }
+  li a:hover{ text-decoration:underline; }
+  li span{ color:#5C5F63; font-size:13px; font-family:ui-monospace,monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CALIPER — local stack</h1>
+  <p class="sub">Entry point statico verso i servizi Docker in esecuzione. Nessuna logica applicativa propria.</p>
+  <ul>
+    <li><a href="http://localhost:3000" target="_blank">Flowise</a><span>motore di esecuzione — L1, L2.5, L2, L7-consultivo</span></li>
+    <li><a href="http://localhost:3010" target="_blank">Open WebUI</a><span>chat — interroga il Livello 7</span></li>
+    <li><a href="http://localhost:6333/dashboard" target="_blank">Qdrant</a><span>vector store — Livello 7</span></li>
+    <li><a href="http://localhost:11434" target="_blank">Ollama</a><span>modelli locali</span></li>
+    <li><a href="http://localhost:8500/health" target="_blank">stream-agent</a><span>grounding agent — Livello 7</span></li>
+  </ul>
+</div>
+</body>
+</html>

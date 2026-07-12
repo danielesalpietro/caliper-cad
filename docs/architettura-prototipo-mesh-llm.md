@@ -461,25 +461,39 @@ un'assunzione arbitraria di questo progetto.
       stream Kafka a dataset statico (vedi Rischio #10)
 - [x] Concetto del verificatore (Livello 3) definito, ora a doppia modalità
 - [x] **[v3]** Motore di esecuzione deciso: Flowise, scoped ai nodi
-      LLM-centrici (L1, L2.5, L2, L7-consultivo) — non ancora installato
-      né configurato
+      LLM-centrici (L1, L2.5, L2, L7-consultivo)
 - [x] **[v3]** Interfaccia web decisa: Open WebUI (chat) + landing/
-      dashboard page, entrambe riadattate da NORTHSTREAM — non ancora
-      integrate
+      dashboard page, entrambe riadattate da NORTHSTREAM
 - [x] **[v5]** Risolto: il metodo produceva STL diretta — deciso il
       passaggio a doppio output Python -> STEP + STL (vedi Livello 2 e
       Rischio #7)
 - [x] **[v6]** Slicer del Livello 4 deciso: PrusaSlicer CLI headless,
-      containerizzato (pattern `Billa05/prusaslicer-cli-docker`) — profilo
-      `.ini` non ancora scritto, temperature ugello/piatto in sospeso
-      (dipendono dal materiale, vedi Rischio #4)
+      containerizzato (pattern `Billa05/prusaslicer-cli-docker`)
+- [x] **[v7]** Scaffold Docker scritto: `docker-compose.yml` con qdrant,
+      ollama (riserva GPU), flowise, stream-agent (build locale), open-webui,
+      landing-page, prusaslicer (profilo `tools`, on-demand). Reti isolate
+      dove non serve comunicazione (`caliper-public` per la landing page,
+      `network_mode: none` per prusaslicer), condivisa dove serve
+      (`caliper-ai` per qdrant/ollama/flowise/stream-agent/open-webui).
+      Validato con `docker compose config`, non ancora eseguito con
+      `docker compose up` reale
+- [x] **[v7]** Adattamento dello stream-agent da consumer Kafka a indexer
+      del Livello 6 — **scritto**, prima versione: legge periodicamente
+      `DATASET_DIR` da disco e indicizza in Qdrant. Retrieval solo
+      semantico per ora — il filtro esatto sui campi strutturati resta
+      **TODO**, dipende dallo schema L2.5 (vedi Rischio #10)
+- [x] **[v7]** Profilo PrusaSlicer scritto: `config/prusaslicer/caliper-pla.ini`
+      (layer height 0.2mm, 3 perimetri) — temperature ugello/piatto
+      esplicitamente assenti dal file, in attesa della decisione sul
+      materiale (vedi Rischio #4)
+- [x] **[v7]** `.env.example` generato — supporta OpenAI/GPT (anche via
+      endpoint locale tipo LM Studio), Gemini, Claude, Ollama
 - [ ] Schema di specifica strutturata (Livello 2.5) — **non ancora definito**
 - [ ] Formato preset (feature ricorrenti pre-configurate) — **non ancora
       definito**, dipende dallo schema del L2.5
-- [ ] Scaffold Docker (Flowise + stream-agent adattato + Qdrant + Open
-      WebUI + landing page + PrusaSlicer CLI) — **non ancora scritto**
-- [ ] Adattamento dello stream-agent da consumer Kafka a indexer del
-      Livello 6 — **non ancora scritto** (vedi Rischio #10)
+- [ ] **[v7]** Path di mount attesi dall'immagine `billa05/prusacli` —
+      **non verificati direttamente** (solo dedotti dalla descrizione del
+      repository), da confermare prima del primo uso reale
 - [ ] Meccanismo di conferma umana della specifica L2.5 — **non ancora
       progettato** (obbligatorio se il L2.5 è automatizzato via LLM,
       vedi Rischio #5)
@@ -515,18 +529,25 @@ un'assunzione arbitraria di questo progetto.
    con un modello CAD di riferimento costruito in modo convenzionale per
    lo stesso pezzo, per popolare fin da subito il campo diagnostico del
    Livello 6.
-5. **[v3]** Scaffold Docker del motore di esecuzione e dell'interfaccia
-   web decisi sopra: Flowise, stream-agent di NORTHSTREAM adattato al
-   Livello 6 (Qdrant + Ollama), Open WebUI, landing/dashboard page. Passo
-   infrastrutturale, indipendente dal contenuto dei passi 1-4 — può
-   partire in parallelo, ma resta vuoto/non testabile finché L2.5 e L3
-   (passi 1-2) non esistono da collegare.
-6. **[v6]** Scrivere il profilo `.ini` iniziale di PrusaSlicer (layer
-   height 0.2mm, 3 perimetri) e containerizzare la CLI seguendo il pattern
-   `Billa05/prusaslicer-cli-docker`. Temperatura ugello/piatto resta
-   esplicitamente da definire finché la domanda su materiale/marca
-   filamento non è risolta (vedi Rischio #4) — non bloccante per lo
-   scaffold, bloccante per il primo caso reale.
+5. ~~Scaffold Docker del motore di esecuzione e dell'interfaccia web~~
+   **[v7] FATTO** — `docker-compose.yml`, `services/stream-agent/`
+   (adattamento scritto), `services/landing/dashboard.html`,
+   `config/prusaslicer/caliper-pla.ini`, `.env.example`. Validato solo
+   con `docker compose config` (sintassi/risoluzione variabili) — **non
+   ancora eseguito per davvero**: resta vuoto/non testabile end-to-end
+   finché L2.5 e L3 (passi 1-2) non esistono da collegare.
+6. ~~Scrivere il profilo `.ini` iniziale di PrusaSlicer~~ **[v6/v7]
+   FATTO** — vedi `config/prusaslicer/caliper-pla.ini`. Temperatura
+   ugello/piatto resta esplicitamente da definire finché la domanda su
+   materiale/marca filamento non è risolta (vedi Rischio #4) — non
+   bloccante per lo scaffold, bloccante per il primo caso reale.
+7. **[v7]** Verificare i path di mount reali attesi dall'immagine
+   `billa05/prusacli` (non ispezionata direttamente, solo dedotta dalla
+   descrizione del repository) prima di eseguire il servizio
+   `prusaslicer` per la prima volta.
+8. **[v7]** Primo avvio reale dello stack (`docker compose up`, GPU
+   NVIDIA richiesta per `ollama` — verificata disponibile: RTX 5080
+   16GB) e verifica che i modelli Granite si scarichino e rispondano.
 
 La Fase B (motore locale, L7-integrato, fine-tuning) resta condizionata
 all'esito del test di fattibilità del Rischio #1, e dipende dal
