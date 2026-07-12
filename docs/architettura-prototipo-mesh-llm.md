@@ -399,6 +399,20 @@ Il loop di correzione non può essere illimitato:
     dataset statico. Adottarlo per il Livello 7 richiede di sostituire il
     consumer loop con un indexer batch/incrementale sul Livello 6 —
     un adattamento del componente, non solo una configurazione diversa.
+11. **[v10] Affidabilità intermittente di Flowise↔Ollama in
+    `flowiseai/flowise:latest`.** Le chiamate del nodo ChatOllama falliscono
+    a volte con `TypeError: fetch failed` dentro il pacchetto bundlato
+    `@langchain/ollama/node_modules/ollama/dist/browser.cjs` — stesso
+    pattern del bug ReActAgent (Rischio già osservato nello Stato attuale
+    [v8]), probabile problema di bundling dell'immagine, non di rete o di
+    configurazione (connettività diretta e `fetch` nativo di Node
+    funzionano sempre; un riavvio del container non risolve). Non ancora
+    isolato a una causa precisa: un primo test era riuscito con la stessa
+    identica configurazione. Da monitorare prima di costruire flow più
+    complessi su Flowise+Ollama — se persiste, valutare di pinnare una
+    versione diversa di `flowiseai/flowise` o testare in parallelo con un
+    provider cloud (GPT/Gemini) per isolare se il problema è specifico di
+    Ollama.
 
 ## Bootstrap retroattivo del dataset (parallelo al primo prototipo)
 
@@ -500,7 +514,47 @@ un'assunzione arbitraria di questo progetto.
       materiale (vedi Rischio #4)
 - [x] **[v7]** `.env.example` generato — supporta OpenAI/GPT (anche via
       endpoint locale tipo LM Studio), Gemini, Claude, Ollama
-- [ ] Schema di specifica strutturata (Livello 2.5) — **non ancora definito**
+- [x] **[v9]** Primo Chatflow Flowise costruito e testato: "CALIPER - L2.5
+      Specification Normalization" (Prompt Template → Ollama/granite4:1b →
+      LLM Chain → Structured Output Parser). Schema JSON prima versione:
+      `feature` (string), `nominal` (string), `pitch` (number), `tolerance`
+      (number), `tolerance_type` (string), `measured_as` (string). Test
+      reale su "foro filettato M6, tolleranza 0.3mm, passo 1.0" →
+      `tolerance_type` e `measured_as` correttamente lasciati vuoti
+      (comportamento "non indovinare" del Rischio #5 verificato in pratica,
+      non solo teorizzato).
+      **[v10] Corretto**: `feature` estraeva il termine letterale dal
+      prompt ("filettato") invece di normalizzarlo al vocabolario canonico
+      ("thread") — verificato che `granite4:1b` supporta l'italiano
+      nativamente (12 lingue), quindi non era un limite del modello ma
+      un'istruzione mancante nel prompt. Aggiunto vincolo esplicito
+      (enum: thread/press_fit/snap_fit/hole/boss/other + istruzione di
+      normalizzazione linguistica) al Prompt Template, salvato.
+      **Non riverificato end-to-end**: dopo la modifica, le chiamate al
+      Chatflow falliscono in modo intermittente con `TypeError: fetch
+      failed` all'interno di `@langchain/ollama/node_modules/ollama/dist/
+      browser.cjs` (stesso pattern di bundling difettoso già osservato sul
+      bug ReActAgent — probabile problema upstream nell'immagine
+      `flowiseai/flowise:latest`, non della nostra configurazione).
+      Escluso: connettività di rete Flowise→Ollama (`wget` funziona),
+      `fetch` nativo di Node da dentro il container (funziona, sia
+      streaming sia no), riavvio del container Flowise (non risolve). Il
+      primo test (prima della modifica) era riuscito con la stessa identica
+      configurazione — la modifica al prompt non è la causa più probabile.
+      Da tenere presente come rischio di affidabilità di Flowise+Ollama in
+      questa versione dell'immagine, non ancora una causa isolata.
+- [x] **[v11]** Provisioning dei chatflow versionato: il Chatflow L2.5
+      esportato dalla UI e salvato in
+      `services/flowise/chatflows/l25-specification-normalization.json`
+      (+ `manifest.json` per gli import futuri), con uno script idempotente
+      (`services/flowise/import_chatflows.py`) e un servizio dedicato nel
+      compose (`flowise-init`) che lo importa via API usando una API key
+      generata dall'utente — non un token di sessione, per non gestire
+      credenziali applicative all'interno del provisioning stesso.
+      Documentato in [`README.md`](../README.md), sezione 9 (Installation).
+      Nota di processo: l'estrazione automatica del chatflow via browser
+      non è riuscita in modo affidabile (interazioni UI intermittenti) —
+      esportato manualmente dall'utente dalla UI di Flowise invece.
 - [ ] Formato preset (feature ricorrenti pre-configurate) — **non ancora
       definito**, dipende dallo schema del L2.5
 - [ ] **[v7]** Path di mount attesi dall'immagine `billa05/prusacli` —

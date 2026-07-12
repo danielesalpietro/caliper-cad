@@ -196,11 +196,15 @@ for the current design and its own explicit list of unresolved dependencies.
 
 ## 8. Local stack (Docker)
 
-A first working scaffold exists as [`docker-compose.yml`](docker-compose.yml),
+A working scaffold exists as [`docker-compose.yml`](docker-compose.yml),
 covering the execution engine, retrieval, and slicing portions of the
-pipeline. Validated for syntax and variable resolution (`docker compose
-config`); not yet run end-to-end, since the specification schema and
-verifier (Livelli 2.5, 3) don't exist yet to feed it real cases.
+pipeline. Run end-to-end at least once (GPU detected correctly, first
+Flowise chatflow built and tested — see
+[`docs/architettura-prototipo-mesh-llm.md`](docs/architettura-prototipo-mesh-llm.md)
+for the full log). One known intermittent issue: the Flowise↔Ollama
+connection occasionally fails with `fetch failed`, likely an upstream
+bundling bug in `flowiseai/flowise:latest` — not yet isolated, see the
+architecture doc's risk list. Retrying usually works.
 
 | Service | Role | Image | Size |
 |---|---|---|---|
@@ -233,6 +237,82 @@ running the stack locally.
 
 Configuration template: [`.env.example`](.env.example). Slicing profile:
 [`config/prusaslicer/caliper-pla.ini`](config/prusaslicer/caliper-pla.ini).
+
+## 9. Installation
+
+### Prerequisites
+
+- Docker Desktop (or Docker Engine + Compose v2). On Windows, WSL2 backend.
+- NVIDIA Container Toolkit + a CUDA-capable GPU, if you want the retrieval
+  agent's local models on GPU (optional — Ollama falls back to CPU,
+  slower).
+- ~20 GB free disk space (see [Capacity](#8-local-stack-docker) above).
+
+### Steps
+
+1. Clone and copy the environment template:
+
+   ```sh
+   git clone https://github.com/danielesalpietro/caliper-cad.git
+   cd caliper-cad
+   cp .env.example .env
+   ```
+
+2. Start the stack:
+
+   ```sh
+   docker compose up -d
+   ```
+
+   First run pulls ~10 GB of images. `prusaslicer` stays out — it's
+   profile-gated and invoked on demand only (see §8, and the "not
+   verified" note on its mount paths below).
+
+3. Pull the local models into Ollama — not bundled in the image, and not
+   auto-pulled on first request:
+
+   ```sh
+   docker compose exec ollama ollama pull granite4:1b
+   docker compose exec ollama ollama pull granite-embedding:30m
+   ```
+
+4. Open Flowise (`http://localhost:3000`) and register an account — this
+   is Flowise's own local user store, first-run only, unrelated to
+   anything else in the stack. Then go to **Settings → API Keys** and
+   create a key. It cannot exist before this step, so it can't be
+   pre-baked into the image or `.env.example`.
+
+5. Put that key in your local `.env` as `FLOWISE_API_KEY`, then import the
+   chatflows versioned in [`services/flowise/chatflows/`](services/flowise/chatflows):
+
+   ```sh
+   docker compose up flowise-init
+   ```
+
+   Idempotent — safe to re-run. Skips chatflows that already exist by
+   name, so it's also how you pick up newly added ones later.
+
+6. Verify:
+
+   | URL | What you should see |
+   |---|---|
+   | `http://localhost:8000` | landing page, links to everything below |
+   | `http://localhost:3000` | Flowise — "CALIPER - L2.5 Specification Normalization" in the chatflow list |
+   | `http://localhost:3010` | Open WebUI — empty until the Livello 6 dataset has real cases |
+   | `http://localhost:6333/dashboard` | Qdrant |
+
+### What's not automated yet
+
+- No case in the Livello 6 dataset yet — the retrieval agent (Open
+  WebUI / stream-agent) has nothing to ground against until the
+  bootstrap described in
+  [`docs/architettura-prototipo-mesh-llm.md`](docs/architettura-prototipo-mesh-llm.md)
+  happens.
+- Only Livello 2.5 (specification normalization) has a chatflow so far —
+  Livello 2 (generation) doesn't yet.
+- `prusaslicer`'s mount paths (`/models`, `/gcode`, `/config`) are
+  deduced from the upstream repo's description, not inspected directly —
+  confirm before running `docker compose run prusaslicer` for real.
 
 ## Naming
 

@@ -111,6 +111,26 @@ services:
       - ollama
       - qdrant
 
+  # ---------------- Provisioning — importa i chatflow versionati ----------------
+  # One-shot, idempotente: se FLOWISE_API_KEY non è ancora impostata (prima
+  # del primo login/creazione chiave, vedi README) esce senza errore e va
+  # rilanciato a mano dopo: docker compose up flowise-init
+  flowise-init:
+    image: python:3.11-slim
+    container_name: caliper-flowise-init
+    networks: [caliper-ai]
+    volumes:
+      - ./services/flowise:/app:ro
+    working_dir: /app
+    environment:
+      FLOWISE_URL: http://flowise:${FLOWISE_PORT:-3000}
+      FLOWISE_API_KEY: ${FLOWISE_API_KEY:-}
+    command: ["python", "import_chatflows.py"]
+    restart: "no"
+    depends_on:
+      flowise:
+        condition: service_healthy
+
   # ---------------- Interfaccia di chat — interroga il Livello 7 ----------------
   open-webui:
     image: ghcr.io/open-webui/open-webui:main

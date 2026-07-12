@@ -1,0 +1,7 @@
+[
+  {
+    "file": "l25-specification-normalization.json",
+    "name": "CALIPER - L2.5 Specification Normalization",
+    "description": "Livello 1 -> Livello 2.5: normalizza un prompt in linguaggio naturale in una specifica strutturata JSON (Prompt Template -> Ollama/granite4:1b -> LLM Chain -> Structured Output Parser)."
+  }
+]
