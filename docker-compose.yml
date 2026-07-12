@@ -122,6 +122,15 @@ services:
     environment:
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-}
       OLLAMA_BASE_URL: http://ollama:11434
+      # Il RAG proprio di Open WebUI non serve: il grounding vero è
+      # stream-agent+Qdrant (Livello 7). Senza questa riga Open WebUI
+      # scarica al primo avvio un secondo stack di embedding da
+      # HuggingFace (sentence-transformers/all-MiniLM-L6-v2, ~90s) che
+      # non useremo mai — qui puntiamo il suo RAG all'Ollama già in
+      # esecuzione nello stack, riusando granite-embedding:30m invece.
+      RAG_EMBEDDING_ENGINE: ollama
+      RAG_EMBEDDING_MODEL: ${OLLAMA_EMBED_MODEL:-granite-embedding:30m}
+      RAG_OLLAMA_BASE_URL: http://ollama:11434
     volumes:
       - open_webui_data:/app/backend/data
     depends_on:

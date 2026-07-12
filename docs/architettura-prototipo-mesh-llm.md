@@ -475,8 +475,20 @@ un'assunzione arbitraria di questo progetto.
       dove non serve comunicazione (`caliper-public` per la landing page,
       `network_mode: none` per prusaslicer), condivisa dove serve
       (`caliper-ai` per qdrant/ollama/flowise/stream-agent/open-webui).
-      Validato con `docker compose config`, non ancora eseguito con
-      `docker compose up` reale
+      Validato con `docker compose config`.
+- [x] **[v8]** Primo `docker compose up` reale eseguito con successo:
+      GPU rilevata correttamente da Ollama (RTX 5080, CUDA 12.0, 15.9GiB —
+      conferma la stima di capacity), qdrant/stream-agent/landing-page/
+      open-webui su e raggiungibili, Flowise usato end-to-end (account
+      registrato, login). Bug non bloccante rilevato e documentato:
+      `flowiseai/flowise:latest` fallisce a caricare i nodi
+      `ReActAgentChat`/`ReActAgentLLM` per un mismatch di versione in
+      `@langchain/core` (bug upstream, non della nostra config) — non
+      servono per L1/L2.5/L2/L7-consultivo, nessuna azione necessaria.
+      Corretto uno spreco reale: Open WebUI scaricava un secondo stack di
+      embedding da HuggingFace per il proprio RAG interno (non usato, il
+      grounding vero è stream-agent+Qdrant) — ora punta a Ollama via
+      `RAG_EMBEDDING_ENGINE=ollama`, riusando `granite-embedding:30m`
 - [x] **[v7]** Adattamento dello stream-agent da consumer Kafka a indexer
       del Livello 6 — **scritto**, prima versione: legge periodicamente
       `DATASET_DIR` da disco e indicizza in Qdrant. Retrieval solo
