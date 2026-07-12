@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CALIPER — A verification layer for LLM-generated CAD geometry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAFAF8;
+    --paper-dim:#F3F1EA;
+    --ink:#16181A;
+    --graphite:#5C5F63;
+    --line:#D9D6CC;
+    --blueprint:#1F3A5F;
+    --tolerance:#C4471F;
+    --max:920px;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html{ scroll-behavior:smooth; }
+
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Source Serif 4', Georgia, serif;
+    font-size:17px;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  a{ color:var(--blueprint); }
+  a:focus-visible, button:focus-visible{
+    outline:2px solid var(--tolerance);
+    outline-offset:2px;
+  }
+
+  .wrap{
+    max-width:var(--max);
+    margin:0 auto;
+    padding:0 28px;
+  }
+
+  /* ---------- Masthead ---------- */
+
+  .masthead{
+    border-bottom:1px solid var(--ink);
+    padding:40px 0 0 0;
+  }
+
+  .masthead .wrap{ padding-bottom:38px; }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--graphite);
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:28px;
+  }
+
+  .eyebrow span.status{
+    color:var(--tolerance);
+  }
+
+  h1.title{
+    font-family:'Newsreader', Georgia, serif;
+    font-weight:600;
+    font-size:clamp(40px, 7vw, 68px);
+    letter-spacing:-0.01em;
+    margin:0;
+    line-height:1.02;
+  }
+
+  .subtitle{
+    font-family:'Source Serif 4', Georgia, serif;
+    font-style:italic;
+    font-size:19px;
+    color:var(--graphite);
+    max-width:640px;
+    margin:16px 0 0 0;
+  }
+
+  /* signature: dimension line under the title */
+  .dimline{
+    margin-top:26px;
+    width:100%;
+    max-width:560px;
+  }
+  .dimline svg{ width:100%; height:auto; display:block; }
+  .dimline .stroke{
+    stroke:var(--ink);
+    stroke-width:1.4;
+    fill:none;
+  }
+  .dimline .tick{ stroke:var(--ink); stroke-width:1.4; }
+  .dimline text{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    fill:var(--tolerance);
+  }
+  .dimline .measured-label{ fill:var(--graphite); }
+
+  .dim-path{
+    stroke-dasharray:600;
+    stroke-dashoffset:600;
+    animation:draw 1.1s ease-out 0.15s forwards;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .dim-path{ animation:none; stroke-dashoffset:0; }
+  }
+  @keyframes draw{ to{ stroke-dashoffset:0; } }
+
+  /* ---------- Abstract ---------- */
+
+  .abstract{
+    padding:38px 0 40px 0;
+    border-bottom:1px solid var(--line);
+  }
+
+  .abstract .label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--blueprint);
+    display:block;
+    margin-bottom:14px;
+  }
+
+  .abstract p{
+    margin:0;
+    max-width:720px;
+    text-align:justify;
+    hyphens:auto;
+  }
+
+  /* ---------- Paper body ---------- */
+
+  .paper{ padding:44px 0 0 0; }
+
+  section.sec{
+    padding-bottom:46px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:46px;
+  }
+  section.sec:last-of-type{ border-bottom:none; }
+
+  .sec-head{
+    display:grid;
+    grid-template-columns:56px 1fr;
+    gap:18px;
+    align-items:baseline;
+    margin-bottom:18px;
+  }
+
+  .sec-num{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    color:var(--tolerance);
+    border-top:1px solid var(--tolerance);
+    padding-top:6px;
+  }
+
+  h2{
+    font-family:'Newsreader', Georgia, serif;
+    font-weight:600;
+    font-size:26px;
+    margin:0;
+    letter-spacing:-0.005em;
+  }
+
+  .sec-body{
+    display:grid;
+    grid-template-columns:56px 1fr;
+    gap:18px;
+  }
+
+  .sec-body > .col{ grid-column:2; max-width:680px; }
+
+  .sec-body p{ margin:0 0 16px 0; }
+  .sec-body p:last-child{ margin-bottom:0; }
+
+  ul.speclist{
+    margin:0 0 0 0;
+    padding:0;
+    list-style:none;
+  }
+  ul.speclist li{
+    position:relative;
+    padding-left:22px;
+    margin-bottom:14px;
+  }
+  ul.speclist li::before{
+    content:"—";
+    position:absolute;
+    left:0;
+    color:var(--tolerance);
+    font-family:'IBM Plex Mono', monospace;
+  }
+  ul.speclist li:last-child{ margin-bottom:0; }
+  ul.speclist strong{ font-weight:600; }
+
+  ol.pipeline{
+    margin:0;
+    padding:0;
+    list-style:none;
+    counter-reset:step;
+  }
+  ol.pipeline li{
+    counter-increment:step;
+    display:grid;
+    grid-template-columns:34px 1fr;
+    gap:12px;
+    padding:10px 0;
+    border-top:1px dashed var(--line);
+  }
+  ol.pipeline li:first-child{ border-top:none; }
+  ol.pipeline li::before{
+    content:counter(step);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    color:var(--blueprint);
+    padding-top:2px;
+  }
+  ol.pipeline li .step-name{
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:500;
+    font-size:14.5px;
+    color:var(--ink);
+    display:block;
+    margin-bottom:2px;
+  }
+  ol.pipeline li .step-desc{
+    color:var(--graphite);
+    font-size:15.5px;
+  }
+
+  .not-list{
+    margin:0;
+    padding:0;
+    list-style:none;
+  }
+  .not-list li{
+    padding:14px 0;
+    border-top:1px solid var(--line);
+  }
+  .not-list li:first-child{ border-top:none; }
+
+  /* open questions */
+  .questions{
+    margin:0;
+    padding:0;
+    list-style:none;
+    counter-reset:q;
+  }
+  .questions li{
+    counter-increment:q;
+    padding:18px 0 18px 0;
+    border-top:1px solid var(--line);
+    display:grid;
+    grid-template-columns:30px 1fr;
+    gap:14px;
+  }
+  .questions li:first-child{ border-top:none; }
+  .questions li::before{
+    content:"Q" counter(q);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--tolerance);
+    padding-top:3px;
+  }
+  .questions .q-text{ font-style:italic; }
+  .questions-note{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    color:var(--graphite);
+    margin-top:20px;
+    padding-top:16px;
+    border-top:1px dashed var(--line);
+  }
+
+  .status-box{
+    background:var(--paper-dim);
+    border:1px solid var(--line);
+    padding:22px 24px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14px;
+    line-height:1.9;
+  }
+  .status-box .row{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    border-bottom:1px dashed var(--line);
+    padding:6px 0;
+  }
+  .status-box .row:last-child{ border-bottom:none; }
+  .status-box .yes{ color:var(--blueprint); }
+  .status-box .no{ color:var(--tolerance); }
+
+  code{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.88em;
+    background:var(--paper-dim);
+    padding:1px 5px;
+    border:1px solid var(--line);
+  }
+
+  /* ---------- Footer ---------- */
+
+  footer{
+    border-top:1px solid var(--ink);
+    padding:26px 0 40px 0;
+  }
+  footer .wrap{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    flex-wrap:wrap;
+    gap:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--graphite);
+    letter-spacing:0.02em;
+  }
+  footer a{ color:var(--graphite); text-decoration-color:var(--line); }
+
+  @media (max-width: 640px){
+    .sec-head{ grid-template-columns:1fr; gap:6px; }
+    .sec-num{ border-top:none; padding-top:0; }
+    .sec-body{ grid-template-columns:1fr; }
+    .sec-body > .col{ grid-column:1; }
+    .questions li{ grid-template-columns:24px 1fr; }
+    .abstract p{ text-align:left; }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">
+      <span>Architecture note · working repository</span>
+      <span class="status">status: concept / pre-implementation</span>
+    </div>
+    <h1 class="title">CALIPER</h1>
+    <p class="subtitle">A verification layer for LLM-generated CAD geometry — measured before it is trusted.</p>
+
+    <div class="dimline" aria-hidden="true">
+      <svg viewBox="0 0 560 46" preserveAspectRatio="xMinYMid meet">
+        <line class="tick" x1="2" y1="6" x2="2" y2="24"/>
+        <line class="tick" x1="558" y1="6" x2="558" y2="24"/>
+        <path class="stroke dim-path" d="M2,15 H558" />
+        <path class="stroke dim-path" d="M2,15 l8,-4 M2,15 l8,4" />
+        <path class="stroke dim-path" d="M558,15 l-8,-4 M558,15 l-8,4" />
+        <text x="230" y="40" class="measured-label">GENERATED</text>
+        <text x="440" y="40">Ø e ±0.3</text>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="abstract">
+    <span class="label">Abstract</span>
+    <p>
+      Large language models can now generate parametric CAD code and
+      triangulated mesh geometry directly from natural-language descriptions,
+      including dimensioned features such as threaded fits toleranced to
+      tenths of a millimeter. What is missing is not generation capability
+      but an independent, deterministic layer that verifies a generated
+      geometry against its stated specification before that geometry is
+      trusted &mdash; for slicing, for manufacturing, or for reuse. CALIPER is
+      a proposed architecture for that verification layer: a structured
+      specification format, a geometric and parametric checker, and a
+      ground-truth dataset built from physically measured outcomes &mdash;
+      designed to sit between any generation model, cloud or local, and any
+      downstream manufacturing step. The pipeline is structured as
+      composable nodes with feature-specific presets rather than a
+      monolithic script. This repository currently contains the
+      architecture design and a set of open questions, not a working
+      implementation.
+    </p>
+  </section>
+
+  <main class="paper">
+
+    <section class="sec" id="motivation">
+      <div class="sec-head">
+        <span class="sec-num">01</span>
+        <h2>Motivation</h2>
+      </div>
+      <div class="sec-body">
+        <div class="col">
+          <p>
+            Precision mechanical design &mdash; threaded fits, press fits,
+            clearances specified to tenths of a millimeter &mdash; has
+            traditionally required either a trained CAD operator or a
+            dedicated CAM/CAE toolchain. A separate and largely undocumented
+            practice has emerged around general-purpose LLMs: prompting them
+            with detailed geometric and dimensional descriptions to generate
+            mesh or parametric geometry, then slicing and 3D printing it
+            directly, with tolerances tight enough for functional mechanical
+            fits.
+          </p>
+          <p>
+            This works, some of the time, on some models. It is not yet a
+            method with a name, a benchmark, or a way to know in advance
+            whether a given prompt will succeed. There is currently no
+            widely available tool that:
+          </p>
+          <ul class="speclist">
+            <li>translates a natural-language dimensional specification into a
+              <strong>structured, unambiguous form</strong> &mdash; tolerance
+              type, nominal value, measurement convention;</li>
+            <li>checks a generated geometry against that specification
+              <strong>before</strong> it is sliced;</li>
+            <li>records the physically measured outcome as ground truth,
+              strictly <strong>downstream</strong> of any simulated or purely
+              geometric check;</li>
+            <li>uses that ground truth to inform future generations, rather
+              than starting from an unconditioned prompt every time.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="limitations">
+      <div class="sec-head">
+        <span class="sec-num">02</span>
+        <h2>Limitations of cloud LLMs, today</h2>
+      </div>
+      <div class="sec-body">
+        <div class="col">
+          <p>
+            Cloud-hosted general-purpose models are, at present, the only
+            widely available models capable of the geometric reasoning this
+            task requires. Relying on them for a precision-dependent
+            workflow introduces failure modes outside the control of the
+            person using them &mdash; none specific to one vendor, all
+            structural to the category:
+          </p>
+          <ul class="speclist">
+            <li><strong>Silent model drift</strong> &mdash; a provider can
+              update weights or behavior at any time; the same prompt can
+              silently produce a different result, with no version pin
+              available to the end user.</li>
+            <li><strong>Increasing conversational abstraction</strong> &mdash;
+              as models are tuned toward general-purpose, safety-conscious
+              use, literal numerical instructions appear more likely to be
+              paraphrased or "helpfully" reinterpreted &mdash; the opposite
+              of what a tolerance-critical task requires.</li>
+            <li><strong>No first-class geometric verification</strong>
+              &mdash; a language model can be asked to check its own output,
+              but it is not a deterministic geometric kernel; that is not
+              equivalent to measuring it.</li>
+            <li><strong>No persistent, addressable memory of what
+              worked</strong> &mdash; each session starts over; nothing
+              surfaces "this exact feature was already solved" before
+              generating from scratch.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="approach">
+      <div class="sec-head">
+        <span class="sec-num">03</span>
+        <h2>Approach</h2>
+      </div>
+      <div class="sec-body">
+        <div class="col">
+          <p>The design separates concerns into a sequenced pipeline. Full detail in <code>docs/architecture.md</code>.</p>
+          <ol class="pipeline">
+            <li><span class="step-name">Specification normalization</span><span class="step-desc">natural language &rarr; structured, human-confirmed JSON, decoding constrained to schema where automated</span></li>
+            <li><span class="step-name">Generation</span><span class="step-desc">cloud or local model, swappable; temperature fixed at 0 for feasibility testing &mdash; reproducibility, not accuracy</span></li>
+            <li><span class="step-name">Verification</span><span class="step-desc">deterministic, non-LLM &mdash; not a second model grading the first, but a script or a physical measurement</span></li>
+            <li><span class="step-name">Slicing &amp; printing</span><span class="step-desc">fixed, versioned parameters</span></li>
+            <li><span class="step-name">Physical validation</span><span class="step-desc">sole source of ground truth &mdash; not substitutable by simulation</span></li>
+            <li><span class="step-name">Frozen dataset</span><span class="step-desc">recorded only after physical measurement &mdash; successes and failures alike</span></li>
+            <li><span class="step-name">Retrieval</span><span class="step-desc">new prompts checked against validated cases before generation</span></li>
+            <li><span class="step-name">Fine-tuning</span><span class="step-desc">future, conditional on dataset size &mdash; not a starting point</span></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="execution">
+      <div class="sec-head">
+        <span class="sec-num">04</span>
+        <h2>Execution model: nodes and presets</h2>
+      </div>
+      <div class="sec-body">
+        <div class="col">
+          <p>
+            Each pipeline stage is, in practice, a node &mdash; typed input,
+            typed output, independently testable, replaceable without
+            touching the others. Cloud and local generation, for instance,
+            are two implementations of the same node. A <strong>preset</strong>
+            is a ready-made configuration for a recurring mechanical feature
+            class &mdash; ISO metric thread, press fit, snap fit &mdash;
+            pre-filling the specification schema and default tolerance
+            convention for that feature.
+          </p>
+          <p>
+            Three ways to execute this pipeline were considered: a custom
+            workflow/graph engine; reusing an existing automation platform
+            such as n8n via a custom node package; or a lightweight
+            declarative runner with no graph UI. The project starts with the
+            declarative runner &mdash; lowest cost, testable immediately
+            &mdash; while designing node boundaries clean enough to become
+            an n8n node package later, without promising a graph interface
+            that does not exist yet.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="not">
+      <div class="sec-head">
+        <span class="sec-num">05</span>
+        <h2>What this is not</h2>
+      </div>
+      <div class="sec-body">
+        <div class="col">
+          <ul class="not-list">
+            <li>Not a new CAD generation model &mdash; intended to sit in front of existing ones, cloud or open-source, indifferent to which is used.</li>
+            <li>Not a claim that any specific small open-weight model can currently replace large cloud models for this task &mdash; that is an open, untested question.</li>
+            <li>Not a production tool. At this stage: an architecture and a set of falsifiable open questions.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="questions">
+      <div class="sec-head">
+        <span class="sec-num">06</span>
+        <h2>Open questions</h2>
+      </div>
+      <div class="sec-body">
+        <div class="col">
+          <ol class="questions">
+            <li><span class="q-text">Does a specification-to-geometry pipeline actually require a large general-purpose LLM, or is the geometric reasoning narrow enough for a small, task-specific model once enough ground-truth data exists?</span></li>
+            <li><span class="q-text">Can a deterministic verifier catch failure modes that matter physically &mdash; e.g. interference on a helical thread &mdash; from mesh alone, without parametric or B-rep data?</span></li>
+            <li><span class="q-text">How much physically-measured data is "enough" before retrieval-based grounding meaningfully changes generation quality?</span></li>
+            <li><span class="q-text">Is tolerance-specification ambiguity better resolved by a stricter input format, an interactive confirmation step, or both together?</span></li>
+            <li><span class="q-text">Does this approach generalize beyond threaded mechanical fits, or does each feature class require its own verification logic?</span></li>
+          </ol>
+          <p class="questions-note">No answers are asserted here. Contributions that answer, partially answer, or sharpen any of these are the most useful kind this project can receive right now.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="status">
+      <div class="sec-head">
+        <span class="sec-num">07</span>
+        <h2>Status</h2>
+      </div>
+      <div class="sec-body">
+        <div class="col">
+          <div class="status-box">
+            <div class="row"><span>Architecture defined</span><span class="yes">yes</span></div>
+            <div class="row"><span>Specification format (JSON schema)</span><span class="no">not yet</span></div>
+            <div class="row"><span>Preset format</span><span class="no">not yet</span></div>
+            <div class="row"><span>Declarative pipeline runner</span><span class="no">not yet</span></div>
+            <div class="row"><span>Verification code</span><span class="no">not yet</span></div>
+            <div class="row"><span>Ground-truth dataset</span><span class="no">not yet</span></div>
+            <div class="row"><span>Local-generation feasibility test</span><span class="no">not yet</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>CALIPER &mdash; working name, unreviewed for namespace conflicts</span>
+    <span><a href="README.md">README</a> &middot; <a href="docs/architecture.md">architecture</a> &middot; license: TBD</span>
+  </div>
+</footer>
+
+</body>
+</html>
