@@ -141,13 +141,16 @@ fit" — that pre-fills the specification schema and default tolerance
 convention for that feature, reducing how much free-form interpretation
 step 1 has to do.
 
-Three ways to execute this pipeline were considered: (a) a custom
-workflow/graph engine, (b) reusing an existing automation platform such as
-n8n via a custom node package, (c) a lightweight declarative runner
-(YAML/JSON pipelines, no graph UI). The project starts with (c) — lowest
-cost, testable immediately — while designing node boundaries clean enough
-to become an n8n node package later, without promising a graph UI that
-does not exist yet.
+**Execution engine:** [Flowise](https://flowiseai.com/) (LangChain-based,
+drag-and-drop, native Qdrant node) orchestrates the LLM-centric nodes —
+specification normalization, generation, consultive retrieval. It is not a
+fit for deterministic or physical-side-effect steps (verification, slicing,
+physical measurement, dataset write); those stay external scripts, invoked
+as Custom Tool/HTTP calls, never rewritten inside a flow node. Web
+interface: [NORTHSTREAM](https://github.com/danielesalpietro/NORTHSTREAM)'s
+Open WebUI (chat, to query the grounded dataset) and its landing/dashboard
+page, reused in place of a custom UI. See [§8](#8-local-stack-docker) for
+the concrete container setup.
 
 ## 5. What this is not
 
@@ -190,6 +193,46 @@ Architecture defined. No verification code written yet. No dataset
 collected yet. See
 [`docs/architettura-prototipo-mesh-llm.md`](docs/architettura-prototipo-mesh-llm.md)
 for the current design and its own explicit list of unresolved dependencies.
+
+## 8. Local stack (Docker)
+
+A first working scaffold exists as [`docker-compose.yml`](docker-compose.yml),
+covering the execution engine, retrieval, and slicing portions of the
+pipeline. Validated for syntax and variable resolution (`docker compose
+config`); not yet run end-to-end, since the specification schema and
+verifier (Livelli 2.5, 3) don't exist yet to feed it real cases.
+
+| Service | Role | Image | Size |
+|---|---|---|---|
+| `flowise` | execution engine — input, specification normalization, generation, consultive retrieval (Livelli 1, 2.5, 2, 7) | `flowiseai/flowise` | ~950 MB |
+| `ollama` | local model runtime for the retrieval agent (embedding + chat) | `ollama/ollama` | ~4 GB + models |
+| `qdrant` | vector store for the retrieval agent | `qdrant/qdrant` | ~75 MB |
+| `stream-agent` | retrieval/grounding agent (Livello 7) — adapted from [NORTHSTREAM](https://github.com/danielesalpietro/NORTHSTREAM): indexes the frozen dataset from disk instead of consuming a Kafka stream | built locally | ~300 MB |
+| `open-webui` | chat interface to query the grounded dataset | `ghcr.io/open-webui/open-webui` | ~1.4 GB |
+| `landing-page` | static entry point linking to the other services | `nginx:alpine` | ~40 MB |
+| `prusaslicer` | slicing (Livello 4) — CLI-only, invoked on demand, not a running service; see [prusaslicer-cli-docker](https://github.com/danielesalpietro/prusaslicer-cli-docker) | `billa05/prusacli` | 366 MB |
+
+**Networking.** Services that genuinely need to reach each other
+(`flowise`, `stream-agent`, `open-webui`, `ollama`, `qdrant`) share one
+network. Services that don't are isolated: `landing-page` is static and
+has no backend calls to make; `prusaslicer` runs with `network_mode:
+none` — a file-in, file-out batch job, not a server, has no legitimate
+reason to reach the network in either direction. The same principle used
+elsewhere in this design (verification separate from generation, dataset
+separate from simulation) applied to container boundaries: isolate what
+doesn't need to talk to anything, share a network only where two services
+genuinely depend on each other.
+
+**Capacity.** ~10 GB compressed image pull (~15–18 GB once
+extracted/running), dominated by `ollama` and `open-webui`. RAM: roughly
+5–8 GB peak across all containers plus the two local models loaded
+(`granite4:1b`, `granite-embedding:30m`). VRAM: ~2.5–3.5 GB for those same
+models — modest relative to a current mid/high-range GPU. None of this is
+required to read or evaluate the architecture; it only matters once
+running the stack locally.
+
+Configuration template: [`.env.example`](.env.example). Slicing profile:
+[`config/prusaslicer/caliper-pla.ini`](config/prusaslicer/caliper-pla.ini).
 
 ## Naming
 
