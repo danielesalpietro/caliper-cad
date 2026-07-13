@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CALIPER — local stack</title>
+<style>
+  :root{
+    --bg:#FAFAF8; --panel:#FFFFFF; --border:#D9D6CC; --text:#16181A;
+    --muted:#5C5F63; --accent:#1F3A5F; --accent-soft:#EAF0F7;
+    --ok:#1E8E3E; --down:#C5221F; --unknown:#B58900;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    display:flex; min-height:100vh;
+  }
+  /* ---------------- sidebar ---------------- */
+  nav.side{
+    width:220px; flex:none; background:var(--panel);
+    border-right:1px solid var(--border); padding:24px 0;
+    display:flex; flex-direction:column;
+  }
+  nav.side .brand{ padding:0 20px 20px 20px; font-weight:700; font-size:17px; }
+  nav.side .brand span{ color:var(--muted); font-weight:400; display:block; font-size:12px; margin-top:2px; }
+  nav.side button{
+    all:unset; cursor:pointer; padding:10px 20px; font-size:14px; color:var(--muted);
+    border-left:3px solid transparent;
+  }
+  nav.side button:hover{ background:var(--accent-soft); color:var(--text); }
+  nav.side button.active{ color:var(--accent); font-weight:600; border-left-color:var(--accent); background:var(--accent-soft); }
+
+  /* ---------------- main ---------------- */
+  main{ flex:1; padding:40px 48px; max-width:900px; }
+  h1{ font-size:22px; margin:0 0 4px 0; }
+  p.sub{ color:var(--muted); margin:0 0 28px 0; font-size:14px; }
+
+  .tab{ display:none; }
+  .tab.active{ display:block; }
+
+  /* ---------------- service cards ---------------- */
+  ul.services{ list-style:none; margin:0; padding:0; }
+  li.card{
+    background:var(--panel); border:1px solid var(--border); border-radius:8px;
+    padding:16px 18px; margin-bottom:12px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+  }
+  .card-main{ display:flex; align-items:center; gap:14px; min-width:0; }
+  .level-badge{
+    flex:none; font-size:11px; font-weight:600; color:var(--accent);
+    background:var(--accent-soft); border-radius:4px; padding:3px 8px;
+    white-space:nowrap;
+  }
+  .card-text{ min-width:0; }
+  .card-text .name{ font-weight:600; font-size:14px; }
+  .card-text .desc{ color:var(--muted); font-size:12.5px; margin-top:2px; }
+  .card-actions{ flex:none; display:flex; align-items:center; gap:10px; }
+  .status-dot{ width:9px; height:9px; border-radius:50%; background:var(--unknown); flex:none; }
+  .status-dot.up{ background:var(--ok); }
+  .status-dot.down{ background:var(--down); }
+  .status-dot.not-found, .status-dot.on-demand{ background:#9AA0A6; }
+  .status-label{ font-size:11.5px; color:var(--muted); width:78px; }
+  .btn{
+    font-size:12.5px; font-weight:600; padding:6px 10px; border-radius:5px;
+    border:1px solid var(--border); background:var(--panel); color:var(--text);
+    text-decoration:none; cursor:pointer;
+  }
+  .btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn[disabled], a.btn.disabled{ opacity:.4; pointer-events:none; }
+
+  /* ---------------- static info tabs ---------------- */
+  .info-block{ margin-bottom:22px; }
+  .info-block h3{ font-size:14px; margin:0 0 6px 0; }
+  .info-block p, .info-block li{ font-size:13.5px; color:var(--muted); line-height:1.6; }
+  .info-block code{ background:var(--accent-soft); padding:1px 5px; border-radius:3px; font-size:12.5px; }
+</style>
+</head>
+<body>
+
+<nav class="side">
+  <div class="brand">CALIPER<span>local stack</span></div>
+  <button data-tab="panoramica" class="active">Panoramica</button>
+  <button data-tab="rete">Rete</button>
+  <button data-tab="capacity">Capacity</button>
+  <button data-tab="installazione">Installazione</button>
+</nav>
+
+<main>
+
+  <section id="tab-panoramica" class="tab active">
+    <h1>Servizi</h1>
+    <p class="sub">Ordinati per livello di pipeline (L1 in alto). Stato letto lato server ogni 8s; log in sola lettura via un proxy Docker con permessi solo GET — nessun controllo di avvio/stop/restart in questa pagina.</p>
+    <ul class="services" id="service-list"></ul>
+  </section>
+
+  <section id="tab-rete" class="tab">
+    <h1>Rete</h1>
+    <p class="sub">Isolata dove non serve comunicazione, condivisa dove serve.</p>
+    <div class="info-block">
+      <h3>caliper-ai</h3>
+      <p>ollama, qdrant, flowise, stream-agent, verifier, open-webui. Comunicano davvero fra loro.</p>
+    </div>
+    <div class="info-block">
+      <h3>caliper-public</h3>
+      <p>solo questa dashboard. Eccezione multi-homed dello stack: sta anche su <code>caliper-ai</code> perche' deve leggere lo stato degli altri servizi e i log tramite il proxy Docker — non e' piu' una pagina puramente statica.</p>
+    </div>
+    <div class="info-block">
+      <h3>docker-socket-proxy</h3>
+      <p>unico punto che tocca <code>/var/run/docker.sock</code>. Espone solo GET su <code>/containers</code> (lista, inspect, log) — <code>POST=0</code> blocca ogni azione di scrittura, niente start/stop/restart/exec, per scelta esplicita, non solo perche' la UI non li mostra.</p>
+    </div>
+    <div class="info-block">
+      <h3>verifier-executor / prusaslicer</h3>
+      <p><code>network_mode: none</code> — nessuna rete ne' in ne' out. Il verifier-executor esegue codice generato da un LLM (non fidato per definizione) e comunica col verifier solo tramite un volume condiviso, mai HTTP diretto.</p>
+    </div>
+  </section>
+
+  <section id="tab-capacity" class="tab">
+    <h1>Capacity</h1>
+    <p class="sub">Stime, valide solo eseguendo lo stack in locale.</p>
+    <div class="info-block">
+      <p>~13 GB di pull immagini compresse (~18–21 GB estratte/in esecuzione), dominato da <code>ollama</code>, <code>open-webui</code> e <code>verifier-executor</code> (CadQuery/OCP/VTK, ~2.8 GB).</p>
+      <p>RAM: 5–8 GB di picco su tutti i container piu' i due modelli locali (<code>granite4:1b</code>, <code>granite-embedding:30m</code>); +1–2 GB transitori quando <code>verifier-executor</code> esegue un job (limite 2 GB per job via <code>RLIMIT_AS</code>).</p>
+      <p>VRAM: ~2.5–3.5 GB per gli stessi modelli.</p>
+    </div>
+  </section>
+
+  <section id="tab-installazione" class="tab">
+    <h1>Installazione</h1>
+    <p class="sub">Versione breve — dettaglio completo nel README, sezione 9.</p>
+    <div class="info-block">
+      <ul>
+        <li>Docker Desktop/Engine + Compose v2, GPU NVIDIA opzionale per Ollama</li>
+        <li>Copiare <code>.env.example</code> in <code>.env</code> e compilare</li>
+        <li><code>docker compose up -d</code></li>
+        <li><code>docker compose exec ollama ollama pull granite4:1b</code> e <code>granite-embedding:30m</code></li>
+        <li>Creare un account Flowise, generare una API key, poi <code>docker compose up flowise-init</code></li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<script>
+document.querySelectorAll('nav.side button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav.side button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+const STATUS_LABEL = {
+  up: 'attivo', down: 'non raggiungibile', 'not-found': 'non avviato',
+  unknown: 'sconosciuto', 'on-demand': 'on-demand',
+};
+
+let services = [];
+
+function renderServices() {
+  const list = document.getElementById('service-list');
+  list.innerHTML = services.map(s => `
+    <li class="card" data-id="${s.id}">
+      <div class="card-main">
+        <span class="level-badge">${s.level}</span>
+        <div class="card-text">
+          <div class="name">${s.name}</div>
+          <div class="desc">${s.description}</div>
+        </div>
+      </div>
+      <div class="card-actions">
+        <span class="status-dot ${s.on_demand ? 'on-demand' : 'unknown'}" data-role="dot"></span>
+        <span class="status-label" data-role="label">${s.on_demand ? 'on-demand' : '...'}</span>
+        ${s.open_url ? `<a class="btn" href="${s.open_url}" target="_blank" rel="noopener">Apri</a>` : `<span class="btn disabled">Apri</span>`}
+        <a class="btn" href="/api/logs/${s.id}" target="_blank" rel="noopener">Log</a>
+      </div>
+    </li>
+  `).join('');
+}
+
+async function loadServices() {
+  const res = await fetch('/api/services');
+  services = await res.json();
+  renderServices();
+  pollStatus();
+}
+
+async function pollStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const statuses = await res.json();
+    statuses.forEach(({ id, status }) => {
+      const card = document.querySelector(`li.card[data-id="${id}"]`);
+      if (!card) return;
+      const svc = services.find(s => s.id === id);
+      if (svc && svc.on_demand) return; // il dot resta grigio "on-demand", non ha senso attivo/non attivo
+      const dot = card.querySelector('[data-role="dot"]');
+      const label = card.querySelector('[data-role="label"]');
+      dot.className = 'status-dot ' + status;
+      label.textContent = STATUS_LABEL[status] || status;
+    });
+  } catch (e) {
+    // rete della dashboard verso gli altri servizi non raggiungibile: non
+    // rompere la UI, i dot restano nell'ultimo stato noto
+  }
+}
+
+loadServices();
+setInterval(pollStatus, 8000);
+</script>
+
+</body>
+</html>

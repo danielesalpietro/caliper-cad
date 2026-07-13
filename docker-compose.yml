@@ -17,6 +17,20 @@ name: caliper
 #                      in ne' out, comunica col verifier SOLO tramite il
 #                      volume verifier_exec (file di job/risultato), mai
 #                      HTTP diretto.
+#   dashboard       -> UNICA eccezione multi-homed: sta su caliper-ai E
+#                      caliper-public. Deve leggere lo stato degli altri
+#                      servizi (server-side, evita CORS) e i log tramite
+#                      docker-socket-proxy — non e' piu' una pagina
+#                      puramente statica come la vecchia landing-page.
+#   docker-socket-proxy -> unico container che tocca
+#                      /var/run/docker.sock. CONTAINERS=1 e LOGS=1 (solo
+#                      GET su lista/inspect/log), POST=0 blocca ogni
+#                      azione di scrittura (niente start/stop/restart/
+#                      exec/create/delete) — la dashboard non ha ne' offre
+#                      controlli del genere, per scelta esplicita (vedi
+#                      Rischio in docs/architettura-prototipo-mesh-llm.md).
+#                      Nessuna porta pubblicata verso l'host: raggiungibile
+#                      solo dalla dashboard, sulla rete caliper-ai.
 # ------------------------------------------------------------------------
 
 networks:
@@ -195,19 +209,45 @@ services:
       - ollama
       - stream-agent
 
-  # ---------------- Entry point statico verso lo stack ----------------
-  # Isolata: pagina puramente statica, nessuna chiamata verso altri
-  # container (il browser dell'utente naviga direttamente alle porte
-  # pubblicate qui sotto, il container non deve raggiungerle).
-  landing-page:
-    image: nginx:alpine
-    container_name: caliper-landing
+  # ---------------- Proxy Docker in sola lettura — per la dashboard ----------------
+  # Unico container che tocca /var/run/docker.sock. La sicurezza sta nelle
+  # variabili d'ambiente qui sotto (ACL del proxy stesso), non nel flag
+  # ":ro" sul mount — quel flag protegge solo il file del socket da essere
+  # sostituito, non limita le operazioni raggiungibili attraverso di esso.
+  # CONTAINERS=1 + LOGS=1 abilitano solo GET su lista/inspect/log;
+  # POST=0 blocca esplicitamente ogni azione di scrittura.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: caliper-docker-proxy
     restart: unless-stopped
-    networks: [caliper-public]
-    ports:
-      - "${LANDING_PAGE_PORT:-8000}:80"
+    networks: [caliper-ai]
+    environment:
+      CONTAINERS: 1
+      LOGS: 1
+      POST: 0
     volumes:
-      - ./services/landing/dashboard.html:/usr/share/nginx/html/index.html:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # ---------------- Dashboard — entry point verso lo stack ----------------
+  # Sostituisce la vecchia landing-page statica: mostra lo stato (via
+  # health-check server-side) e i log (via docker-socket-proxy) di ogni
+  # servizio, ordinati per livello di pipeline. Nessun controllo di
+  # avvio/stop/restart per scelta esplicita — vedi
+  # services/dashboard/app.py e la voce di rischio corrispondente in
+  # docs/architettura-prototipo-mesh-llm.md.
+  dashboard:
+    build: ./services/dashboard
+    container_name: caliper-dashboard
+    restart: unless-stopped
+    networks: [caliper-ai, caliper-public]
+    ports:
+      - "${DASHBOARD_PORT:-8000}:8000"
+    environment:
+      FLOWISE_PORT: ${FLOWISE_PORT:-3000}
+      OPEN_WEBUI_PORT: ${OPEN_WEBUI_PORT:-3010}
+      DOCKER_PROXY_URL: http://docker-socket-proxy:2375
+    depends_on:
+      - docker-socket-proxy
 
   # ---------------- Livello 4 — slicing ----------------
   # CLI batch, non un servizio long-running: non parte con "docker compose

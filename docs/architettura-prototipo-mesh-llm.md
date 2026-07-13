@@ -655,6 +655,46 @@ un'assunzione arbitraria di questo progetto.
       semplice, non un thread reale) verificato PASS end-to-end.
       Immagine `verifier-executor`: ~2.77GB (CadQuery+OCP+VTK+numpy+
       scipy) — aggiornare la stima di capacity in README.md.
+- [x] **[v15]** Landing page sostituita da una dashboard vera:
+      `services/dashboard/` (FastAPI + statica). Card per servizio,
+      **ordinate per livello di pipeline (L1 in alto)**, con stato
+      (verde/rosso), link "Apri" verso l'URL del servizio e link "Log"
+      per la diagnostica. Sidebar con sezioni read-only (Rete, Capacity,
+      Installazione) — contenuto statico, nessun backend dedicato per
+      quelle.
+      **Decisione esplicita, non implicita**: niente bottoni start/stop/
+      restart. Discussa con l'utente prima di scrivere codice (stessa
+      classe di rischio gia' scartata per il verifier — vedi Rischio #9
+      e la nota su `network_mode: none` per verifier-executor): dare a un
+      pannello raggiungibile da browser accesso di scrittura a Docker
+      equivale a dargli controllo sull'host. Tre opzioni presentate,
+      scelta la piu' conservativa.
+      **Meccanismo**: nuovo container `docker-socket-proxy`
+      (`tecnativa/docker-socket-proxy`), unico punto che monta
+      `/var/run/docker.sock`. La sicurezza sta nelle sue variabili
+      d'ambiente (`CONTAINERS=1`, `LOGS=1`, `POST=0`), non nel flag `:ro`
+      sul mount — quel flag protegge solo il file del socket dall'essere
+      sostituito, non limita le operazioni raggiungibili attraverso di
+      esso (e' un socket, non un file di dati). `POST=0` blocca ogni
+      azione di scrittura (start/stop/restart/exec/create/delete) anche
+      se `dashboard` provasse a chiamarla — non e' un limite lato client,
+      e' imposto dal proxy stesso. Nessuna porta pubblicata verso l'host:
+      raggiungibile solo da `dashboard`, sulla rete `caliper-ai`.
+      **Stato letto senza Docker quando possibile**: per i servizi con un
+      endpoint HTTP (`flowise`, `verifier`, `stream-agent`, `qdrant`,
+      `ollama`, `open-webui`) lo stato e' un health-check HTTP vero e
+      proprio ("sta rispondendo?"), fatto lato server dalla dashboard
+      stessa (evita CORS — Ollama/Qdrant/Flowise non lo abilitano di
+      default — e non richiede al browser di raggiungere i container
+      direttamente). Solo per `verifier-executor` e `prusaslicer` (nessuna
+      porta pubblicata) lo stato cade sul proxy Docker (`Running` da
+      `docker inspect`), unico caso in cui serve davvero.
+      **Eccezione di rete deliberata**: `dashboard` e' l'unico servizio
+      multi-homed dello stack (`caliper-ai` + `caliper-public`) — a
+      differenza della vecchia landing-page statica, deve raggiungere sia
+      gli altri servizi che il proxy Docker.
+      Rinominata la variabile d'ambiente `LANDING_PAGE_PORT` in
+      `DASHBOARD_PORT` (stesso default 8000) in `.env`/`.env.example`.
 - [ ] **[v7]** Path di mount attesi dall'immagine `billa05/prusacli` —
       **non verificati direttamente** (solo dedotti dalla descrizione del
       repository), da confermare prima del primo uso reale

@@ -215,23 +215,29 @@ architecture doc's risk list. Retrying usually works.
 | `verifier` | deterministic verifier (Livello 3) — not a Flowise node (Rischio #9), callable as an HTTP tool. Static checks (Python syntax, `import cadquery`, `result` assignment) always; delegates execution + dimensional measurement to `verifier-executor` via a shared volume | built locally | ~150 MB |
 | `verifier-executor` | isolated execution of LLM-generated CadQuery code (Livello 3, phase 2) — `network_mode: none`, communicates with `verifier` only through the `verifier_exec` volume (job/result files), per-job CPU/memory limits via `resource.setrlimit`. Runs the code, measures the bounding box, compares against the spec's `nominal`±`tolerance` where a preset defines the check | built locally | ~2.8 GB (CadQuery + OCP + VTK) |
 | `open-webui` | chat interface to query the grounded dataset | `ghcr.io/open-webui/open-webui` | ~1.4 GB |
-| `landing-page` | static entry point linking to the other services | `nginx:alpine` | ~40 MB |
+| `dashboard` | entry point to the stack — per-service status (server-side health checks) and read-only logs, ordered by pipeline level; no start/stop/restart by design (see Networking below) | built locally | ~150 MB |
+| `docker-socket-proxy` | the only container that touches `/var/run/docker.sock`, scoped to `CONTAINERS=1`, `LOGS=1`, `POST=0` — list/inspect/logs only, every write action (start/stop/restart/exec/create/delete) rejected regardless of caller | `tecnativa/docker-socket-proxy` | ~15 MB |
 | `prusaslicer` | slicing (Livello 4) — CLI-only, invoked on demand, not a running service; see [prusaslicer-cli-docker](https://github.com/danielesalpietro/prusaslicer-cli-docker) | `billa05/prusacli` | 366 MB |
 
 **Networking.** Services that genuinely need to reach each other
-(`flowise`, `stream-agent`, `open-webui`, `ollama`, `qdrant`) share one
-network. Services that don't are isolated: `landing-page` is static and
-has no backend calls to make; `prusaslicer` runs with `network_mode:
-none` — a file-in, file-out batch job, not a server, has no legitimate
-reason to reach the network in either direction. `verifier-executor` also
-runs with `network_mode: none`, for a different reason: it executes
-LLM-generated code, which is untrusted by definition — it talks to
-`verifier` only through a shared volume (job/result files), never over
-HTTP, and never gets a socket to the Docker host. The same principle used
-elsewhere in this design (verification separate from generation, dataset
-separate from simulation) applied to container boundaries: isolate what
-doesn't need to talk to anything, share a network only where two services
-genuinely depend on each other.
+(`flowise`, `stream-agent`, `open-webui`, `ollama`, `qdrant`, `verifier`)
+share one network. Services that don't are isolated: `prusaslicer` runs
+with `network_mode: none` — a file-in, file-out batch job, not a server,
+has no legitimate reason to reach the network in either direction.
+`verifier-executor` also runs with `network_mode: none`, for a different
+reason: it executes LLM-generated code, which is untrusted by definition
+— it talks to `verifier` only through a shared volume (job/result files),
+never over HTTP, and never gets a socket to the Docker host.
+`docker-socket-proxy` publishes no port to the host at all — reachable
+only from `dashboard`, over the internal network. `dashboard` itself is
+the one deliberate exception to "isolate what doesn't need to talk to
+anything": it's multi-homed (both networks), because unlike the old
+static landing page it needs to reach every other service for
+server-side status checks (client-side `fetch()` would hit CORS on
+services that don't set the header, and would also mean the browser
+reaching containers directly) and to reach `docker-socket-proxy` for
+logs. It **cannot** start, stop, or restart anything — that capability
+was deliberately left out; see the risk entry in the architecture doc.
 
 **Capacity.** ~13 GB compressed image pull (~18–21 GB once
 extracted/running), dominated by `ollama`, `open-webui`, and
@@ -304,7 +310,7 @@ Configuration template: [`.env.example`](.env.example). Slicing profile:
 
    | URL | What you should see |
    |---|---|
-   | `http://localhost:8000` | landing page, links to everything below |
+   | `http://localhost:8000` | dashboard — status + read-only logs for every service, ordered by pipeline level |
    | `http://localhost:3000` | Flowise — "CALIPER - L2.5 Specification Normalization" in the chatflow list |
    | `http://localhost:3010` | Open WebUI — empty until the Livello 6 dataset has real cases |
    | `http://localhost:6333/dashboard` | Qdrant |
