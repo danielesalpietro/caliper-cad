@@ -59,6 +59,42 @@ un motore fisico. I punti di misura (facce/edge di riferimento) vanno
 dichiarati nella specifica L2.5 — è un'estensione dello schema, non solo
 del codice del verificatore.
 
+## Timeout e isolamento computazionale (sweep/boolean OCC)
+
+Punto sollevato esplicitamente prima di scrivere codice: lo sweep
+elicoidale per TC2 (e le interferenze statiche per TC1/TC3) sono
+operazioni booleane OCC (`BOPAlgo`/`BRepAlgoAPI_Common`), un punto debole
+noto su geometrie quasi-degeneri o quasi-tangenti — esattamente il tipo di
+difetto che un'elica mal costruita da un LLM può produrre (vedi `[v14]`).
+Possono diventare molto lente senza essere un loop infinito in senso
+stretto.
+
+**Stato attuale (verificato nel codice, non assunto):**
+`services/verifier/executor/watcher.py` ha già un timeout wall-clock
+esterno (`subprocess.run(..., timeout=15)`, SIGKILL incondizionato) e
+`run_and_measure.py` ha già un `RLIMIT_CPU` auto-imposto (10s, SIGXCPU) —
+due livelli, uno interno che si autolimita, uno esterno che non si fida
+del primo. Corretto come pattern, ma **il budget è tarato per
+`exec(code)` + bbox, condiviso con qualunque nuovo controllo aggiunto
+nello stesso processo/subprocess.**
+
+**Decisione:** il gauge-check (interferenza/sweep/distanza minima) va
+lanciato come **subprocess separato**, con timeout proprio e
+indipendente da quello di `exec(code)`:
+- mantiene stretto il budget per codice non fidato (non concede più
+  tempo a un exec() malevolo solo perché serve più tempo alla geometria);
+- permette un budget diverso (probabilmente più ampio) per un'operazione
+  OCC nota per essere più pesante ma eseguita su un solido già passato il
+  check di validità/manifold;
+- produce un `error` distinguibile (`gauge_check_timeout` vs
+  `execution_timeout`) — diagnosticamente utile nel tempo per separare
+  "codice generato male" da "geometria valida ma sweep pesante".
+
+**Il numero non è scelto a intuito.** Va misurato empiricamente durante
+il batch di M2 sulle geometrie di controllo (worst-case osservato ×
+margine) — stesso metodo già usato per il bug OpenBLAS/RLIMIT_AS
+(trovato per misura diretta, non per assunzione, vedi `[v14]`).
+
 ## Milestone (criterio di accettazione, mantenuto)
 
 Esecuzione batch automatica dei tre test case su geometrie **note,
@@ -75,6 +111,11 @@ volta e riusarli per entrambi gli scopi, non duplicare il lavoro.
 
 ## Stato
 
+- [ ] Gauge-check separato dall'esecuzione del codice in un subprocess
+      indipendente, con timeout proprio (`gauge_check_timeout` distinto
+      da `execution_timeout`)
+- [ ] Timeout del gauge-check calibrato empiricamente sul worst-case
+      osservato durante il batch, non stimato a priori
 - [ ] TC1: calibri pin GO/NO-GO modellati, controllo interferenza
       statico+sweep implementato e verificato su geometria nota
 - [ ] TC2: calibro ad anello GO/NO-GO filettato modellato, sweep elicoidale
