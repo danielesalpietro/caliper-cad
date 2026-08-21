@@ -130,6 +130,18 @@ per chi implementa M4:
   li esegue tutti su ogni push/PR verso `develop`. Chi implementa M4 deve
   aggiungere lì i propri nuovi script di verifica, non lasciarli solo
   eseguibili a mano.
+- **README.md e index.html.** Erano rimasti indietro rispetto allo stato
+  reale — `index.html` fermo a prima di M1 (tabella di stato con
+  "Verification code: not yet", falso da quando esiste
+  `gauge_check.py`), `README.md` con lo status banner in cima ancora
+  "no verification code written" mentre la tabella dei servizi più sotto
+  già descriveva il gauge-check di M1 — due fonti di verità in
+  contraddizione nello stesso file. **Regola per ogni milestone da qui in
+  avanti:** quando lo stato di `docs/logbook.md` cambia (una milestone
+  raggiunge il criterio di accettazione, o viene mergiata), aggiornare
+  nella stessa PR anche lo status banner e la sezione Status di
+  `README.md` e la tabella di stato di `index.html` — non lasciarli
+  disallineati fino alla prossima volta che qualcuno se ne accorge.
 
 ## Riferimenti
 
