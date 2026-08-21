@@ -25,6 +25,18 @@ Due pezzi separati, per costruzione:
    di confronto controllato — quella resta lavoro successivo, serve
    volume).
 
+[M4, vedi docs/logbook_fase4.md] RetryBudget accetta ora 'feature' e
+'spec_key' (opzionali, per compatibilita' con gli usi esistenti che non
+li passano) e li scrive su OGNI record. Questo e' lo schema del "log del
+collaudo virtuale" richiesto da M4 — estensione di questo formato
+esistente invece di un formato parallelo (vedi "Punto di partenza gia'
+esistente" in docs/logbook_fase4.md): 'source: virtual' era gia'
+obbligatorio dal M2, qui si aggiunge il filtro esatto sui campi
+strutturati che serve al Livello 7 (virtual_memory.py) per riconoscere
+quando due tentativi appartengono alla STESSA strategia (stessa feature +
+stessa spec nominale/tolleranza + stessa strategia L2), non solo allo
+stesso case_id di un singolo run.
+
 Riserva onesta (gia' in docs/logbook_fase2.md, ripetuta qui perche'
 governa il comportamento del codice): l'enum e i suoi enunciati sono
 un'ipotesi non validata ("timeout in fase iniziale = profilo troppo
@@ -114,9 +126,17 @@ class RetryBudget:
     """Budget di tentativi per un singolo caso (case_id), con log
     strutturato per tentativo — vedi docstring del modulo."""
 
-    def __init__(self, case_id: str | None = None, max_attempts: int = MAX_RETRY_ATTEMPTS):
+    def __init__(
+        self,
+        case_id: str | None = None,
+        max_attempts: int = MAX_RETRY_ATTEMPTS,
+        feature: str | None = None,
+        spec_key: str | None = None,
+    ):
         self.case_id = case_id or str(uuid.uuid4())
         self.max_attempts = max_attempts
+        self.feature = feature
+        self.spec_key = spec_key
         self.history: list[dict] = []
 
     def record_attempt(
@@ -133,6 +153,8 @@ class RetryBudget:
 
         record = {
             "case_id": self.case_id,
+            "feature": self.feature,
+            "spec_key": self.spec_key,
             "attempt": attempt,
             "directive_used": directive_used,
             "outcome": outcome,

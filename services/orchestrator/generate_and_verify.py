@@ -64,6 +64,11 @@ Variabili d'ambiente:
     L2_STRATEGY             "free_code" (default) o "sketch_first" (M3)
     L2_SKETCH_CHATFLOW_NAME default "CALIPER - L2 Generation (Sketch-First)"
     L2_SKETCH_CHATFLOW_ID   se impostata, salta la ricerca per nome (sketch_first)
+    L6_DATASET_DIR          [M4] directory del dataset Livello 6 (misura fisica reale,
+                            vedi virtual_memory.py) usata per la regola anti-bias.
+                            Assente/inesistente = nessuna corroborazione fisica
+                            possibile = MAI esclusione (fail-open verso la
+                            generazione, mai verso l'esclusione)
 """
 
 import json
@@ -75,6 +80,7 @@ import urllib.request
 from retry_policy import MAX_RETRY_ATTEMPTS, RetryBudget, classify_checkpoint, directive_text_for
 from sketch_compiler import compile_thread_sketch_to_code
 from sketch_schema import SketchValidationError, validate_sketch_spec
+from virtual_memory import should_exclude_strategy, spec_key as compute_spec_key
 
 PRESETS_PATH = os.path.join(os.path.dirname(__file__), "presets.json")
 
@@ -102,6 +108,9 @@ L2_CHATFLOW_ID = os.getenv("L2_CHATFLOW_ID", "").strip()
 L2_STRATEGY = os.getenv("L2_STRATEGY", "free_code").strip()
 L2_SKETCH_CHATFLOW_NAME = os.getenv("L2_SKETCH_CHATFLOW_NAME", "CALIPER - L2 Generation (Sketch-First)")
 L2_SKETCH_CHATFLOW_ID = os.getenv("L2_SKETCH_CHATFLOW_ID", "").strip()
+
+# [M4] Vedi virtual_memory.py e docs/logbook_fase4.md.
+L6_DATASET_DIR = os.getenv("L6_DATASET_DIR", "").strip()
 
 SKETCH_FIRST_SUPPORTED_FEATURES = ("thread",)
 
@@ -355,6 +364,21 @@ def main():
         print("-> Nessun collaudo Go/No-Go per questa feature (preset senza gauge_check_mode) — solo /verify.")
 
     print(f"-> Strategia L2: {L2_STRATEGY}")
+
+    # [M4, vedi docs/logbook_fase4.md e virtual_memory.py] Consultare la
+    # memoria del collaudo virtuale PRIMA di generare — sia prima di
+    # spendere qualunque chiamata di rete (nessuna chiamata a Flowise,
+    # nemmeno resolve_chatflow_id, se la strategia e' esclusa). La
+    # spec_key include la strategia L2 stessa: free_code e sketch_first
+    # sono percorsi distinti, un'esclusione sull'uno non tocca l'altro.
+    feature = enriched_spec.get("feature", "")
+    key = compute_spec_key(feature, {**enriched_spec, "l2_strategy": L2_STRATEGY})
+    exclude, reason = should_exclude_strategy(feature, {**enriched_spec, "l2_strategy": L2_STRATEGY}, dataset_dir=L6_DATASET_DIR or None)
+    print(f"-> Memoria del collaudo virtuale (spec_key={key}): {reason}")
+    if exclude:
+        print("\n=== Strategia scartata dalla memoria del collaudo virtuale — generazione NON avviata. ===")
+        return 1
+
     try:
         chatflow_id = resolve_chatflow_id(L2_STRATEGY)
     except (RuntimeError, urllib.error.HTTPError) as e:
@@ -362,7 +386,7 @@ def main():
         return 1
     print(f"-> Chatflow L2: {chatflow_id}")
 
-    budget = RetryBudget()
+    budget = RetryBudget(feature=feature, spec_key=key)
     print(f"-> case_id: {budget.case_id}")
 
     directive, directive_text = None, None
