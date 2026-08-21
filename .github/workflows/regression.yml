@@ -123,3 +123,12 @@ jobs:
       - name: verify_gauge_check_loop_wiring.py — M3, collegamento /gauge-check nel retry loop (mock)
         working-directory: services/orchestrator
         run: python verify_gauge_check_loop_wiring.py
+
+      # --- M4 (docs/logbook_fase4.md) ---
+      - name: verify_virtual_memory.py — M4, regola anti-bias (corroborazione fisica)
+        working-directory: services/orchestrator
+        run: python verify_virtual_memory.py
+
+      - name: verify_virtual_memory_loop_gate.py — M4, gate anti-bias nel loop reale (mock rete)
+        working-directory: services/orchestrator
+        run: python verify_virtual_memory_loop_gate.py
