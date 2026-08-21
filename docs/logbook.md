@@ -98,15 +98,38 @@ i principi già stabiliti nel resto del progetto.
 
 | # | Nome | Issue | Logbook | Stato |
 |---|---|---|---|---|
-| M1 | Scaffold di isolamento + calibri di riferimento | [#2](https://github.com/danielesalpietro/caliper-cad/issues/2) | [logbook_fase1.md](logbook_fase1.md) | 🟢 criterio di accettazione raggiunto — protocollo/codice + primo calibro reale M6, verificati end-to-end (PASS/FAIL, volume, determinismo). Non ancora eseguito dentro il container `verifier-executor` reale (nessun Docker in sandbox, stesso codice validato fuori) |
-| M2 | Controlli geometrici deterministici, validati su geometrie note | [#3](https://github.com/danielesalpietro/caliper-cad/issues/3) | [logbook_fase2.md](logbook_fase2.md) | 🟢 criterio di accettazione raggiunto — TC1/TC2/TC3 verificati indipendentemente, timeout ricalibrato su misura reale (65.5s CPU worst-case), retry L3→L2 implementato. PR [#8](https://github.com/danielesalpietro/caliper-cad/pull/8), non ancora mergiata |
-| M3 | Pipeline sketch-first → compilazione → collaudo (ambito: preset "thread") | [#4](https://github.com/danielesalpietro/caliper-cad/issues/4) | [logbook_fase3.md](logbook_fase3.md) | 🟡 criterio di accettazione parzialmente raggiunto — schema/compilatore/wiring del gauge-check nel loop costruiti e verificati con casi scritti a mano (3 bug reali trovati e corretti: STEP mai esportato da `run_and_measure.py`, timeout HTTP del gauge-check non ricalibrato, `spec` mai inoltrata a `/verify`); l'esecuzione end-to-end reale con una generazione L2 vera **non è stata possibile** (nessuna istanza Flowise nel sandbox) e non è stata simulata con un mock della generazione |
+| M1 | Scaffold di isolamento + calibri di riferimento | [#2](https://github.com/danielesalpietro/caliper-cad/issues/2) | [logbook_fase1.md](logbook_fase1.md) | 🟢 mergiata in `develop` ([#7](https://github.com/danielesalpietro/caliper-cad/pull/7)) — protocollo/codice + primo calibro reale M6, verificati end-to-end (PASS/FAIL, volume, determinismo). Non ancora eseguito dentro il container `verifier-executor` reale (nessun Docker in sandbox, stesso codice validato fuori) |
+| M2 | Controlli geometrici deterministici, validati su geometrie note | [#3](https://github.com/danielesalpietro/caliper-cad/issues/3) | [logbook_fase2.md](logbook_fase2.md) | 🟢 mergiata in `develop` ([#8](https://github.com/danielesalpietro/caliper-cad/pull/8)) — TC1/TC2/TC3 verificati indipendentemente, timeout ricalibrato su misura reale (65.5s CPU worst-case), retry L3→L2 implementato |
+| M3 | Pipeline sketch-first → compilazione → collaudo (ambito: preset "thread") | [#4](https://github.com/danielesalpietro/caliper-cad/issues/4) | [logbook_fase3.md](logbook_fase3.md) | 🟡 mergiata in `develop` ([#11](https://github.com/danielesalpietro/caliper-cad/pull/11)), criterio di accettazione parzialmente raggiunto — schema/compilatore/wiring del gauge-check nel loop costruiti e verificati con casi scritti a mano (3 bug reali trovati e corretti: STEP mai esportato da `run_and_measure.py`, timeout HTTP del gauge-check non ricalibrato, `spec` mai inoltrata a `/verify`); l'esecuzione end-to-end reale con una generazione L2 vera **non è stata possibile** (nessuna istanza Flowise nel sandbox) e non è stata simulata con un mock della generazione |
 | M4 | Chiusura del loop di retrieval, firewall simulato/fisico | [#5](https://github.com/danielesalpietro/caliper-cad/issues/5) | [logbook_fase4.md](logbook_fase4.md) | 🔲 non iniziata |
 
 Le milestone sono sequenziali per dipendenza tecnica (M2 richiede M1, M3
 richiede M2, M4 richiede M3 e il Livello 6 esistente) — non per calendario:
 nessuna scadenza è fissata qui, coerentemente con lo stato "concept /
 pre-implementazione" del progetto.
+
+## Processo di handoff e CI (a valle di M1-M3)
+
+Due correzioni di processo dopo la chiusura di M1-M3, entrambe rilevanti
+per chi implementa M4:
+
+- **Handoff.** Una sessione partita da `develop` prima che M1/M2 fossero
+  mergiati non ha trovato `docs/handoff_m3.md` (viveva solo su un branch
+  non mergiato) — ha dovuto ricostruire il contesto alla cieca. Causa e
+  correzione in dettaglio: issue
+  [#9](https://github.com/danielesalpietro/caliper-cad/issues/9). Con
+  M1-M3 ora mergiati in `develop`, questo problema specifico è risolto
+  per M4 in poi — ma la regola resta: ogni handoff futuro va anche come
+  commento autosufficiente sull'issue della milestone, non solo come file
+  su un branch.
+- **CI.** 12 script di verifica eseguibili a mano si sono accumulati tra
+  M1/M2/M3 (nessuna suite automatica nel progetto, vedi
+  `architettura-prototipo-mesh-llm.md`), rieseguiti manualmente ad ogni
+  revisione invece di restare verdi in automatico. Aggiunto
+  [`.github/workflows/regression.yml`](../.github/workflows/regression.yml):
+  li esegue tutti su ogni push/PR verso `develop`. Chi implementa M4 deve
+  aggiungere lì i propri nuovi script di verifica, non lasciarli solo
+  eseguibili a mano.
 
 ## Riferimenti
 
