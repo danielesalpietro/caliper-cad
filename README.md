@@ -4,8 +4,14 @@
 
 *Working name — see [Naming](#naming). Not yet checked for namespace conflicts.*
 
-**Status:** concept / pre-implementation. Architecture defined, no
-verification code written, no dataset collected.
+**Status:** early prototype. Architecture defined; the deterministic
+verification layer (Livello 3 — Go/No-Go gauge checks, dimensional
+checks, a sketch-first generation path) is implemented and independently
+verified for the ISO metric thread feature class (milestones M1–M3, see
+[`docs/logbook.md`](docs/logbook.md)). No live end-to-end run with a real
+generation model yet (needs a running Flowise instance, not available in
+the sandboxes these milestones were built in); no ground-truth dataset
+collected yet.
 
 ---
 
@@ -23,8 +29,13 @@ parametric checker, and a ground-truth dataset built from physically
 measured outcomes — designed to sit between any generation model, cloud or
 local, and any downstream manufacturing step. The pipeline is structured
 as composable nodes with feature-specific presets rather than a monolithic
-script. This repository currently contains the architecture design and a
-set of open questions, not a working implementation.
+script. This repository contains the architecture design, a set of open
+questions, and — as of milestones M1–M3 — a working, independently
+verified deterministic verification layer for one feature class (ISO
+metric threads, plus scaffolding for two more); the generation
+orchestration, ground-truth dataset, and retrieval stages remain largely
+undeveloped. See [`docs/logbook.md`](docs/logbook.md) for the current
+state in detail.
 
 ## 1. Motivation
 
@@ -189,10 +200,38 @@ this project can receive right now.
 
 ## 7. Status
 
-Architecture defined. No verification code written yet. No dataset
-collected yet. See
+Architecture defined. See
 [`docs/architettura-prototipo-mesh-llm.md`](docs/architettura-prototipo-mesh-llm.md)
-for the current design and its own explicit list of unresolved dependencies.
+for the full design and its own explicit list of unresolved dependencies.
+
+A separate, more recent thread of work — the "Ciclo di Collaudo
+Virtuale" (virtual gauging cycle), tracked in
+[`docs/logbook.md`](docs/logbook.md) — has since built and independently
+verified real code for Livello 3 (verification), scoped to the ISO
+metric thread feature class:
+
+- **M1–M2 (merged, done):** a CPU-only, deterministic Go/No-Go gauge
+  checker (`services/verifier/executor/gauge_check.py`) — exact B-Rep
+  boolean interference, swept interference along an insertion/screwing
+  path, exact minimum-distance checks — against versioned reference
+  gauges (`config/gauges/`), plus a retry policy for the generation loop
+  (`services/orchestrator/retry_policy.py`).
+- **M3 (merged, partially done):** a "sketch-first" generation path — a
+  validated JSON schema for 2D sketch constraints
+  (`services/orchestrator/sketch_schema.py`) compiled to CadQuery
+  (`sketch_compiler.py`) — wired into the retry loop end-to-end and
+  verified against hand-written test cases. **Not yet done:** a real run
+  with a live generation model (no Flowise instance available in the
+  sandboxes this was built in) — see open issue
+  [#4](https://github.com/danielesalpietro/caliper-cad/issues/4).
+- **M4 (not started):** closing the retrieval loop — see open issue
+  [#5](https://github.com/danielesalpietro/caliper-cad/issues/5).
+
+12 verification scripts accumulated across M1–M3 now run automatically
+on every push/PR via [`.github/workflows/regression.yml`](.github/workflows/regression.yml).
+
+No ground-truth dataset (Livello 6) has been collected yet, and no local-
+generation feasibility test (Rischio #1) has been run.
 
 ## 8. Local stack (Docker)
 
@@ -213,7 +252,7 @@ architecture doc's risk list. Retrying usually works.
 | `qdrant` | vector store for the retrieval agent | `qdrant/qdrant` | ~75 MB |
 | `stream-agent` | retrieval/grounding agent (Livello 7) — adapted from [NORTHSTREAM](https://github.com/danielesalpietro/NORTHSTREAM): indexes the frozen dataset from disk instead of consuming a Kafka stream | built locally | ~300 MB |
 | `verifier` | deterministic verifier (Livello 3) — not a Flowise node (Rischio #9), callable as an HTTP tool. Static checks (Python syntax, `import cadquery`, `result` assignment) always; delegates execution + dimensional measurement to `verifier-executor` via a shared volume | built locally | ~150 MB |
-| `verifier-executor` | isolated execution of LLM-generated CadQuery code (Livello 3, phase 2) — `network_mode: none`, communicates with `verifier` only through the `verifier_exec` volume (job/result files), per-job CPU/memory limits via `resource.setrlimit`. Runs the code, measures the bounding box, compares against the spec's `nominal`±`tolerance` where a preset defines the check. **[M1]** Also runs the virtual Go/No-Go gauge check (`gauge_check.py`, static B-Rep interference) as a separate subprocess with its own timeout, comparing a known part STEP against a known gauge STEP — two extra read-only mounts, `${DATA_DIR:-./data}/models` and `config/gauges/` (see [`config/gauges/README.md`](config/gauges/README.md)); no new HTTP route | built locally | ~2.8 GB (CadQuery + OCP + VTK) |
+| `verifier-executor` | isolated execution of LLM-generated CadQuery code (Livello 3, phase 2) — `network_mode: none`, communicates with `verifier` only through the `verifier_exec` volume (job/result files), per-job CPU/memory limits via `resource.setrlimit`. Runs the code, measures the bounding box, compares against the spec's `nominal`±`tolerance` where a preset defines the check, and (**[M3]**) exports the validated solid as STEP to a writable subfolder of the same volume (`/exec/parts`) so a gauge check can run against it. **[M1–M2]** Also runs the virtual Go/No-Go gauge check (`gauge_check.py`) as a separate subprocess with its own empirically-calibrated timeout — static B-Rep interference, interference swept along an insertion/screwing path, or exact minimum-distance — comparing a part (known-static or just-generated) against a known gauge STEP; two extra mounts, `${DATA_DIR:-./data}/models` (read-only) and `config/gauges/` (read-only, see [`config/gauges/README.md`](config/gauges/README.md)); no new HTTP route | built locally | ~2.8 GB (CadQuery + OCP + VTK) |
 | `open-webui` | chat interface to query the grounded dataset | `ghcr.io/open-webui/open-webui` | ~1.4 GB |
 | `dashboard` | entry point to the stack — per-service status (server-side health checks) and read-only logs, ordered by pipeline level; no start/stop/restart by design (see Networking below) | built locally | ~150 MB |
 | `docker-socket-proxy` | the only container that touches `/var/run/docker.sock`, scoped to `CONTAINERS=1`, `LOGS=1`, `POST=0` — list/inspect/logs only, every write action (start/stop/restart/exec/create/delete) rejected regardless of caller | `tecnativa/docker-socket-proxy` | ~15 MB |
@@ -342,6 +381,12 @@ TBD.
 
 ## Contributing
 
-Not yet open for code contributions — there is no code. Discussion on the
-open questions above, or on the architecture document, is welcome via
-issues.
+Open for code contributions on the current milestone (M4, closing the
+retrieval loop — see [`docs/logbook.md`](docs/logbook.md) and issue
+[#5](https://github.com/danielesalpietro/caliper-cad/issues/5)) and on
+the open questions above. Before opening a PR, read
+[`docs/logbook.md`](docs/logbook.md)'s "Processo di handoff e CI"
+section — every change should keep the 12+ verification scripts in
+[`.github/workflows/regression.yml`](.github/workflows/regression.yml)
+green, and add new ones for new behavior rather than leaving them only
+manually runnable.
