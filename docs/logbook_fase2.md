@@ -221,6 +221,66 @@ lungo termine: con lo schema sketch-first di M3, la stessa
 classificazione potrà clampare direttamente un campo numerico dei
 vincoli invece di passare per un'istruzione testuale.
 
+### Limite massimo di tentativi (L3 → L2)
+
+La Policy di retry esistente in architettura lo cita solo come esempio
+("budget massimo di tentativi per singolo caso, es. 3–5"), mai fissato
+né implementato. **Deciso qui: 3 tentativi**, con un'uscita anticipata —
+se lo stesso `directive`/errore si ripete su 2 tentativi consecutivi
+nonostante la variazione (hint + temperatura/riformulazione già
+obbligatoria), si esce dal loop prima di consumare il terzo: continuare
+con la stessa classificazione che ha già fallito una volta è spreco di
+calcolo, non persistenza utile.
+
+Al superamento del budget (o all'uscita anticipata), fallback già
+previsto per la Fase A: intervento umano. Il caso finisce nel log
+virtuale con `final_status: unrecoverable_virtual`, sempre
+`source: virtual` — non entra nel Livello 6 a meno che non venga poi
+davvero verificato fisicamente.
+
+### Misurare l'efficacia delle directive — un problema di confondimento, non solo di conteggio
+
+Non basta contare "quante volte SWEEP_TIMEOUT_EARLY è seguito da un
+PASS": la Policy di retry esistente impone *comunque* una variazione
+(riformulazione/temperatura) a ogni tentativo, indipendentemente dalla
+directive. Se ogni retry cambia sia la temperatura sia la frase-hint, un
+retry riuscito potrebbe essere dovuto solo al cambio di temperatura, non
+alla frase — misurare un tasso grezzo senza controllo sarebbe
+correlazione spacciata per causalità.
+
+**Fase 1 — infrastruttura (subito, indipendente dal design statistico):**
+ogni tentativo di retry logga un record collegato al precedente:
+
+```json
+{
+  "case_id": "job-8f3a21",
+  "attempt": 2,
+  "directive_used": "SWEEP_TIMEOUT_EARLY",
+  "outcome": "FAIL",
+  "outcome_error": "gauge_check_timeout",
+  "same_error_as_previous": true,
+  "source": "virtual"
+}
+```
+
+Senza `case_id` a collegare i tentativi non si può calcolare nulla —
+questo va costruito comunque, prima ancora di sapere quale analisi
+farci sopra.
+
+**Fase 2 — confronto controllato, quando c'è volume:** per una frazione
+dei casi nello stesso bucket di classificazione, alternare "solo
+variazione generica" vs "variazione generica + directive specifica", e
+confrontare i tassi di PASS tra i due gruppi. Solo così la frase-hint è
+isolata come variabile, non confusa con l'effetto della variazione già
+obbligatoria.
+
+**Soglia minima prima di fidarsi del numero:** almeno N≥20 casi per
+directive prima di considerare il tasso significativo, con intervallo di
+Wilson invece di percentuale grezza — su pochi campioni una percentuale
+grezza è rumore travestito da segnale. Stessa disciplina già applicata
+nel progetto: misurare prima di decidere, non assumere (bug OpenBLAS, bug
+dimensionale `[v14]`).
+
 ## Milestone (criterio di accettazione, mantenuto)
 
 Esecuzione batch automatica dei tre test case su geometrie **note,
@@ -242,6 +302,15 @@ volta e riusarli per entrambi gli scopi, non duplicare il lavoro.
       da `execution_timeout`)
 - [ ] Timeout del gauge-check calibrato empiricamente sul worst-case
       osservato durante il batch, non stimato a priori
+- [ ] Budget massimo di retry L3→L2 fissato a 3 tentativi + uscita
+      anticipata su ripetizione dello stesso errore, implementato
+      nell'orchestratore (oggi assente)
+- [ ] Log strutturato `case_id`/`attempt`/`directive_used`/`outcome` per
+      collegare i tentativi, prerequisito di qualunque misura di
+      efficacia delle directive
+- [ ] Design di confronto controllato (con/senza directive specifica, a
+      parità di variazione generica) definito prima di trarre conclusioni
+      sui tassi di successo per directive
 - [ ] TC1: calibri pin GO/NO-GO modellati, controllo interferenza
       statico+sweep implementato e verificato su geometria nota
 - [ ] TC2: calibro ad anello GO/NO-GO filettato modellato, sweep elicoidale
