@@ -1,0 +1,16 @@
+{
+  "thread_M6_ISO68-1": {
+    "feature": "thread",
+    "standard": "ISO 68-1",
+    "nominal": "M6",
+    "pitch_mm": 1.0,
+    "profile_angle_deg": 60,
+    "go_step": "thread_M6_ISO68-1/GO.step",
+    "nogo_step": "thread_M6_ISO68-1/NOGO.step",
+    "calibration_status": "not_modeled",
+    "modeled_by": null,
+    "modeled_on": null,
+    "cad_tool": null,
+    "notes": "Primo calibro previsto dalla checklist di docs/logbook_fase1.md (M1). Formato/protocollo pronti (services/verifier/executor/gauge_check.py), ma i file GO.step/NOGO.step non esistono ancora: vanno modellati con CAD convenzionale, non dall'IA (vedi README.md in questa cartella). calibration_status passa a 'modeled_pending_verification' quando i file sono presenti ma non ancora usati in un batch reale, poi a 'verified' dopo un primo collaudo riuscito su un pezzo noto."
+  }
+}

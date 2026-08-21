@@ -126,6 +126,14 @@ services:
   # comunica col verifier SOLO tramite il volume verifier_exec (file di
   # job/risultato), mai HTTP diretto. Limiti di CPU/memoria per singolo
   # job dentro run_and_measure.py, non solo a livello container.
+  # [M1] Due mount read-only aggiuntivi per il gauge-check (calibri
+  # Go/No-Go virtuali, vedi docs/logbook_fase1.md): "models" per i pezzi
+  # STEP noti/statici da verificare (stesso DATA_DIR gia' usato da
+  # prusaslicer), "gauges" per i calibri versionati in git
+  # (config/gauges/, MAI generati dall'IA — vedi README li'). Nessuna
+  # nuova rotta HTTP: gauge_check.py legge questi path direttamente dal
+  # filesystem del container, il job/result passa solo i path relativi
+  # (vedi services/verifier/executor/gauge_check.py).
   verifier-executor:
     build: ./services/verifier/executor
     container_name: caliper-verifier-executor
@@ -133,6 +141,8 @@ services:
     network_mode: "none"
     volumes:
       - verifier_exec:/exec
+      - ${DATA_DIR:-./data}/models:/models:ro
+      - ./config/gauges:/gauges:ro
 
   # ---------------- Motore di esecuzione — L1, L2.5, L2, L7-consultivo ----------------
   # Le API key dei provider LLM (OpenAI/Gemini/Claude) si configurano

@@ -4,7 +4,9 @@
     "standard": "ISO 68-1",
     "profile_angle_deg": 60,
     "default_tolerance_type": "diametrale",
-    "notes": "Profilo a V simmetrico, angolo incluso 60 gradi (filettatura metrica ISO). Approssimazione triangolare senza troncatura su cresta/nocciolo, adeguata per accoppiamenti funzionali stampati in 3D (vedi Contesto in architettura-prototipo-mesh-llm.md — metodo di partenza gia' validato con questo approccio)."
+    "gauge_go_step": "thread_M6_ISO68-1/GO.step",
+    "gauge_nogo_step": "thread_M6_ISO68-1/NOGO.step",
+    "notes": "Profilo a V simmetrico, angolo incluso 60 gradi (filettatura metrica ISO). Approssimazione triangolare senza troncatura su cresta/nocciolo, adeguata per accoppiamenti funzionali stampati in 3D (vedi Contesto in architettura-prototipo-mesh-llm.md — metodo di partenza gia' validato con questo approccio). gauge_go_step/gauge_nogo_step sono path relativi a config/gauges/ (vedi config/gauges/manifest.json e README.md) — a oggi (M1) ancora NON modellati con CAD convenzionale, vedi calibration_status nel manifest."
   },
   "press_fit": {
     "defined": false,

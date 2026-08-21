@@ -69,12 +69,63 @@ davvero.
 
 ## Stato
 
-- [ ] Formato `config/gauges/` definito e primo calibro GO/NO-GO per
-      `thread` (M6, ISO 68-1) modellato con CAD convenzionale
-- [ ] `presets.json` esteso con i campi gauge per il preset `thread`
-- [ ] Modulo di calcolo interferenza/distanza aggiunto a
-      `services/verifier/executor/` (nuovo script o estensione di
-      `run_and_measure.py`)
-- [ ] Protocollo job/result esteso con blocco `gauge_check`
-- [ ] Test di determinismo (stesso input → stesso output) verificato
-- [ ] Milestone raggiunta su pezzo/calibro statici, non ancora su output AI
+- [x] **[v1]** Formato `config/gauges/` definito: una directory per
+      coppia di calibri (`<feature>_<nominale>_<norma>/{GO,NOGO}.step`),
+      registro di provenienza in `config/gauges/manifest.json`, montato
+      read-only in `verifier-executor` su `/gauges` (vedi
+      `docker-compose.yml`). Vedi `config/gauges/README.md`.
+- [ ] **Primo calibro GO/NO-GO per `thread` (M6, ISO 68-1) — NON
+      modellato.** Non e' un task che questa sessione puo' completare:
+      il vincolo "niente file generati dall'IA" (vedi `docs/logbook.md`,
+      punto 3, e `docs/handoff_m1.md`) e' esplicito e non aggirabile —
+      serve CAD convenzionale da parte di chi ha accesso allo strumento.
+      `config/gauges/thread_M6_ISO68-1/NOTE.md` e
+      `config/gauges/manifest.json` (`calibration_status:
+      "not_modeled"`) documentano lo stato in modo che non venga
+      scambiato per fatto. **Bloccante per un collaudo end-to-end reale
+      su M6**, non bloccante per il resto della checklist sotto (validata
+      su geometrie sintetiche, vedi ultima voce).
+- [x] **[v1]** `presets.json` esteso: preset `thread` con
+      `gauge_go_step`/`gauge_nogo_step` (path relativi a
+      `config/gauges/`).
+- [x] **[v1]** Modulo di calcolo interferenza aggiunto:
+      `services/verifier/executor/gauge_check.py` — nuovo script
+      separato da `run_and_measure.py` (mai lo stesso processo/timeout,
+      vedi vincolo in `docs/handoff_m1.md`), boolean intersection esatta
+      via CadQuery/OCC (`Shape.intersect().Volume()`), diagnostica
+      pre-flight (facce/edge unici via `TopTools_IndexedMapOfShape`,
+      `BRepCheck_Analyzer`) scritta su un file di checkpoint PRIMA del
+      boolean pesante (vedi `docs/logbook_fase2.md`, "Formato del log su
+      TIMEOUT"). Scope M1 deliberatamente limitato a interferenza
+      statica — nessuno sweep (quello e' TC1/TC2, M2).
+- [x] **[v1]** Protocollo job/result esteso: `watcher.py` instrada per
+      chiave (`"code"` → `run_and_measure.py`, invariato; `"gauge_check"`
+      → `gauge_check.py`, nuovo), con timeout esterno indipendente
+      (`GAUGE_CHECK_TIMEOUT_SECONDS`, placeholder 45s — non ancora
+      tarato empiricamente, scope M2) e `error: "gauge_check_timeout"`
+      distinto da quello di `exec(code)`. Nuovo endpoint
+      `POST /gauge-check` in `services/verifier/app.py`
+      (`GaugeCheckRequest{part_step_path, gauge_step_path}`), percorso
+      indipendente da `/verify`. Blocco `gauge_check` nel result JSON,
+      accanto a `dimensional_check` (mai fuso: `source: "virtual"`
+      esplicito su ogni record, coerente col firewall simulato/fisico di
+      M4).
+- [x] **[v1]** Test di determinismo — **verificato empiricamente**, non
+      assunto: `services/verifier/executor/verify_gauge_check.py`
+      esegue lo stesso job due volte e confronta l'output byte per byte
+      (`cmp`), esito reale OK (vedi log del commit di questa milestone).
+      Verifica anche PASS/FAIL su geometria sintetica con volume di
+      interferenza noto analiticamente (pin oversize in un anello,
+      volume calcolato = volume misurato entro 0.01mm³).
+- [ ] **Milestone raggiunta su pezzo/calibro statici — parzialmente.**
+      Il meccanismo (protocollo, codice, timeout separato, checkpoint,
+      determinismo) e' verificato end-to-end su geometrie sintetiche
+      generate ad-hoc SOLO per il test (non versionate, non sono i
+      calibri reali). **Non ancora verificato con Docker/il container
+      `verifier-executor` reale** (nessun daemon Docker disponibile in
+      questa sessione — da rieseguire in un ambiente con Docker prima di
+      considerare il protocollo confermato end-to-end) **ne' con il
+      calibro M6 reale** (non ancora modellato, vedi sopra). Prossimo
+      passo naturale, fuori da questa sessione: modellare GO.step/
+      NOGO.step per M6, poi ripetere `verify_gauge_check.py` (o un
+      equivalente) attraverso lo stack Docker reale.

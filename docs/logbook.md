@@ -98,7 +98,7 @@ i principi già stabiliti nel resto del progetto.
 
 | # | Nome | Issue | Logbook | Stato |
 |---|---|---|---|---|
-| M1 | Scaffold di isolamento + calibri di riferimento | [#2](https://github.com/danielesalpietro/caliper-cad/issues/2) | [logbook_fase1.md](logbook_fase1.md) | 🔲 non iniziata |
+| M1 | Scaffold di isolamento + calibri di riferimento | [#2](https://github.com/danielesalpietro/caliper-cad/issues/2) | [logbook_fase1.md](logbook_fase1.md) | 🟡 in corso — codice/protocollo fatti e verificati su geometrie sintetiche, calibro reale M6 non ancora modellato (CAD convenzionale, fuori scope IA) |
 | M2 | Controlli geometrici deterministici, validati su geometrie note | [#3](https://github.com/danielesalpietro/caliper-cad/issues/3) | [logbook_fase2.md](logbook_fase2.md) | 🔲 non iniziata |
 | M3 | Pipeline sketch-first → compilazione → collaudo (ambito: preset "thread") | [#4](https://github.com/danielesalpietro/caliper-cad/issues/4) | [logbook_fase3.md](logbook_fase3.md) | 🔲 non iniziata |
 | M4 | Chiusura del loop di retrieval, firewall simulato/fisico | [#5](https://github.com/danielesalpietro/caliper-cad/issues/5) | [logbook_fase4.md](logbook_fase4.md) | 🔲 non iniziata |

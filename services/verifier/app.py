@@ -43,10 +43,22 @@ RESULTS_DIR = "/exec/results"
 EXEC_TIMEOUT_SECONDS = 30
 EXEC_POLL_INTERVAL_SECONDS = 0.3
 
+# Attesa lato HTTP per il gauge-check (M1, vedi docs/logbook_fase1.md).
+# Deve superare con margine il timeout esterno del watcher
+# (GAUGE_CHECK_TIMEOUT_SECONDS in executor/watcher.py, oggi 45s) — stesso
+# rapporto gia' in uso sopra (30s qui vs 15s di SUBPROCESS_TIMEOUT_SECONDS
+# nel watcher per exec(code)).
+GAUGE_CHECK_HTTP_TIMEOUT_SECONDS = 60
+
 
 class VerifyRequest(BaseModel):
     code: str
     spec: dict | None = None
+
+
+class GaugeCheckRequest(BaseModel):
+    part_step_path: str
+    gauge_step_path: str
 
 
 def check_python_syntax(code: str):
@@ -114,6 +126,45 @@ def run_execution_check(code: str, spec: dict | None):
     }
 
 
+def run_gauge_check_job(part_step_path: str, gauge_step_path: str):
+    """Scrive un job "gauge_check" sul volume condiviso e attende il risultato.
+
+    Percorso separato da run_execution_check(): niente 'code', l'input
+    sono due STEP noti/statici (vedi docs/logbook_fase1.md, criterio di
+    accettazione M1 — l'AI non entra in questa milestone). Il watcher
+    dell'executor instrada questo job a gauge_check.py, in un
+    sottoprocesso indipendente da exec(code), con un timeout proprio
+    (vedi executor/watcher.py, GAUGE_CHECK_TIMEOUT_SECONDS).
+    """
+    os.makedirs(JOBS_DIR, exist_ok=True)
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+
+    job_id = str(uuid.uuid4())
+    job_path = os.path.join(JOBS_DIR, f"{job_id}.json")
+    result_path = os.path.join(RESULTS_DIR, f"{job_id}.json")
+
+    with open(job_path, "w", encoding="utf-8") as f:
+        json.dump({"gauge_check": {"part_step_path": part_step_path, "gauge_step_path": gauge_step_path}}, f)
+
+    waited = 0.0
+    while waited < GAUGE_CHECK_HTTP_TIMEOUT_SECONDS:
+        if os.path.exists(result_path):
+            with open(result_path, "r", encoding="utf-8") as f:
+                result = json.load(f)
+            os.remove(result_path)
+            return result
+        time.sleep(EXEC_POLL_INTERVAL_SECONDS)
+        waited += EXEC_POLL_INTERVAL_SECONDS
+
+    return {
+        "execution": "FAIL",
+        "error": f"nessuna risposta dall'executor entro {GAUGE_CHECK_HTTP_TIMEOUT_SECONDS}s",
+        "measurements": None,
+        "dimensional_check": None,
+        "gauge_check": None,
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "level": "L3-static-and-execution"}
@@ -146,4 +197,25 @@ def verify(req: VerifyRequest):
         "checks": checks,
         "measurements": exec_result.get("measurements"),
         "dimensional_check": exec_result.get("dimensional_check"),
+    }
+
+
+@app.post("/gauge-check")
+def gauge_check(req: GaugeCheckRequest):
+    """Livello 3, fase 3 (M1) — calibro Go/No-Go virtuale.
+
+    Percorso indipendente da /verify: qui non c'e' codice da eseguire,
+    solo due STEP noti/statici (un pezzo, un calibro) da confrontare per
+    interferenza statica esatta — vedi docs/logbook_fase1.md, criterio
+    di accettazione M1. part_step_path e' relativo a /models (montato
+    read-only in verifier-executor da ${DATA_DIR:-./data}/models),
+    gauge_step_path e' relativo a /gauges (config/gauges/, versionato in
+    git, MAI generato dall'IA — vedi config/gauges/README.md).
+    """
+    result = run_gauge_check_job(req.part_step_path, req.gauge_step_path)
+    gc = result.get("gauge_check") or {}
+    return {
+        "status": gc.get("status", result["execution"]),
+        "gauge_check": gc,
+        "error": result.get("error"),
     }
