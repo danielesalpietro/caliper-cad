@@ -69,9 +69,28 @@ davvero.
 
 ## Stato
 
-- [ ] Formato `config/gauges/` definito e primo calibro GO/NO-GO per
-      `thread` (M6, ISO 68-1) modellato con CAD convenzionale
-- [ ] `presets.json` esteso con i campi gauge per il preset `thread`
+- [x] Formato `config/gauges/` definito e primo calibro GO/NO-GO per
+      `thread` (M6, ISO 68-1) modellato con CAD convenzionale —
+      `config/gauges/generate_thread_gauge.py` genera
+      `thread_M6_GO_ISO68-1.step` (Ø5.7mm) e `thread_M6_NOGO_ISO68-1.step`
+      (Ø6.3mm), tampone filettato esterno per verificare un **foro**
+      filettato (coerente con l'esempio L2.5, non un anello). Ogni export
+      è auto-verificato (validità, bbox, volume nel range plausibile) —
+      non generato e assunto corretto. Verifica aggiuntiva fatta a mano
+      prima di committare: periodicità dell'elica confermata con test
+      punto-per-punto dentro/fuori materiale a passo 1.0mm — stessa classe
+      di controllo che avrebbe intercettato la classe di bug `[v14]`.
+      **Nota aperta:** la lunghezza di impegno (8mm) è un placeholder,
+      non ancora un campo dello schema L2.5 — vedi commento nello script
+      e in `presets.json`.
+      **Nota di tooling per sessioni future:** in questo sandbox `docker
+      build` verso Docker Hub è bloccato da policy organizzativa (403 su
+      `production.cloudfront.docker.com`, non aggirabile né da aggirare —
+      vedi `/root/.ccr/README.md`); `pip install cadquery==2.8.0` invece
+      funziona direttamente (PyPI non è dietro il proxy con policy). Non
+      serve infrastruttura esterna (VM) per questo tipo di lavoro.
+- [x] `presets.json` esteso con i campi gauge per il preset `thread`
+      (`gauge_go_step`, `gauge_nogo_step`)
 - [ ] Modulo di calcolo interferenza/distanza aggiunto a
       `services/verifier/executor/` (nuovo script o estensione di
       `run_and_measure.py`)

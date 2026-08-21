@@ -4,7 +4,9 @@
     "standard": "ISO 68-1",
     "profile_angle_deg": 60,
     "default_tolerance_type": "diametrale",
-    "notes": "Profilo a V simmetrico, angolo incluso 60 gradi (filettatura metrica ISO). Approssimazione triangolare senza troncatura su cresta/nocciolo, adeguata per accoppiamenti funzionali stampati in 3D (vedi Contesto in architettura-prototipo-mesh-llm.md — metodo di partenza gia' validato con questo approccio)."
+    "gauge_go_step": "config/gauges/thread_M6_GO_ISO68-1.step",
+    "gauge_nogo_step": "config/gauges/thread_M6_NOGO_ISO68-1.step",
+    "notes": "Profilo a V simmetrico, angolo incluso 60 gradi (filettatura metrica ISO). Approssimazione triangolare senza troncatura su cresta/nocciolo, adeguata per accoppiamenti funzionali stampati in 3D (vedi Contesto in architettura-prototipo-mesh-llm.md — metodo di partenza gia' validato con questo approccio). Calibri Go/No-Go (M1): tampone filettato esterno per verificare un FORO filettato (coerente con l'esempio L2.5 in architettura, 'foro filettato M6'), non un anello. GO al diametro minimo accettabile (5.7mm = nominale 6.0 - tolleranza diametrale 0.3), NO-GO al massimo (6.3mm). Solo M6/passo 1.0 generato finora — vedi config/gauges/generate_thread_gauge.py. Lunghezza di impegno (8mm) è un placeholder, non ancora un campo dello schema L2.5."
   },
   "press_fit": {
     "defined": false,
