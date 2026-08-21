@@ -2,7 +2,12 @@
 
 Vedi [`logbook.md`](logbook.md) per il quadro generale. Dipende da M1
 (protocollo calibri + modulo di interferenza) — vedi
-[`logbook_fase1.md`](logbook_fase1.md).
+[`logbook_fase1.md`](logbook_fase1.md), raggiunta e verificata
+indipendentemente (branch `claude/handoff-m1-docs-bm01i6`, non ancora
+mergiato in `develop`).
+
+Prompt di handoff pronto per la sessione che implementa questa milestone:
+[`handoff_m2.md`](handoff_m2.md).
 
 ## Obiettivo (rivisto rispetto alla proposta originale)
 
@@ -37,15 +42,26 @@ esplicitamente fuori da questo test case finché non è il suo turno.
 applicato; fallimento se la geometria si incastra o presenta sovrapposizioni
 poligonali.
 
-**Rivisto:** calibro ad anello GO/NO-GO filettato, sweep lungo il percorso
+**Rivisto:** calibro filettato GO/NO-GO, sweep lungo il percorso
 elicoidale reale (stesso passo/angolo del preset `thread` in
 `presets.json`, ISO 68-1, 60°) — è la stessa identica metodologia di
-collaudo filettature nella metrologia reale (calibri Go/No-Go a vite), non
-un'invenzione. Il calibro GO deve poter percorrere l'intera elica senza
-interferenza; il calibro NO-GO deve interferire. Elimina la sensibilità
-a timestep/damping di un solver fisico iterativo, che su un'elica sottile
-può dare sia falsi blocchi (jamming numerico) sia falsi pass (tunneling
-attraverso una cresta sottile a step temporali larghi).
+collaudo filettature nella metrologia reale, non un'invenzione. Il
+calibro GO deve poter percorrere l'intera elica senza interferenza; il
+calibro NO-GO deve interferire. Elimina la sensibilità a timestep/damping
+di un solver fisico iterativo, che su un'elica sottile può dare sia falsi
+blocchi (jamming numerico) sia falsi pass (tunneling attraverso una
+cresta sottile a step temporali larghi).
+
+**Correzione (post-M1):** qui sopra si parlava genericamente di "calibro
+ad anello" — impreciso. L'esempio L2.5 già in architettura è "**foro**
+filettato M6", cioè una filettatura interna: il calibro corretto è un
+**tampone filettato esterno** (thread plug gauge), non un anello — è
+quello effettivamente modellato in M1
+(`config/gauges/thread_M6_GO_ISO68-1.step` /
+`..._NOGO_ISO68-1.step`, Ø5.7/6.3mm). Un calibro ad anello servirebbe
+solo per verificare una filettatura *esterna* generata dalla pipeline,
+caso non ancora previsto da nessun preset — vedi
+`config/gauges/README.md`.
 
 ## TC3 — Giunto a scatto (snap-fit)
 
@@ -297,11 +313,18 @@ volta e riusarli per entrambi gli scopi, non duplicare il lavoro.
 
 ## Stato
 
-- [ ] Gauge-check separato dall'esecuzione del codice in un subprocess
+- [x] Gauge-check separato dall'esecuzione del codice in un subprocess
       indipendente, con timeout proprio (`gauge_check_timeout` distinto
-      da `execution_timeout`)
+      da `execution_timeout`) — **anticipato in M1**:
+      `services/verifier/executor/gauge_check.py` + routing per chiave
+      in `watcher.py`, per ora solo interferenza statica (nessuno
+      sweep). Verificato indipendentemente, incluso il bug del
+      Dockerfile (`gauge_check.py` mancante dalla `COPY`) trovato e
+      corretto durante la revisione di M1.
 - [ ] Timeout del gauge-check calibrato empiricamente sul worst-case
-      osservato durante il batch, non stimato a priori
+      osservato durante il batch, non stimato a priori — placeholder
+      attuale (30s CPU / 45s esterno) mai esercitato con un caso reale
+      di timeout, solo letto/ispezionato nel codice
 - [ ] Budget massimo di retry L3→L2 fissato a 3 tentativi + uscita
       anticipata su ripetizione dello stesso errore, implementato
       nell'orchestratore (oggi assente)
