@@ -32,12 +32,16 @@ POLL_INTERVAL_SECONDS = 0.5
 SUBPROCESS_TIMEOUT_SECONDS = 15
 
 # Timeout ESTERNO del gauge-check, indipendente da SUBPROCESS_TIMEOUT_SECONDS
-# (usato solo per exec(code)). Placeholder non ancora tarato empiricamente
-# sul worst-case osservato — la calibrazione e' scope di M2 (vedi
-# docs/logbook_fase2.md, "Timeout e isolamento computazionale"). Margine
-# esterno maggiore del limite CPU interno di gauge_check.py (30s), stesso
-# rapporto gia' in uso per run_and_measure.py (10s interno / 15s esterno).
-GAUGE_CHECK_TIMEOUT_SECONDS = 45
+# (usato solo per exec(code)). Tarato empiricamente in M2 (vedi
+# docs/logbook_fase2.md, "Timeout e isolamento computazionale"): worst-case
+# misurato per uno sweep elicoidale completo di TC2 e' ~65.5s di CPU-time,
+# limite interno di gauge_check.py alzato a 100s (margine ~1.5x) — questo
+# timeout esterno deve superare quel limite interno anche nel caso peggiore
+# realistico (un solo core disponibile nel container, dove wall-clock ~
+# CPU-time, a differenza del sandbox di misura che aveva piu' core), stesso
+# rapporto ~1.5x gia' in uso per run_and_measure.py (10s interno / 15s
+# esterno) e per il placeholder precedente di M1 (30s interno / 45s esterno).
+GAUGE_CHECK_TIMEOUT_SECONDS = 150
 
 
 def _write_result(result_path, data):
@@ -75,23 +79,29 @@ def process_gauge_check_job(job_path: str, result_path: str, job_id: str, gauge_
         )
     except subprocess.TimeoutExpired:
         # SIGKILL non lascia nulla da ispezionare: l'unico dato disponibile
-        # e' il checkpoint pre-flight scritto da gauge_check.py PRIMA del
-        # boolean pesante (vedi docs/logbook_fase2.md). Puo' non esistere se
-        # il timeout e' scattato ancora prima (es. import STEP molto lento).
-        preflight = None
+        # e' il checkpoint scritto da gauge_check.py PRIMA dell'operazione
+        # pesante (vedi docs/logbook_fase2.md, "Formato del log su TIMEOUT").
+        # Puo' non esistere se il timeout e' scattato ancora prima (es.
+        # import STEP molto lento). Generico rispetto alla modalita' (M2
+        # aggiunge "sweep"/"min_distance" a "static_interference" di M1):
+        # il checkpoint stesso porta "mode" e, per uno sweep interrotto a
+        # meta', "last_checkpoint" con l'ultimo step TENTATO — vedi
+        # gauge_check.py per il formato completo scritto ad ogni step.
+        checkpoint = {}
         if os.path.exists(checkpoint_path):
             with open(checkpoint_path, "r", encoding="utf-8") as f:
-                preflight = json.load(f).get("preflight_diagnostics")
+                checkpoint = json.load(f)
 
         result = _empty_result("gauge_check_timeout")
         result["gauge_check"] = {
             "status": "TIMEOUT",
-            "mode": "static_interference",
+            "mode": checkpoint.get("mode", gauge_check_spec.get("mode", "static_interference")),
             "part_step_path": gauge_check_spec.get("part_step_path"),
             "gauge_step_path": gauge_check_spec.get("gauge_step_path"),
             "interference_volume_mm3": None,
             "timeout_seconds": GAUGE_CHECK_TIMEOUT_SECONDS,
-            "preflight_diagnostics": preflight,
+            "preflight_diagnostics": checkpoint.get("preflight_diagnostics"),
+            "last_checkpoint": checkpoint.get("last_checkpoint"),
             "source": "virtual",
         }
         _write_result(result_path, result)

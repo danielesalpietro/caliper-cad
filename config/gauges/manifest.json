@@ -18,6 +18,27 @@
     "modeled_by": "generate_thread_gauge.py",
     "modeled_on": "2026-08-21",
     "cad_tool": "CadQuery 2.8.0",
-    "verification_status": "verificato staticamente (validita', bbox, volume plausibile, periodicita' dell'elica) e, tramite gauge_check.py, con un pezzo di controllo (foro liscio nominale) — vedi docs/logbook_fase1.md, sezione 'Verifica end-to-end sui calibri reali'. NON ancora verificato contro un foro filettato reale generato dalla pipeline L2 (fuori scope M1, vedi M3)."
+    "verification_status": "verificato staticamente (validita', bbox, volume plausibile, periodicita' dell'elica) e, tramite gauge_check.py, con un pezzo di controllo (foro liscio nominale) — vedi docs/logbook_fase1.md, sezione 'Verifica end-to-end sui calibri reali'. NON ancora verificato contro un foro filettato reale generato dalla pipeline L2 (fuori scope M1, vedi M3). Verificato anche in modalita' sweep elicoidale (M2) — vedi docs/logbook_fase2.md, TC2."
+  },
+  "pin_D8_clearance": {
+    "feature": "clearance_fit",
+    "standard": null,
+    "standard_notes": "Nessuna classe di accoppiamento ISO specifica (es. H7/g6) — nominale/tolleranza sono un caso illustrativo, vedi docstring di generate_pin_gauge.py e presets.json.",
+    "nominal_diameter_mm": 8.0,
+    "tolerance_mm": 0.2,
+    "gauge_type": "cylindrical_pin",
+    "gauge_type_notes": "Spina liscia (nessuna filettatura), per verificare un FORO passante di un mozzo in un accoppiamento albero-mozzo a giochi (TC1) — non un press-fit, vedi docs/logbook_fase1.md.",
+    "go_step": "pin_D8_GO_clearance.step",
+    "nogo_step": "pin_D8_NOGO_clearance.step",
+    "go_diameter_mm": 7.8,
+    "nogo_diameter_mm": 8.2,
+    "length_mm": 15.0,
+    "length_status": "placeholder, > della profondita' del mozzo di controllo (12mm) con margine per lo sweep completo, non ancora un campo dello schema L2.5",
+    "calibration_status": "generated_verified_static_and_sweep",
+    "provenance": "config/gauges/generate_pin_gauge.py — script deterministico, eseguito una tantum da un umano, mai dall'LLM in loop di generazione — stesso vincolo di thread_M6_ISO68-1, vedi la nota li'.",
+    "modeled_by": "generate_pin_gauge.py",
+    "modeled_on": "2026-08-21",
+    "cad_tool": "CadQuery 2.8.0",
+    "verification_status": "verificato staticamente (validita', bbox, volume) e, tramite gauge_check.py in modalita' static_interference e sweep, con un mozzo di controllo (foro liscio nominale, e una variante deliberatamente difettosa a foro strozzato a meta' corsa) — vedi docs/logbook_fase2.md, TC1."
   }
 }

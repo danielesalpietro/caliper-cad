@@ -8,13 +8,31 @@
     "gauge_nogo_step": "thread_M6_NOGO_ISO68-1.step",
     "notes": "Profilo a V simmetrico, angolo incluso 60 gradi (filettatura metrica ISO). Approssimazione triangolare senza troncatura su cresta/nocciolo, adeguata per accoppiamenti funzionali stampati in 3D (vedi Contesto in architettura-prototipo-mesh-llm.md — metodo di partenza gia' validato con questo approccio). Calibri Go/No-Go (M1): tampone filettato esterno per verificare un FORO filettato (coerente con l'esempio L2.5 in architettura, 'foro filettato M6'), non un anello. GO al diametro minimo accettabile (5.7mm = nominale 6.0 - tolleranza diametrale 0.3), NO-GO al massimo (6.3mm). Generato via config/gauges/generate_thread_gauge.py (script deterministico, eseguito una tantum da un umano, mai dall'LLM in loop — vedi config/gauges/manifest.json e README.md). Solo M6/passo 1.0 generato finora. Lunghezza di impegno (8mm) è un placeholder, non ancora un campo dello schema L2.5. gauge_go_step/gauge_nogo_step sono path relativi a config/gauges/ (radice montata su /gauges in verifier-executor, vedi docker-compose.yml)."
   },
+  "clearance_fit": {
+    "defined": true,
+    "standard": null,
+    "default_tolerance_type": "diametrale",
+    "gauge_go_step": "pin_D8_GO_clearance.step",
+    "gauge_nogo_step": "pin_D8_NOGO_clearance.step",
+    "notes": "TC1 (accoppiamento albero-mozzo a giochi, non press-fit — vedi preset 'press_fit' sotto per quello, esplicitamente fuori scope, serve un solver FEA). Calibri Go/No-Go (M2): spina liscia (nessuna filettatura) per verificare un FORO passante nel mozzo. GO al diametro minimo accettabile (7.8mm = nominale 8.0 - tolleranza diametrale 0.2), NO-GO al massimo (8.2mm). Nominale/tolleranza sono un caso illustrativo, non legato a una classe di accoppiamento ISO specifica (es. H7/g6) — nota aperta. Generato via config/gauges/generate_pin_gauge.py (script deterministico, eseguito una tantum da un umano, mai dall'LLM in loop — vedi config/gauges/manifest.json e README.md). Controllo raccomandato: static_interference + sweep lineare lungo l'asse del foro (nessuna rotazione, pitch_mm assente — vedi gauge_check.py, modalita' 'sweep'), non solo statico, per catturare uno strozzamento localizzato lungo la profondita' del foro che un singolo controllo statico spanning l'intera corsa potrebbe non isolare come step diagnostico. gauge_go_step/gauge_nogo_step sono path relativi a config/gauges/ (radice montata su /gauges in verifier-executor, vedi docker-compose.yml)."
+  },
   "press_fit": {
     "defined": false,
     "notes": "Non ancora definito. Servono almeno: interferenza diametrale attesa, materiale/rigidita' per stimare la forza di inserimento."
   },
   "snap_fit": {
-    "defined": false,
-    "notes": "Non ancora definito. Serve almeno: geometria del gancio (sbalzo, spessore, angolo di ritorno)."
+    "defined": true,
+    "gauge_check_mode": "min_distance",
+    "measurement_points": {
+      "retention_gap": {
+        "point_a_mm": [-6.0, 0.0, 8.0],
+        "point_b_mm": [-6.0, 0.0, 8.3],
+        "nominal_mm": 0.3,
+        "tolerance_mm": 0.1,
+        "notes": "Gap teorico tra la faccia superiore del dente di ritenzione e la faccia inferiore dello sbalzo di arresto, prima della deflessione elastica durante l'innesto (quella resta fuori scope, serve un solver FEA — vedi docs/logbook_fase1.md). Punti espressi in mm nel sistema di coordinate LOCALE del pezzo generato, non un riferimento assoluto universale."
+      }
+    },
+    "notes": "TC3 (giunto a scatto). ESTENSIONE DELLO SCHEMA L2.5 (non solo del codice del verificatore, vedi docs/logbook_fase2.md): 'measurement_points' dichiara le coppie di punti da cui gauge_check.py (modalita' 'min_distance') risale alle facce piu' vicine del pezzo e ne misura la distanza minima esatta (BRepExtrema_DistShapeShape) — nessun secondo calibro fisico qui, il 'calibro virtuale' e' tra due feature dello STESSO pezzo. I valori sopra (coordinate, nominale, tolleranza) sono un caso illustrativo verificato su una geometria di controllo nota (vedi services/verifier/executor/verify_gauge_check_tc3.py), non ancora collegati alla normalizzazione L2.5 reale in Flowise (services/flowise/chatflows/l25-specification-normalization.json) — quel collegamento (far si' che il chatflow L2.5 emetta punti di misura coerenti con la geometria che L2 genera davvero) resta lavoro aperto, fuori scope per questa milestone (nota onesta, non taciuta)."
   },
   "hole": {
     "defined": false,

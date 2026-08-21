@@ -36,6 +36,9 @@ config/gauges/
   generate_thread_gauge.py
   thread_M6_GO_ISO68-1.step
   thread_M6_NOGO_ISO68-1.step
+  generate_pin_gauge.py
+  pin_D8_GO_clearance.step
+  pin_D8_NOGO_clearance.step
 ```
 
 - **GO** — deve poter accoppiarsi/percorrere il pezzo senza
@@ -52,6 +55,14 @@ Il calibro `thread_M6_ISO68-1` è un **tampone filettato esterno**
 non un anello. Se in futuro serve verificare una filettatura esterna
 generata dalla pipeline, serve un calibro ad anello separato, non
 questo stesso file riusato al contrario.
+
+Il calibro `pin_D8_clearance` (M2 — vedi `docs/logbook_fase2.md`, TC1) è
+una **spina cilindrica liscia** (nessuna filettatura), per verificare un
+**foro passante** in un mozzo, accoppiamento albero-mozzo **a giochi**
+(clearance fit) — non un press-fit (quello resta esplicitamente fuori
+scope, serve un solver FEA dedicato, vedi `docs/logbook_fase1.md`).
+Nominale/tolleranza (Ø8.0mm ±0.2mm) sono un caso illustrativo, non
+legato a una classe di accoppiamento ISO specifica.
 
 `manifest.json` è il registro: un'entrata per coppia, con
 provenienza/stato di verifica — analogo a
@@ -75,10 +86,16 @@ montato su `/models`.
 
 ## Stato di verifica
 
-Verificati staticamente allo script (validità, bbox, volume, periodicità
-dell'elica) e, tramite `gauge_check.py`, contro un pezzo di controllo
-generico (foro liscio nominale) — vedi
-`docs/logbook_fase1.md`, sezione "Verifica end-to-end sui calibri
-reali". **Non ancora verificati contro un foro filettato reale prodotto
-dalla pipeline L2** (fuori scope di M1, riguarda M3 — "pipeline
+`thread_M6_ISO68-1`: verificato staticamente allo script (validità,
+bbox, volume, periodicità dell'elica) e, tramite `gauge_check.py`,
+contro un pezzo di controllo generico (foro liscio nominale, M1) e in
+modalità sweep elicoidale contro un foro filettato nominale sintetico
+(M2) — vedi `docs/logbook_fase1.md` e `docs/logbook_fase2.md` (TC2).
+**Non ancora verificato contro un foro filettato reale prodotto dalla
+pipeline L2** (fuori scope di M1/M2, riguarda M3 — "pipeline
 sketch-first → compilazione → collaudo").
+
+`pin_D8_clearance`: verificato staticamente allo script (validità,
+bbox, volume) e, tramite `gauge_check.py` in modalità
+`static_interference` e `sweep`, contro un mozzo di controllo sintetico
+(foro liscio nominale) — vedi `docs/logbook_fase2.md`, TC1.

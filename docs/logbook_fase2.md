@@ -321,25 +321,119 @@ volta e riusarli per entrambi gli scopi, non duplicare il lavoro.
       sweep). Verificato indipendentemente, incluso il bug del
       Dockerfile (`gauge_check.py` mancante dalla `COPY`) trovato e
       corretto durante la revisione di M1.
-- [ ] Timeout del gauge-check calibrato empiricamente sul worst-case
-      osservato durante il batch, non stimato a priori — placeholder
-      attuale (30s CPU / 45s esterno) mai esercitato con un caso reale
-      di timeout, solo letto/ispezionato nel codice
-- [ ] Budget massimo di retry L3→L2 fissato a 3 tentativi + uscita
+- [x] Timeout del gauge-check calibrato empiricamente sul worst-case
+      osservato durante il batch, non stimato a priori — worst-case
+      misurato: sweep elicoidale completo di TC2 (calibro GO, 21 step,
+      nessuna uscita anticipata) a ~65.5s di CPU-time (user+sys, non
+      wall-clock — vedi nota su multithreading OCC in `gauge_check.py`).
+      Limite interno alzato da 30s (placeholder M1) a **100s**, esterno
+      da 45s a **150s** (stesso rapporto ~1.5x già in uso). Placeholder
+      precedente causava SIGKILL prima di un vero timeout diagnosticabile
+      — vedi sezione "Batch M2" sotto per i numeri completi.
+- [x] Budget massimo di retry L3→L2 fissato a 3 tentativi + uscita
       anticipata su ripetizione dello stesso errore, implementato
-      nell'orchestratore (oggi assente)
-- [ ] Log strutturato `case_id`/`attempt`/`directive_used`/`outcome` per
-      collegare i tentativi, prerequisito di qualunque misura di
-      efficacia delle directive
+      nell'orchestratore — `services/orchestrator/retry_policy.py`
+      (`RetryBudget`, `classify_checkpoint`) + loop di retry in
+      `generate_and_verify.py`. Verificato con `verify_retry_policy.py`
+      (mock di Flowise/verifier, nessuna istanza viva disponibile in
+      questo sandbox): tre scenari (recupero al 2° tentativo, budget
+      esaurito su 3 errori diversi, uscita anticipata su 2 ripetizioni
+      consecutive) tutti confermati. **Riserva onesta:** la temperatura
+      crescente per tentativo passa via `overrideConfig` nella chiamata
+      Flowise — non verificato che il nodo ChatOpenAI del Chatflow L2 lo
+      accetti (nessuna istanza Flowise viva). Il loop chiama solo
+      `/verify` (non `/gauge-check`), quindi `classify_checkpoint` ricade
+      sempre su `RETRY_GENERIC` finché un lavoro futuro (M3) non integra
+      il gauge-check nello stesso loop di generazione.
+- [x] Log strutturato `case_id`/`attempt`/`directive_used`/`outcome` per
+      collegare i tentativi — `RetryBudget.record_attempt()` scrive un
+      record JSONL per tentativo (`retry_policy.py`, `RETRY_LOG_PATH`),
+      prerequisito di qualunque misura di efficacia delle directive.
 - [ ] Design di confronto controllato (con/senza directive specifica, a
       parità di variazione generica) definito prima di trarre conclusioni
-      sui tassi di successo per directive
-- [ ] TC1: calibri pin GO/NO-GO modellati, controllo interferenza
-      statico+sweep implementato e verificato su geometria nota
-- [ ] TC2: calibro ad anello GO/NO-GO filettato modellato, sweep elicoidale
-      implementato e verificato su geometria nota
-- [ ] TC3: punti di misura dichiarati nello schema L2.5, controllo distanza
-      minima implementato e verificato su geometria nota
-- [ ] Batch dei tre TC eseguito e documentato con risultati numerici
+      sui tassi di successo per directive — non fatto in M2: richiede
+      volume di casi reali che non esiste ancora (nessuna pipeline L2
+      viva in questo sandbox), resta lavoro futuro esplicito.
+- [x] TC1: calibri pin GO/NO-GO modellati (`config/gauges/pin_D8_GO/NOGO_clearance.step`,
+      via `generate_pin_gauge.py`), controllo interferenza statico+sweep
+      implementato e verificato su geometria nota — vedi "Batch M2" sotto.
+- [x] TC2: calibro filettato GO/NO-GO modellato (riuso dei tamponi M6 di
+      M1), sweep elicoidale implementato e verificato su geometria nota
+      (foro filettato nominale sintetico) — vedi "Batch M2" sotto.
+- [x] TC3: punti di misura dichiarati nello schema L2.5 (preset
+      `snap_fit` in `presets.json`, campo `measurement_points`), controllo
+      distanza minima (`BRepExtrema_DistShapeShape`, modalità
+      `min_distance` di `gauge_check.py`) implementato e verificato su
+      geometria nota — vedi "Batch M2" sotto. Non ancora collegato alla
+      normalizzazione L2.5 reale in Flowise (fuori scope, nota nel preset).
+- [x] Batch dei tre TC eseguito e documentato con risultati numerici —
+      vedi sezione "Batch M2 — esecuzione e risultati" sotto.
 - [ ] Modelli CAD di riferimento riusati per popolare il campo diagnostico
-      del Livello 6 (collegamento esplicito col bootstrap retroattivo)
+      del Livello 6 (collegamento esplicito col bootstrap retroattivo) —
+      non fatto in M2: i pezzi di controllo usati qui sono generati al
+      volo dagli script `verify_gauge_check_tc*.py` (stesso stile di M1),
+      non ancora versionati come modelli CAD di riferimento riusabili dal
+      Livello 6. Resta lavoro futuro esplicito.
+
+## Batch M2 — esecuzione e risultati
+
+Eseguito a mano (nessuna suite di test automatica nel progetto, stesso
+stile di M1 — v12/v14 in architettura, `verify_gauge_check*.py`), fuori
+Docker: `pip install cadquery==2.8.0` in un venv locale (stesso limite di
+sandbox già incontrato in M1 — `docker build` verso Docker Hub bloccato
+da policy organizzativa, vedi `/root/.ccr/README.md`). Sei script,
+eseguiti in sequenza, tutti OK:
+
+```
+$ python services/verifier/executor/verify_gauge_check.py                # M1, sintetico
+=== Esito complessivo: TUTTI I CONTROLLI OK ===
+
+$ python services/verifier/executor/verify_gauge_check_real_gauges.py    # M1, calibri reali M6
+=== Esito complessivo: TUTTI I CONTROLLI OK ===
+
+$ python services/verifier/executor/verify_gauge_check_tc1.py            # M2, TC1
+--- GO sweep ---   status=PASS  steps_completed=16/16  first_interference_step=null
+--- NOGO sweep ---  status=FAIL  steps_completed=2/16   first_interference_step=1  volume=2.545mm3
+Determinismo sweep: OK
+=== Esito complessivo: TUTTI I CONTROLLI OK ===
+
+$ python services/verifier/executor/verify_gauge_check_tc2.py            # M2, TC2
+--- Calibro GO (sweep elicoidale, 21 step) ---   status=PASS  volume_max=0.305928mm3 (< epsilon 0.5mm3)
+--- Calibro NO-GO (sweep elicoidale, 21 step) --- status=FAIL  first_interference_step=0  volume=20.158363mm3
+Determinismo sweep elicoidale: OK
+=== Esito complessivo: TUTTI I CONTROLLI OK ===
+
+$ python services/verifier/executor/verify_gauge_check_tc3.py            # M2, TC3
+--- Gap nominale (0.3mm) ---            status=PASS  measured_mm=0.3
+--- Gap fuori tolleranza (0.1mm) ---     status=FAIL  measured_mm=0.1  (snap alla faccia reale, non al punto dichiarato)
+Determinismo: OK
+=== Esito complessivo: TUTTI I CONTROLLI OK ===
+
+$ python services/orchestrator/verify_retry_policy.py                    # M2, contratto di retry (mock)
+classify_checkpoint: 6/6 casi limite corretti
+RetryBudget: uscita anticipata + log su file OK
+main() con retry: scenario FAIL→PASS OK, budget esaurito OK, uscita anticipata OK
+=== Esito complessivo: TUTTI I CONTROLLI OK ===
+```
+
+Output completo (694 righe, incollato senza tagli) allegato alla
+consegna di questa milestone.
+
+**Nota onesta su TC2 (calibrata sull'epsilon di sweep elicoidale):** il
+calibro GO, correttamente sottodimensionato, mostra comunque un residuo
+di interferenza fino a ~0.31mm³ vicino a metà della corsa (non agli
+estremi) — causa identificata e verificata empiricamente: le estremità
+piatte (non smussate) dello sweep elicoidale finito di
+`generate_thread_gauge.build_thread_plug()`, usata sia per i calibri sia
+per il pezzo di controllo. Non è un errore di fase (verificato: il segno
+della rotazione sincronizzata al passo è stato determinato empiricamente
+confrontando le due possibilità — quella sbagliata produce interferenza
+enorme anche a piena registrazione, ~17mm³ contro ~0.3mm³). `HELICAL_SWEEP_VOLUME_EPSILON_MM3
+= 0.5` in `gauge_check.py` è tarato su questo residuo misurato (margine
+~1.6x sopra il rumore del GO, ~2.7x sotto il più piccolo valore di
+interferenza vera del NO-GO) — non un valore di comodo. **Limite
+onestamente aperto:** un vero calibro filettato ha uno smusso di imbocco
+proprio per evitare questo effetto sulla prima spira — i calibri di
+questo progetto non ce l'hanno ancora; se in futuro serve un epsilon più
+stretto, la soluzione corretta è modellare lo smusso, non restringere la
+soglia sopra dati rumorosi.
