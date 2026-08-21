@@ -28,6 +28,7 @@
 # Ollama porta con se' le proprie librerie ggml/CUDA nel tgz ufficiale —
 # non serve l'immagine base CUDA completa.
 FROM qdrant/qdrant:v1.19.0 AS qdrant-src
+FROM ollama/ollama:0.32.15 AS ollama-src
 
 FROM ubuntu:24.04
 
@@ -50,13 +51,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# --- Ollama: tgz ufficiale pinnato (bundla le proprie librerie GPU in
-# --- /usr/lib/ollama; i driver arrivano dal runtime NVIDIA del pod).
-RUN curl -fL "https://ollama.com/download/ollama-linux-amd64.tgz?version=${OLLAMA_VERSION}" \
-        -o /tmp/ollama.tgz \
-    && tar -C /usr -xzf /tmp/ollama.tgz \
-    && rm /tmp/ollama.tgz \
-    && /usr/bin/ollama --version
+# --- Ollama: binario + librerie GPU copiati dall'immagine ufficiale
+# --- pinnata via bind-mount (l'endpoint tgz di ollama.com ha risposto
+# --- 404 per l'URL versionato al primo build CI — run 32530465233 —
+# --- quindi stessa tecnica gia' usata per Qdrant: l'immagine Docker
+# --- ufficiale e' l'artefatto versionato piu' affidabile). Il find
+# --- tollera le differenze di layout tra versioni (/bin vs /usr/bin);
+# --- i driver arrivano dal runtime NVIDIA del pod.
+RUN --mount=type=bind,from=ollama-src,source=/,target=/mnt/ollama \
+    set -e; \
+    BIN="$(find /mnt/ollama/usr/bin /mnt/ollama/usr/local/bin /mnt/ollama/bin -maxdepth 1 -name ollama -type f 2>/dev/null | head -1)"; \
+    test -n "$BIN" || { echo "binario ollama non trovato nell'immagine ollama-src"; find /mnt/ollama -maxdepth 3 -name 'ollama*' 2>/dev/null; exit 1; }; \
+    cp -a "$BIN" /usr/bin/ollama; \
+    if [ -d /mnt/ollama/usr/lib/ollama ]; then cp -a /mnt/ollama/usr/lib/ollama /usr/lib/ollama; fi; \
+    if [ -d /mnt/ollama/usr/local/lib/ollama ]; then cp -a /mnt/ollama/usr/local/lib/ollama /usr/local/lib/ollama; fi; \
+    /usr/bin/ollama --version
 
 # --- Qdrant: binario + config + static copiati dall'immagine ufficiale
 # --- pinnata (evita di indovinare i nomi degli asset di release).
