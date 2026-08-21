@@ -142,15 +142,28 @@ taciuto.
 
 Contenuto:
 
-1. **Preparazione (in sandbox, prima di accendere il pod):** una sessione
-   scrive `ops/runpod/bootstrap.sh` (installazione idempotente di tutto lo
-   stack nativo + Claude Code CLI), `ops/runpod/start_stack.sh`,
-   `ops/runpod/harvest.sh`, `ops/runpod/env_fingerprint.sh` — e li
-   **testa in sandbox CPU-only** (tutto tranne la GPU è installabile e
-   avviabile in sandbox: Qdrant, Flowise, i servizi Python, Ollama in
-   modalità CPU con i modelli granite, che sono minuscoli). Il pod parte
-   così da uno script già esercitato una volta, non da tentativi live a
-   ore fatturate.
+1. **Preparazione — [rev. 2, decisa con l'utente]: immagine propria su
+   GHCR invece del bootstrap a runtime.** `ops/runpod/Dockerfile` builda
+   l'immagine monolitica `caliper-pod` (stack completo a versioni
+   pinnate coerenti col progetto: CadQuery 2.8.0, Flowise 3.1.4, Ollama
+   0.32.15, Qdrant v1.19.0, Python 3.11, Claude Code CLI);
+   `.github/workflows/publish-images.yml` la pubblica su GHCR **insieme
+   alle 4 immagini di servizio del compose** — che così vengono buildate
+   in CI per la prima volta nella storia del progetto (chiude subito la
+   parte "immagini mai costruite" di C9, e la classe di bug "COPY
+   dimenticata" di M1 diventa un fallimento di CI). `start.sh`,
+   `supervisord.conf`, `harvest.sh`, `env_fingerprint.sh`,
+   `install_vllm.sh` sono versionati in `ops/runpod/`. Il compose resta
+   la topologia di M7: `docker-compose.ghcr.yml` è l'override che in M7
+   fa `pull` delle immagini GHCR invece di ricostruirle.
+   **vLLM (preferenza dichiarata dall'utente):** a parità di funzione si
+   preferisce vLLM — ruolo assegnato: serving dei modelli locali per il
+   test Rischio #1 (M6-extra, endpoint OpenAI-compatible su :8700 via
+   `install_vllm.sh`, venv sul volume) e via di fuga designata per L2.5
+   se il bug ChatOllama di Flowise (v10) si ripresenta live. Il bring-up
+   M6 resta su Ollama perché il sistema sotto test è quello scritto
+   (stream-agent e chatflow parlano l'API nativa Ollama) — sostituirlo
+   prima della prima esecuzione viva cambierebbe il sistema sotto test.
 2. **Esecuzione sul pod** (sessione Claude Code *dentro il pod*, vedi §4):
    bring-up, versioning dei chatflow L2 (finalmente esportati in
    `services/flowise/chatflows/` — oggi il chatflow L2 free-code vive solo
@@ -248,9 +261,9 @@ Configurazione raccomandata (decisa; i costi non sono un vincolo):
 | Datacenter | **EU con supporto Network Volume** (es. `EU-RO-1` — verificare in creazione che il DC scelto offra sia 4090 sia network volume: il volume è vincolato al datacenter) | Latenza e residenza dati |
 | Container disk | **60 GB** | CadQuery/OCP ~3GB, modelli Ollama, node_modules Flowise, margine |
 | **Network Volume** | **`caliper-artifacts`, 100 GB, montato su `/workspace`** | È la "cartella specifica" persistente: sopravvive allo spegnimento del pod |
-| Immagine template | `runpod/pytorch` più recente con **Python 3.11 + CUDA 12.x** (es. `runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04`) | Python 3.11 = parità col progetto; SSH/Jupyter inclusi; torch inutilizzato ma innocuo |
-| Porte HTTP esposte | 3000 (Flowise), 3010 (Open WebUI), 6333 (Qdrant), 8000 (dashboard), 8500 (stream-agent), 8600 (verifier) + SSH | Accesso via proxy RunPod per ispezione umana |
-| Start command | `bash /workspace/caliper-cad/ops/runpod/bootstrap.sh` | Idempotente: clona/aggiorna il repo **sul volume**, installa lo stack, avvia i servizi |
+| Immagine template | **`ghcr.io/danielesalpietro/caliper-pod:git-<sha>`** — immagine nostra, buildata e pubblicata su GHCR da `.github/workflows/publish-images.yml` (vedi `ops/runpod/README.md`) | **[rev. 2, decisa con l'utente]** Sostituisce l'idea iniziale "immagine generica + bootstrap a runtime": versioni pinnate coerenti col progetto (CadQuery 2.8.0, Flowise 3.1.4, Ollama 0.32.15, Qdrant v1.19.0), e la build in CI chiude subito il pezzo di C9 "immagini mai costruite" |
+| Porte HTTP esposte | 3000 (Flowise), 3010, 6333 (Qdrant), 8000, 8500 (stream-agent), 8600 (verifier), 8700 (vLLM), 11434 (Ollama) + SSH | Accesso via proxy RunPod per ispezione umana |
+| Start command | *(vuoto — l'immagine ha già `CMD ops/runpod/start.sh`)* | `start.sh` prepara `/workspace`, aggiorna il repo, avvia supervisord; i modelli Ollama persistono sul volume |
 | Secrets (RunPod Secrets, mai nel repo) | `OPENAI_API_KEY`, `FLOWISE_PASSWORD`, `FLOWISE_API_KEY`, `ANTHROPIC_API_KEY` (o token `claude setup-token`), `GITHUB_TOKEN` (push harvest) | Il template li inietta come env; il bootstrap li consuma |
 
 **Modello di esecuzione delle sessioni su pod:** il bootstrap installa
