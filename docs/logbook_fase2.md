@@ -165,6 +165,62 @@ solo a escludere una strategia dal retrieval senza un riscontro fisico
 (Livello 5) — un bug del checker (già successo, `[v14]`) non deve
 diventare un pregiudizio permanente e auto-confermato.
 
+### Come il checkpoint arriva al Livello 2 in retry, senza farlo "spiegare"
+
+Il rischio: se i numeri grezzi del checkpoint (step, face count, tolleranza)
+finiscono nel prompt di retry così come sono, il modello li interpreta
+liberamente — stesso pattern già visto di spiegazioni plausibili ma
+inventate (`texture_thread()`/`clearance=`, Rischio #3). Per evitarlo, il
+checkpoint non passa mai al prompt come dato grezzo: viene prima ridotto a
+un **enum fisso**, da una funzione a soglie deterministica (codice, non
+LLM):
+
+```
+step/total_steps < 0.33            → SWEEP_TIMEOUT_EARLY
+step/total_steps >= 0.33           → SWEEP_TIMEOUT_LATE
+max_entity_tolerance_mm > soglia   → TOPOLOGY_TOLERANCE_ANOMALY
+nessuna soglia superata            → RETRY_GENERIC (nessun hint specifico)
+```
+
+A ciascun codice corrisponde **un solo enunciato canned, scritto da un
+umano** — mai composto dal modello, mai i numeri grezzi:
+
+```json
+"retry_context": {
+  "attempt": 2,
+  "previous_error": "gauge_check_timeout",
+  "directive": "SWEEP_TIMEOUT_EARLY",
+  "directive_text": "Il tentativo precedente ha superato il tempo massimo nella prima parte del percorso elicoidale. Riduci la complessita' del profilo (numero di segmenti) o il numero di giri modellati."
+}
+```
+
+Solo `directive_text` entra nel prompt di L2, come parte della "strategia
+di variazione" già richiesta dalla Policy di retry esistente. I numeri
+grezzi restano fuori dal prompt e vanno invece a L7, dove servono da
+filtro esatto su parametri strutturati (coerente con la nota già in
+architettura sul retrieval ibrido), non da testo su cui far ragionare il
+modello.
+
+**Se nessuna soglia scatta con sicurezza → `RETRY_GENERIC`**, nessun hint
+tecnico specifico, si torna alla sola variazione prompt/temperatura già
+prevista — meglio nessun hint che uno sbagliato, stessa disciplina già
+usata in `presets.json` (`defined: false` invece di inventare).
+
+**Riserva onesta:** l'enum e i suoi enunciati sono un'ipotesi non
+validata ("timeout in fase iniziale = profilo troppo complesso" è
+plausibile, non dimostrato). Vanno tracciati insieme all'esito del retry
+successivo (PASS/FAIL) nel log virtuale, per validarli o correggerli con
+misura reale — stesso principio già applicato al bug OpenBLAS e al bug
+dimensionale `[v14]`, non per assunzione.
+
+**Nota di implementazione:** l'orchestratore (`generate_and_verify.py`)
+non ha ancora un retry automatico (v13: "Nessun retry automatico ancora").
+Questo contratto va costruito insieme a quel meccanismo, non prima —
+vedi anche [`logbook_fase3.md`](logbook_fase3.md) per la direzione a
+lungo termine: con lo schema sketch-first di M3, la stessa
+classificazione potrà clampare direttamente un campo numerico dei
+vincoli invece di passare per un'istruzione testuale.
+
 ## Milestone (criterio di accettazione, mantenuto)
 
 Esecuzione batch automatica dei tre test case su geometrie **note,

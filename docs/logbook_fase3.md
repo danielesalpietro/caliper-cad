@@ -40,6 +40,15 @@ l'output allo schema a livello di decoding, non solo dopo generazione.
    l'output vincoli-2D e il codice CadQuery che il kernel già sa eseguire
    (estrusione/rivoluzione a partire dai vincoli, non da codice libero
    generato dall'LLM).
+4. **Direzione a lungo termine per il retry su timeout del gauge-check
+   (vedi [`logbook_fase2.md`](logbook_fase2.md#come-il-checkpoint-arriva-al-livello-2-in-retry-senza-farlo-spiegare)).**
+   Oggi un hint di retry può arrivare a L2 solo come frase canned in un
+   prompt testuale, perché L2 genera codice libero. Con lo schema
+   sketch-first di questa milestone, lo stesso enum di classificazione
+   (es. `SWEEP_TIMEOUT_EARLY`) potrà invece clampare direttamente un campo
+   numerico dei vincoli (es. limite al numero di segmenti del profilo) —
+   più deterministico di un'istruzione testuale. Non bloccante per M3, ma
+   da tenere presente nello schema dei vincoli fin dall'inizio.
 
 ## Milestone (criterio di accettazione, ristretto)
 
