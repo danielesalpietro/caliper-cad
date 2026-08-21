@@ -99,7 +99,7 @@ i principi già stabiliti nel resto del progetto.
 | # | Nome | Issue | Logbook | Stato |
 |---|---|---|---|---|
 | M1 | Scaffold di isolamento + calibri di riferimento | [#2](https://github.com/danielesalpietro/caliper-cad/issues/2) | [logbook_fase1.md](logbook_fase1.md) | 🟢 criterio di accettazione raggiunto — protocollo/codice + primo calibro reale M6, verificati end-to-end (PASS/FAIL, volume, determinismo). Non ancora eseguito dentro il container `verifier-executor` reale (nessun Docker in sandbox, stesso codice validato fuori) |
-| M2 | Controlli geometrici deterministici, validati su geometrie note | [#3](https://github.com/danielesalpietro/caliper-cad/issues/3) | [logbook_fase2.md](logbook_fase2.md) | 🔲 non iniziata |
+| M2 | Controlli geometrici deterministici, validati su geometrie note | [#3](https://github.com/danielesalpietro/caliper-cad/issues/3) | [logbook_fase2.md](logbook_fase2.md) | 🟢 criterio di accettazione raggiunto — TC1/TC2/TC3 verificati indipendentemente, timeout ricalibrato su misura reale (65.5s CPU worst-case), retry L3→L2 implementato. PR [#8](https://github.com/danielesalpietro/caliper-cad/pull/8), non ancora mergiata |
 | M3 | Pipeline sketch-first → compilazione → collaudo (ambito: preset "thread") | [#4](https://github.com/danielesalpietro/caliper-cad/issues/4) | [logbook_fase3.md](logbook_fase3.md) | 🔲 non iniziata |
 | M4 | Chiusura del loop di retrieval, firewall simulato/fisico | [#5](https://github.com/danielesalpietro/caliper-cad/issues/5) | [logbook_fase4.md](logbook_fase4.md) | 🔲 non iniziata |
 
