@@ -5,12 +5,19 @@
     "nominal": "M6",
     "pitch_mm": 1.0,
     "profile_angle_deg": 60,
-    "go_step": "thread_M6_ISO68-1/GO.step",
-    "nogo_step": "thread_M6_ISO68-1/NOGO.step",
-    "calibration_status": "not_modeled",
-    "modeled_by": null,
-    "modeled_on": null,
-    "cad_tool": null,
-    "notes": "Primo calibro previsto dalla checklist di docs/logbook_fase1.md (M1). Formato/protocollo pronti (services/verifier/executor/gauge_check.py), ma i file GO.step/NOGO.step non esistono ancora: vanno modellati con CAD convenzionale, non dall'IA (vedi README.md in questa cartella). calibration_status passa a 'modeled_pending_verification' quando i file sono presenti ma non ancora usati in un batch reale, poi a 'verified' dopo un primo collaudo riuscito su un pezzo noto."
+    "gauge_type": "thread_plug",
+    "gauge_type_notes": "Tampone filettato esterno, per verificare un FORO filettato (coerente con l'esempio L2.5 in architettura, 'foro filettato M6') — non un calibro ad anello.",
+    "go_step": "thread_M6_GO_ISO68-1.step",
+    "nogo_step": "thread_M6_NOGO_ISO68-1.step",
+    "go_envelope_diameter_mm": 5.7,
+    "nogo_envelope_diameter_mm": 6.3,
+    "engagement_length_mm": 8.0,
+    "engagement_length_status": "placeholder, non ancora un campo dello schema L2.5",
+    "calibration_status": "generated_verified_static",
+    "provenance": "config/gauges/generate_thread_gauge.py — script deterministico basato su formule ISO note (profilo a V, angolo 60 gradi), eseguito una tantum da un umano, mai dall'LLM in loop di generazione. Non e' il caso vietato dal vincolo 'niente file generati dall'IA' (vedi docs/logbook.md punto 3): quel vincolo riguarda l'uso dello stesso processo generativo che il verificatore deve validare, non uno script deterministico basato su una norma.",
+    "modeled_by": "generate_thread_gauge.py",
+    "modeled_on": "2026-08-21",
+    "cad_tool": "CadQuery 2.8.0",
+    "verification_status": "verificato staticamente (validita', bbox, volume plausibile, periodicita' dell'elica) e, tramite gauge_check.py, con un pezzo di controllo (foro liscio nominale) — vedi docs/logbook_fase1.md, sezione 'Verifica end-to-end sui calibri reali'. NON ancora verificato contro un foro filettato reale generato dalla pipeline L2 (fuori scope M1, vedi M3)."
   }
 }
