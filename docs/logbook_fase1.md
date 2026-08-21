@@ -5,6 +5,9 @@ critica completa. Nota terminologica: questa è la prima milestone del
 sotto-percorso "Ciclo di Collaudo Virtuale", innestato nella **Fase A**
 esistente — non una nuova Fase C e non un sostituto della Fase B.
 
+Prompt di handoff pronto per la sessione che implementa questa milestone:
+[`handoff_m1.md`](handoff_m1.md).
+
 ## Obiettivo (rivisto rispetto alla proposta originale)
 
 Proposta originale: nodo Docker per un motore 3D headless con VRAM
