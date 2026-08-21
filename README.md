@@ -213,7 +213,7 @@ architecture doc's risk list. Retrying usually works.
 | `qdrant` | vector store for the retrieval agent | `qdrant/qdrant` | ~75 MB |
 | `stream-agent` | retrieval/grounding agent (Livello 7) — adapted from [NORTHSTREAM](https://github.com/danielesalpietro/NORTHSTREAM): indexes the frozen dataset from disk instead of consuming a Kafka stream | built locally | ~300 MB |
 | `verifier` | deterministic verifier (Livello 3) — not a Flowise node (Rischio #9), callable as an HTTP tool. Static checks (Python syntax, `import cadquery`, `result` assignment) always; delegates execution + dimensional measurement to `verifier-executor` via a shared volume | built locally | ~150 MB |
-| `verifier-executor` | isolated execution of LLM-generated CadQuery code (Livello 3, phase 2) — `network_mode: none`, communicates with `verifier` only through the `verifier_exec` volume (job/result files), per-job CPU/memory limits via `resource.setrlimit`. Runs the code, measures the bounding box, compares against the spec's `nominal`±`tolerance` where a preset defines the check | built locally | ~2.8 GB (CadQuery + OCP + VTK) |
+| `verifier-executor` | isolated execution of LLM-generated CadQuery code (Livello 3, phase 2) — `network_mode: none`, communicates with `verifier` only through the `verifier_exec` volume (job/result files), per-job CPU/memory limits via `resource.setrlimit`. Runs the code, measures the bounding box, compares against the spec's `nominal`±`tolerance` where a preset defines the check. **[M1]** Also runs the virtual Go/No-Go gauge check (`gauge_check.py`, static B-Rep interference) as a separate subprocess with its own timeout, comparing a known part STEP against a known gauge STEP — two extra read-only mounts, `${DATA_DIR:-./data}/models` and `config/gauges/` (see [`config/gauges/README.md`](config/gauges/README.md)); no new HTTP route | built locally | ~2.8 GB (CadQuery + OCP + VTK) |
 | `open-webui` | chat interface to query the grounded dataset | `ghcr.io/open-webui/open-webui` | ~1.4 GB |
 | `dashboard` | entry point to the stack — per-service status (server-side health checks) and read-only logs, ordered by pipeline level; no start/stop/restart by design (see Networking below) | built locally | ~150 MB |
 | `docker-socket-proxy` | the only container that touches `/var/run/docker.sock`, scoped to `CONTAINERS=1`, `LOGS=1`, `POST=0` — list/inspect/logs only, every write action (start/stop/restart/exec/create/delete) rejected regardless of caller | `tecnativa/docker-socket-proxy` | ~15 MB |
@@ -251,6 +251,7 @@ once running the stack locally.
 
 Configuration template: [`.env.example`](.env.example). Slicing profile:
 [`config/prusaslicer/caliper-pla.ini`](config/prusaslicer/caliper-pla.ini).
+Gauge format for the virtual collaudo (M1): [`config/gauges/`](config/gauges/README.md).
 
 ## 9. Installation
 
