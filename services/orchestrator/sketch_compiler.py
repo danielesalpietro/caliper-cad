@@ -1,0 +1,144 @@
+"""
+CALIPER — compilatore vincoli-2D -> CadQuery (M3).
+
+Vedi docs/logbook_fase3.md. Prende una spec sketch-first GIA' VALIDATA
+(vedi sketch_schema.py — chiamare assert_valid_sketch_spec() prima di
+usare questo modulo, non fidarsi di una spec non validata) e produce una
+stringa di codice CadQuery — non esegue MAI cadquery direttamente, non
+importa nemmeno il pacchetto: e' testo, generato deterministicamente
+(nessun LLM in questo passaggio). Il codice prodotto passa poi dallo
+STESSO confine di fiducia gia' in uso per il codice libero generato da
+L2 (Rischio #9): eseguito solo dentro verifier-executor isolato, mai qui.
+
+Ambito M3, un solo compilatore: compile_thread_sketch_to_code(), per
+operation.type == "helical_thread_cut" (profilo a V sweepato
+elicoidalmente, sottratto da un blocco ospite -> foro filettato, vedi
+sketch_schema.py per il perche' di questo scope ristretto).
+
+Riusa la stessa tecnica gia' validata in
+config/gauges/generate_thread_gauge.py (build_thread_plug) e in
+services/verifier/executor/verify_gauge_check_tc2.py
+(build_nominal_thread_cavity: block.cut(build_thread_plug(...))) — non
+una costruzione geometrica indipendente, per non rischiare la stessa
+classe di incoerenza di fase/passo/verso gia' evitata li'. La differenza
+e' che qui il profilo a V non e' hardcoded (3 .lineTo() fissi) ma
+ricostruito dai punti/linee dichiarati nello sketch — la stessa forma,
+ma percorsa dinamicamente seguendo la topologia dichiarata invece di tre
+chiamate scritte a mano.
+
+CUT_OVERLAP_MM: stessa costante e stesso motivo di generate_thread_gauge.py
+(sovrapposizione dei punti di cresta oltre il raggio maggiore nominale,
+altrimenti l'OCC boolean tra il cilindro di base e la scanalatura produce
+un solido non manifold per tangenza esatta) — un dettaglio numerico di
+stabilizzazione OCC, non un'informazione che lo sketch (o l'LLM che lo
+genera) deve conoscere, per lo stesso principio gia' applicato ai
+checkpoint di gauge_check.py in retry_policy.py: i numeri
+d'implementazione restano fuori da cio' che il livello dichiarativo
+vede.
+"""
+
+from sketch_schema import SketchValidationError, point_lookup, assert_valid_sketch_spec
+
+CUT_OVERLAP_MM = 0.05
+
+
+def _trace_closed_loop(sketch: dict) -> list[str]:
+    """Ordina i punti dello sketch percorrendo le linee in sequenza,
+    partendo da lines[0]. Precondizione (garantita da
+    sketch_schema.validate_sketch_spec): ogni punto ha grado esattamente
+    2 — un'unica polilinea chiusa, nessuna diramazione. Ritorna la
+    sequenza di id punto (senza ripetere il primo alla fine)."""
+    lines = sketch["lines"]
+    if not lines:
+        raise SketchValidationError(["sketch.lines e' vuoto: nessun profilo da tracciare"])
+
+    adjacency: dict[str, list[str]] = {}
+    for ln in lines:
+        adjacency.setdefault(ln["start"], []).append(ln["end"])
+        adjacency.setdefault(ln["end"], []).append(ln["start"])
+
+    start = lines[0]["start"]
+    ordered = [start]
+    prev, current = None, start
+    while True:
+        candidates = [p for p in adjacency[current] if p != prev]
+        # Se entrambi i vicini sono validi (caso non-degenere), evita di
+        # tornare subito indietro sul primo passo scegliendo un vicino
+        # diverso da 'prev'; su un ciclo semplice con grado 2 ovunque
+        # questo basta a percorrere l'intero contorno una sola volta.
+        nxt = candidates[0] if candidates else adjacency[current][0]
+        if nxt == start:
+            break
+        ordered.append(nxt)
+        prev, current = current, nxt
+        if len(ordered) > len(adjacency):
+            raise SketchValidationError(["il profilo non chiude entro il numero di punti dichiarati — topologia malformata"])
+    return ordered
+
+
+def compile_thread_sketch_to_code(spec: dict) -> str:
+    """spec deve avere operation.type == 'helical_thread_cut' e passare
+    assert_valid_sketch_spec(). Ritorna codice CadQuery (stringa) che
+    assegna 'result' — stesso contratto del codice libero generato da L2
+    (vedi services/verifier/executor/run_and_measure.py:
+    'result' non trovato dopo l'esecuzione -> FAIL)."""
+    assert_valid_sketch_spec(spec)
+    op = spec["operation"]
+    if op["type"] != "helical_thread_cut":
+        raise SketchValidationError([f"compile_thread_sketch_to_code non supporta operation.type={op['type']!r}"])
+    if spec["sketch"]["arcs"]:
+        raise SketchValidationError(["compile_thread_sketch_to_code non supporta archi nel profilo (M3, solo profilo a V con linee)"])
+
+    sketch = spec["sketch"]
+    points = point_lookup(sketch)
+    ordered_ids = _trace_closed_loop(sketch)
+
+    r_major = op["major_diameter_mm"] / 2.0
+    pitch_mm = op["pitch_mm"]
+    engagement_length_mm = op["engagement_length_mm"]
+    host_x, host_y, host_z = op["host"]["size_mm"]
+    if not op.get("right_handed", True):
+        # Non implementato: nessun caso di prova per una filettatura
+        # sinistrorsa in questa milestone (il preset "thread" e i calibri
+        # M6 sono tutti destrorsi) — meglio un errore esplicito che una
+        # geometria sinistrorsa mai verificata (stessa disciplina di
+        # presets.json: 'defined: false' invece di fingere copertura).
+        raise SketchValidationError(["right_handed=false non e' implementato in questa milestone (M3, nessun calibro/caso di prova sinistrorso)"])
+
+    # I punti di cresta (raggio massimo, entro tolleranza) prendono
+    # l'overlap di stabilizzazione OCC — vedi CUT_OVERLAP_MM sopra. Il
+    # punto di radice (raggio minore) resta esatto.
+    profile_coords = []
+    for pid in ordered_ids:
+        x, y = points[pid]
+        is_crest = abs(x - r_major) <= 1e-6
+        profile_coords.append((x + CUT_OVERLAP_MM if is_crest else x, y))
+
+    move_x, move_y = profile_coords[0]
+    profile_lines = "\n    ".join(f".lineTo({x!r}, {y!r})" for x, y in profile_coords[1:])
+
+    code = f'''import cadquery as cq
+
+# Profilo a V compilato da vincoli sketch-first (M3) — punti/linee
+# dichiarati in sketch_compiler.compile_thread_sketch_to_code(), stessa
+# forma di config/gauges/generate_thread_gauge.build_thread_plug() ma
+# tracciata dinamicamente dalla topologia dello sketch invece che da tre
+# .lineTo() fissi. CUT_OVERLAP_MM applicato ai punti di cresta per la
+# stessa ragione di stabilizzazione OCC di generate_thread_gauge.py.
+_profile = (
+    cq.Workplane("XZ")
+    .moveTo({move_x!r}, {move_y!r})
+    {profile_lines}
+    .close()
+)
+_path = cq.Wire.makeHelix(pitch={pitch_mm!r}, height={engagement_length_mm!r}, radius={r_major!r})
+_groove = _profile.sweep(_path, isFrenet=True)
+_thread_pin = cq.Workplane("XY").circle({r_major!r}).extrude({engagement_length_mm!r}).cut(_groove)
+
+_host = (
+    cq.Workplane("XY")
+    .box({host_x!r}, {host_y!r}, {host_z!r}, centered=(True, True, False))
+)
+result = _host.cut(_thread_pin)
+'''
+    return code

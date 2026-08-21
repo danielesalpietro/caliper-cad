@@ -99,21 +99,119 @@ rivendica copertura di altre feature class.
       `min_distance` (era rimasto fermo a `static_interference` di M1) —
       verificato con un test end-to-end reale (richiesta → job →
       `gauge_check.py` → risultato PASS sui calibri M6 reali)
-- [ ] Collegare `/gauge-check` al loop di `generate_and_verify.py` per
-      davvero (oggi chiama solo `/verify`) — prerequisito perché
-      `classify_checkpoint` smetta di ricadere sempre su `RETRY_GENERIC`
-      e perché il criterio di accettazione di M3 (collaudo Go/No-Go nel
-      loop) sia soddisfatto
-- [ ] Schema JSON dei vincoli di sketch 2D definito (punti, linee, archi,
-      quote, tipo di vincolo) — con validazione a livello di schema, non
-      solo dopo la generazione
-- [ ] Meccanismo di conferma umana della specifica (dipendenza già aperta
-      dal Livello 2.5, vedi architettura — non ancora progettato,
-      riguarda anche questa milestone)
-- [ ] Strategia "sketch-first" aggiunta a `generate_and_verify.py` come
-      modalità alternativa del nodo L2
-- [ ] Compilazione vincoli-2D → CadQuery → STEP verificata
-- [ ] Prima esecuzione end-to-end sul preset `thread` documentata con
-      esito reale (non solo test sintetico) — **richiede un'istanza
-      Flowise viva**: se non disponibile, dichiararlo esplicitamente come
-      bloccante, non aggirare con un mock della generazione stessa
+- [x] **Bug trovato prima di collegare il loop (stessa disciplina di
+      M1/M2): `run_and_measure.py` non esportava mai il pezzo generato
+      come STEP**, e `/models` è montato **read-only** in
+      `verifier-executor` — un pezzo appena generato non poteva finirci.
+      Aggiunta una radice separata e scrivibile,
+      `/exec/parts` (sottocartella del volume `verifier_exec` già in
+      uso, nessun nuovo mount), con `part_source: "models"|"generated"`
+      in `gauge_check.py`/`POST /gauge-check` per distinguere sempre i
+      pezzi di riferimento statici (M1/M2) da quelli appena generati —
+      mai confusi, stesso spirito del firewall `source: virtual|physical`
+      di M4. Verificato con
+      `services/verifier/executor/verify_gauge_check_part_source.py`
+      (radici separate, nessuna regressione sul default `models`,
+      `part_source` non valido rifiutato esplicitamente) e con
+      `services/verifier/executor/verify_run_and_measure_export.py`
+      (STEP esportato solo su geometria valida).
+- [x] **Secondo bug trovato: `GAUGE_CHECK_HTTP_TIMEOUT_SECONDS` in
+      `services/verifier/app.py` era rimasto a 60s** (tarato sul
+      placeholder M1 di 45s esterno) e non era mai stato aggiornato
+      quando M2 ha ricalibrato il timeout del watcher a 150s — l'endpoint
+      HTTP avrebbe rinunciato ad aspettare prima che il watcher
+      dichiarasse un vero TIMEOUT diagnosticabile. Portato a 200s.
+- [x] **Terzo bug: `call_verifier()` in `generate_and_verify.py` non
+      mandava mai `spec` al verifier** — il confronto dimensionale in
+      `run_and_measure.py` (feature `"thread"`) non scattava mai
+      attraverso l'orchestratore, solo negli script di verifica manuali.
+      Corretto: ora invia la spec del tentativo corrente.
+- [x] Collegato `/gauge-check` al loop di `generate_and_verify.py` per
+      davvero: dopo un PASS di `/verify`, se il preset della feature
+      definisce `gauge_check_mode` (solo `thread` in questa milestone),
+      il loop chiama anche `/gauge-check` (mode `sweep`, calibro GO) sul
+      pezzo appena esportato — il caso è PASS solo se **entrambi**
+      passano; un FAIL/TIMEOUT del gauge-check alimenta
+      `classify_checkpoint` per il tentativo successivo, invece di
+      ricadere sempre su `RETRY_GENERIC`. `presets.json` (`thread`) esteso
+      con `gauge_check_mode`/`pitch_mm`/`engagement_length_mm`/
+      `sweep_steps` (stessi valori già verificati in
+      `verify_gauge_check_tc2.py`) — `engagement_length_mm` ha finalmente
+      una casa reale, non più solo un placeholder locale a
+      `generate_thread_gauge.py`. Verificato in
+      `services/orchestrator/verify_gauge_check_loop_wiring.py` (5
+      scenari: successo diretto, recupero dopo TIMEOUT con directive
+      corretta nel retry_context, feature senza gauge-check, uscita
+      anticipata su FAIL ripetuto, spec inoltrata correttamente) — stessa
+      classe di mock già usata in M2 per `verify_retry_policy.py` (logica
+      del loop, non la generazione).
+- [x] Schema JSON dei vincoli di sketch 2D definito
+      (`services/orchestrator/sketch_schema.py`): punti/linee/archi/quote
+      con tipo di vincolo (`distance`/`angle`/`radius`), validato in
+      quattro livelli (struttura, riferimenti, topologia — polilinea
+      chiusa —, consistenza numerica quota↔coordinate e
+      sketch↔operation) **prima** di raggiungere il kernel geometrico
+      (README §3.1). Verificato in `verify_sketch_schema.py` (8 casi,
+      incluso un bug reale trovato scrivendo il primo caso a mano: il
+      calcolo dell'angolo tra due linee adiacenti dava il supplementare,
+      120° invece di 60°, per un errore di convenzione sul verso dei
+      vettori — corretto). Campo `engagement_length_mm` presente
+      nell'`operation` fin dall'inizio, come richiesto dal punto 4 sopra.
+- [x] Compilazione vincoli-2D → CadQuery verificata (non solo "a STEP":
+      l'intera catena, vedi sotto) —
+      `services/orchestrator/sketch_compiler.py` produce testo (mai
+      esegue cadquery lui stesso — resta fuori dal confine di fiducia di
+      Rischio #9, il codice prodotto passa dallo stesso `/verify` isolato
+      del codice libero). Caso di prova **scritto a mano** (M6, ISO
+      68-1) in `verify_sketch_compiler_thread.py`: spec → validazione →
+      compilazione → `exec()` → STEP → collaudo Go/No-Go **reale** sui
+      calibri M6 versionati (non sintetici) — GO **PASS** su tutti i 21
+      step (residuo 0.305925mm³, praticamente identico ai 0.305928mm³ già
+      documentati in TC2), NO-GO **FAIL** con interferenza rilevata
+      (20.158069mm³ vs 20.158363mm³ di TC2) — stessa geometria del
+      percorso già validato in M2, ora costruita da vincoli dichiarativi.
+      **Bug reale trovato scrivendo questo caso di prova:** un blocco
+      ospite più profondo della lunghezza di impegno lascia materiale
+      pieno non filettato oltre l'impegno — il calibro ci sbatteva contro
+      durante lo sweep (falsa interferenza, ~8.4mm³ al primo step).
+      Vincolo aggiunto allo schema: il blocco ospite deve avere
+      profondità **esattamente uguale** a `engagement_length_mm` in
+      questa milestone (foro passante, stessa scelta già validata in
+      `verify_gauge_check_tc2.py` — un foro cieco più profondo del
+      filetto resta fuori scope, richiederebbe un controcavo che il
+      compilatore non modella ancora).
+- [x] Strategia "sketch-first" aggiunta a `generate_and_verify.py` come
+      modalità **componibile** del nodo L2 (`L2_STRATEGY=sketch_first`,
+      default invariato `free_code`) — non una riscrittura: stesso loop,
+      stesso protocollo `/verify`+`/gauge-check`, cambia solo come si
+      ottiene il codice da verificare. Un errore di generazione/
+      validazione/compilazione (JSON malformato, spec che non passa lo
+      schema, feature non ancora supportata dal compilatore) è un FAIL
+      immediato del tentativo, **senza nemmeno chiamare `/verify`**,
+      classificato `RETRY_GENERIC` (mai un hint inventato — `retry_policy.py`
+      non è stato toccato, come da vincolo). Verificato in
+      `verify_sketch_first_strategy.py` (4 scenari, con `call_flowise_l2`
+      mockata: successo con codice compilato — non JSON grezzo — inviato
+      a `/verify`, testo non-JSON, spec che non valida lo schema, feature
+      non supportata).
+- [ ] **Meccanismo di conferma umana della specifica** — dipendenza già
+      aperta dal Livello 2.5 (vedi architettura), non toccata in questa
+      milestone: fuori dall'ambito diretto del collaudo Go/No-Go, non
+      affrontata per mancanza di tempo/scope, resta lavoro futuro esplicito.
+- [ ] **Prima esecuzione end-to-end reale sul preset `thread` — NON
+      raggiunta.** Nessuna istanza Flowise raggiungibile in questo
+      sandbox (né `FLOWISE_URL`/`FLOWISE_API_KEY` impostate, né un
+      demone Docker disponibile — stesso limite già incontrato in M1/M2)
+      — verificato esplicitamente (`curl` a `localhost:3000` fallisce,
+      `docker ps` non trova il socket). Come richiesto dall'handoff: non
+      aggirato con un mock della generazione stessa (i mock usati sopra
+      testano solo la *logica del loop*, mai rivendicata come esecuzione
+      reale). Il criterio di accettazione della milestone (prompt
+      testuale → vincoli → STEP → collaudo → log, con una vera
+      generazione L2) resta quindi **parzialmente raggiunto**: tutta la
+      catena a valle della generazione (schema, compilatore, wiring del
+      gauge-check, loop di retry) è costruita e verificata con casi
+      scritti a mano; la generazione L2 reale (via chatflow "sketch-first"
+      — non versionato in `services/flowise/chatflows/`, vive solo in
+      un'istanza Flowise configurata a mano) resta esplicitamente non
+      verificata, primo compito per chi eredita M3 con accesso a Flowise.

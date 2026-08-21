@@ -45,6 +45,14 @@ checkpoint viene riscritto prima di ogni step, cosi' il watcher legge
 sempre l'ultimo step TENTATO (non completato) in caso di timeout a meta'
 sweep.
 
+[M3] part_source ("models", default, o "generated"): quale radice
+usare per part_step_path — "models" per i pezzi di riferimento
+noti/statici (MODELS_ROOT, invariato, script M1/M2 esistenti),
+"generated" per un pezzo appena esportato da run_and_measure.py
+(GENERATED_PARTS_ROOT, /exec/parts — vedi la sua docstring per il
+perche' non puo' stare sotto MODELS_ROOT, montato read-only).
+gauge_step_path resta sempre relativo a GAUGES_ROOT, invariato.
+
 Uso: python gauge_check.py <job.json> <result.json> <checkpoint.json>
 """
 
@@ -65,6 +73,21 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 # assoluti — vedi resolve_under_root().
 MODELS_ROOT = os.environ.get("GAUGE_CHECK_MODELS_ROOT", "/models")
 GAUGES_ROOT = os.environ.get("GAUGE_CHECK_GAUGES_ROOT", "/gauges")
+
+# [M3] Radice SEPARATA per i pezzi appena generati da run_and_measure.py
+# (vedi la sua docstring): scrivibile, sottocartella del volume
+# verifier_exec gia' in uso, MAI confusa con MODELS_ROOT anche se in
+# pratica potrebbe coincidere in alcuni deploy — la distinzione non e'
+# solo di percorso ma di provenienza (Rischio #8/M4, stesso principio
+# gia' applicato al firewall source: virtual|physical): MODELS_ROOT resta
+# riservato a pezzi di riferimento noti/statici, versionati o comunque
+# non prodotti dal loop di generazione corrente (criterio di
+# accettazione di M1 — "l'AI non entra in questa milestone"); qui invece
+# e' esplicitamente l'output della generazione sotto test. part_source
+# nel job seleziona quale radice usare, default "models" per restare
+# compatibile con tutti gli script M1/M2 esistenti che non lo passano.
+GENERATED_PARTS_ROOT = os.environ.get("GAUGE_CHECK_GENERATED_PARTS_ROOT", "/exec/parts")
+VALID_PART_SOURCES = ("models", "generated")
 
 # Tolleranza numerica sul volume di intersezione per static_interference
 # e per sweep lineare (TC1, geometrie non filettate): un boolean OCC su
@@ -388,6 +411,7 @@ def main():
     mode = gc.get("mode", "static_interference")
     part_rel = gc["part_step_path"]
     gauge_rel = gc.get("gauge_step_path")
+    part_source = gc.get("part_source", "models")
 
     result = {
         "execution": "FAIL",
@@ -398,6 +422,7 @@ def main():
             "status": "FAIL",
             "mode": mode,
             "part_step_path": part_rel,
+            "part_source": part_source,
             "gauge_step_path": gauge_rel,
             "interference_volume_mm3": None,
             "preflight_diagnostics": None,
@@ -410,10 +435,16 @@ def main():
         write_json(result_path, result)
         return
 
+    if part_source not in VALID_PART_SOURCES:
+        result["error"] = f"part_source non valido: {part_source!r} (attesi: {VALID_PART_SOURCES})"
+        write_json(result_path, result)
+        return
+
     import cadquery as cq  # import qui, dopo set_limits() e dopo le env OpenBLAS/OMP
 
     try:
-        part_path = resolve_under_root(MODELS_ROOT, part_rel)
+        part_root = MODELS_ROOT if part_source == "models" else GENERATED_PARTS_ROOT
+        part_path = resolve_under_root(part_root, part_rel)
         part = cq.importers.importStep(part_path).val()
         gauge = None
         if gauge_rel is not None:

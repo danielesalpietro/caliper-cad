@@ -12,7 +12,7 @@
     "go_envelope_diameter_mm": 5.7,
     "nogo_envelope_diameter_mm": 6.3,
     "engagement_length_mm": 8.0,
-    "engagement_length_status": "placeholder, non ancora un campo dello schema L2.5",
+    "engagement_length_status": "campo reale in services/orchestrator/presets.json (thread.engagement_length_mm, M3) e nello schema dei vincoli di sketch 2D (services/orchestrator/sketch_schema.py) — non piu' solo un placeholder locale a questo script.",
     "calibration_status": "generated_verified_static",
     "provenance": "config/gauges/generate_thread_gauge.py — script deterministico basato su formule ISO note (profilo a V, angolo 60 gradi), eseguito una tantum da un umano, mai dall'LLM in loop di generazione. Non e' il caso vietato dal vincolo 'niente file generati dall'IA' (vedi docs/logbook.md punto 3): quel vincolo riguarda l'uso dello stesso processo generativo che il verificatore deve validare, non uno script deterministico basato su una norma.",
     "modeled_by": "generate_thread_gauge.py",
