@@ -33,6 +33,24 @@ jobs:
     # complesso, non il timeout applicativo (quello vive nel codice
     # stesso, gia' tarato empiricamente — vedi gauge_check.py).
     timeout-minutes: 20
+    env:
+      # [fix, primo run reale] Il primo tentativo di questo workflow e'
+      # fallito: verify_gauge_check_tc2.py ucciso da SIGKILL a ~33s di
+      # wall-clock su ubuntu-latest — il limite CPU interno di
+      # gauge_check.py (100s, GAUGE_CHECK_CPU_LIMIT_SECONDS, tarato in
+      # M2 su hardware di sviluppo con piu' core disponibili) viene
+      # raggiunto molto piu' in fretta su un runner GitHub Actions piu'
+      # debole/condiviso. Non e' un difetto del codice applicativo, ne'
+      # si tocca il valore di default usato in produzione (rimane 100s
+      # nel container reale, vedi gauge_check.py) — qui si allarga solo
+      # il budget del test harness per l'hardware di CI, tramite la
+      # stessa variabile d'ambiente gia' prevista per l'override (vedi
+      # gauge_check.py, GAUGE_CHECK_CPU_LIMIT_SECONDS). Valore non
+      # scelto a intuito ma con margine ampio sopra il caso gia'
+      # osservato fallire a 100s teorici in ~33s reali — se dovesse
+      # rivelarsi ancora insufficiente, il fix e' rialzare questo
+      # numero, misurato sul prossimo fallimento reale, non indovinato.
+      GAUGE_CHECK_CPU_LIMIT_SECONDS: "400"
     steps:
       - uses: actions/checkout@v4
 
