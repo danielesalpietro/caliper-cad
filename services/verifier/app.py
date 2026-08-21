@@ -58,7 +58,16 @@ class VerifyRequest(BaseModel):
 
 class GaugeCheckRequest(BaseModel):
     part_step_path: str
-    gauge_step_path: str
+    # Assente per "min_distance" (nessun secondo solido, vedi gauge_check.py)
+    gauge_step_path: str | None = None
+    mode: str = "static_interference"
+    # Passati a gauge_check.py cosi' come sono, senza validazione qui —
+    # la validazione (campi richiesti per modalita', valori ammessi) resta
+    # nel job/result su volume condiviso, stesso confine di fiducia gia'
+    # in uso per "code"/"spec" sopra (vedi Rischio #9: verifier non e' il
+    # posto per eseguire o interpretare, solo per instradare).
+    sweep: dict | None = None
+    min_distance: dict | None = None
 
 
 def check_python_syntax(code: str):
@@ -126,15 +135,31 @@ def run_execution_check(code: str, spec: dict | None):
     }
 
 
-def run_gauge_check_job(part_step_path: str, gauge_step_path: str):
+def run_gauge_check_job(
+    part_step_path: str,
+    gauge_step_path: str | None,
+    mode: str,
+    sweep: dict | None,
+    min_distance: dict | None,
+):
     """Scrive un job "gauge_check" sul volume condiviso e attende il risultato.
 
     Percorso separato da run_execution_check(): niente 'code', l'input
-    sono due STEP noti/statici (vedi docs/logbook_fase1.md, criterio di
+    sono STEP noti/statici (vedi docs/logbook_fase1.md, criterio di
     accettazione M1 — l'AI non entra in questa milestone). Il watcher
     dell'executor instrada questo job a gauge_check.py, in un
     sottoprocesso indipendente da exec(code), con un timeout proprio
     (vedi executor/watcher.py, GAUGE_CHECK_TIMEOUT_SECONDS).
+
+    mode/sweep/min_distance inoltrati cosi' come sono (vedi
+    GaugeCheckRequest) — gauge_check.py e' l'unico posto che li valida
+    davvero (VALID_MODES, campi richiesti per modalita'), coerente con
+    "verifier non esegue/interpreta, solo instrada" (Rischio #9).
+    **[M3] Prima di questa correzione l'endpoint accettava solo
+    static_interference** (mode non esisteva nel job scritto qui) —
+    sweep/min_distance di M2 erano raggiungibili solo dagli script di
+    verifica manuali che parlano direttamente con gauge_check.py, mai
+    dall'API HTTP che un orchestratore reale dovrebbe chiamare.
     """
     os.makedirs(JOBS_DIR, exist_ok=True)
     os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -143,8 +168,16 @@ def run_gauge_check_job(part_step_path: str, gauge_step_path: str):
     job_path = os.path.join(JOBS_DIR, f"{job_id}.json")
     result_path = os.path.join(RESULTS_DIR, f"{job_id}.json")
 
+    job = {"gauge_check": {"part_step_path": part_step_path, "mode": mode}}
+    if gauge_step_path is not None:
+        job["gauge_check"]["gauge_step_path"] = gauge_step_path
+    if sweep is not None:
+        job["gauge_check"]["sweep"] = sweep
+    if min_distance is not None:
+        job["gauge_check"]["min_distance"] = min_distance
+
     with open(job_path, "w", encoding="utf-8") as f:
-        json.dump({"gauge_check": {"part_step_path": part_step_path, "gauge_step_path": gauge_step_path}}, f)
+        json.dump(job, f)
 
     waited = 0.0
     while waited < GAUGE_CHECK_HTTP_TIMEOUT_SECONDS:
@@ -202,17 +235,19 @@ def verify(req: VerifyRequest):
 
 @app.post("/gauge-check")
 def gauge_check(req: GaugeCheckRequest):
-    """Livello 3, fase 3 (M1) — calibro Go/No-Go virtuale.
+    """Livello 3, fase 3 (M1 static_interference, M2 sweep/min_distance)
+    — calibro Go/No-Go virtuale.
 
     Percorso indipendente da /verify: qui non c'e' codice da eseguire,
-    solo due STEP noti/statici (un pezzo, un calibro) da confrontare per
-    interferenza statica esatta — vedi docs/logbook_fase1.md, criterio
-    di accettazione M1. part_step_path e' relativo a /models (montato
-    read-only in verifier-executor da ${DATA_DIR:-./data}/models),
-    gauge_step_path e' relativo a /gauges (config/gauges/, versionato in
-    git, MAI generato dall'IA — vedi config/gauges/README.md).
+    solo STEP noti/statici da confrontare — vedi docs/logbook_fase1.md e
+    docs/logbook_fase2.md per i criteri di accettazione di M1/M2.
+    part_step_path e' relativo a /models (montato read-only in
+    verifier-executor da ${DATA_DIR:-./data}/models), gauge_step_path
+    (assente per mode="min_distance") e' relativo a /gauges
+    (config/gauges/, versionato in git, MAI generato dall'IA — vedi
+    config/gauges/README.md).
     """
-    result = run_gauge_check_job(req.part_step_path, req.gauge_step_path)
+    result = run_gauge_check_job(req.part_step_path, req.gauge_step_path, req.mode, req.sweep, req.min_distance)
     gc = result.get("gauge_check") or {}
     return {
         "status": gc.get("status", result["execution"]),

@@ -1,8 +1,11 @@
 # Logbook — M3: Pipeline sketch-first → compilazione → collaudo
 
 Vedi [`logbook.md`](logbook.md) per il quadro generale. Dipende da M2
-(controlli validati su geometrie note) — vedi
+(controlli validati su geometrie note, PR [#8](https://github.com/danielesalpietro/caliper-cad/pull/8)) — vedi
 [`logbook_fase2.md`](logbook_fase2.md).
+
+Prompt di handoff pronto per la sessione che implementa questa milestone:
+[`handoff_m3.md`](handoff_m3.md).
 
 ## Obiettivo (mantenuto, con ambito ristretto)
 
@@ -49,6 +52,39 @@ l'output allo schema a livello di decoding, non solo dopo generazione.
    numerico dei vincoli (es. limite al numero di segmenti del profilo) —
    più deterministico di un'istruzione testuale. Non bloccante per M3, ma
    da tenere presente nello schema dei vincoli fin dall'inizio.
+5. **[post-M2] Il gauge-check va finalmente collegato al loop reale, non
+   solo invocato da script di verifica manuali.** M2 ha lasciato una
+   riserva onesta: `generate_and_verify.py` chiama solo `/verify`, mai
+   `/gauge-check` — `classify_checkpoint` ricade quindi sempre su
+   `RETRY_GENERIC` in pratica. Il criterio di accettazione di M3 (prompt
+   → vincoli → STEP → **collaudo Go/No-Go** → log) richiede che questo
+   collegamento esista per davvero, non che resti un'invocazione manuale
+   — è la prima volta che `/gauge-check` viene chiamato da un
+   orchestratore, non da un umano che lancia uno script.
+6. **[post-M2, bug trovato e corretto in questa preparazione]**
+   L'endpoint HTTP `POST /gauge-check` (`services/verifier/app.py`) non
+   era mai stato aggiornato quando M2 ha aggiunto le modalità `sweep` e
+   `min_distance` a `gauge_check.py`: accettava solo
+   `part_step_path`/`gauge_step_path`, senza `mode` — via HTTP era
+   raggiungibile solo `static_interference`. Gli script di verifica di M2
+   non se ne sono accorti perché parlano direttamente con
+   `gauge_check.py`, bypassando l'endpoint. Corretto prima di scrivere
+   questo handoff (`GaugeCheckRequest` ora porta `mode`/`sweep`/
+   `min_distance`, verificato con un test end-to-end reale: richiesta →
+   job → `gauge_check.py` → risultato, PASS confermato sui calibri M6) —
+   altrimenti M3 ci sarebbe sbattuto contro al primo tentativo di
+   chiamare `/gauge-check` in modalità `sweep` per TC2.
+7. **Dipendenza nuova, non presente in M1/M2: un'istanza Flowise viva.**
+   M1 e M2 sono stati verificati interamente fuori Flowise (script che
+   parlano direttamente con `gauge_check.py`/`run_and_measure.py`, mai
+   una vera generazione L2). Il criterio di accettazione di M3 richiede
+   "prompt testuale → vincoli di sketch 2D" — cioè una generazione LLM
+   reale. Se l'ambiente di questa sessione non ha un'istanza Flowise
+   raggiungibile con una API key valida (stesso limite già incontrato per
+   Docker in M1/M2), l'esecuzione end-to-end **non è simulabile
+   onestamente con un mock** come è stato fatto per il retry loop in M2
+   (lì il mock testava la logica del loop, non la generazione stessa) —
+   va dichiarato esplicitamente come bloccante, non aggirato.
 
 ## Milestone (criterio di accettazione, ristretto)
 
@@ -59,6 +95,15 @@ rivendica copertura di altre feature class.
 
 ## Stato
 
+- [x] **[pre-M3]** `POST /gauge-check` esteso con `mode`/`sweep`/
+      `min_distance` (era rimasto fermo a `static_interference` di M1) —
+      verificato con un test end-to-end reale (richiesta → job →
+      `gauge_check.py` → risultato PASS sui calibri M6 reali)
+- [ ] Collegare `/gauge-check` al loop di `generate_and_verify.py` per
+      davvero (oggi chiama solo `/verify`) — prerequisito perché
+      `classify_checkpoint` smetta di ricadere sempre su `RETRY_GENERIC`
+      e perché il criterio di accettazione di M3 (collaudo Go/No-Go nel
+      loop) sia soddisfatto
 - [ ] Schema JSON dei vincoli di sketch 2D definito (punti, linee, archi,
       quote, tipo di vincolo) — con validazione a livello di schema, non
       solo dopo la generazione
@@ -69,4 +114,6 @@ rivendica copertura di altre feature class.
       modalità alternativa del nodo L2
 - [ ] Compilazione vincoli-2D → CadQuery → STEP verificata
 - [ ] Prima esecuzione end-to-end sul preset `thread` documentata con
-      esito reale (non solo test sintetico)
+      esito reale (non solo test sintetico) — **richiede un'istanza
+      Flowise viva**: se non disponibile, dichiararlo esplicitamente come
+      bloccante, non aggirare con un mock della generazione stessa
