@@ -102,11 +102,15 @@ i principi già stabiliti nel resto del progetto.
 | M2 | Controlli geometrici deterministici, validati su geometrie note | [#3](https://github.com/danielesalpietro/caliper-cad/issues/3) | [logbook_fase2.md](logbook_fase2.md) | 🟢 mergiata in `develop` ([#8](https://github.com/danielesalpietro/caliper-cad/pull/8)) — TC1/TC2/TC3 verificati indipendentemente, timeout ricalibrato su misura reale (65.5s CPU worst-case), retry L3→L2 implementato |
 | M3 | Pipeline sketch-first → compilazione → collaudo (ambito: preset "thread") | [#4](https://github.com/danielesalpietro/caliper-cad/issues/4) | [logbook_fase3.md](logbook_fase3.md) | 🟡 mergiata in `develop` ([#11](https://github.com/danielesalpietro/caliper-cad/pull/11)), criterio di accettazione parzialmente raggiunto — schema/compilatore/wiring del gauge-check nel loop costruiti e verificati con casi scritti a mano (3 bug reali trovati e corretti: STEP mai esportato da `run_and_measure.py`, timeout HTTP del gauge-check non ricalibrato, `spec` mai inoltrata a `/verify`); l'esecuzione end-to-end reale con una generazione L2 vera **non è stata possibile** (nessuna istanza Flowise nel sandbox) e non è stata simulata con un mock della generazione |
 | M4 | Chiusura del loop di retrieval, firewall simulato/fisico | [#5](https://github.com/danielesalpietro/caliper-cad/issues/5) (chiusa) | [logbook_fase4.md](logbook_fase4.md) | 🟢 mergiata in `develop` ([#14](https://github.com/danielesalpietro/caliper-cad/pull/14)) — retry_log.jsonl esteso con `feature`/`spec_key`, `virtual_memory.py` con regola anti-bias verificata come gate reale nel loop (0 chiamate a L2 per una strategia esclusa), Livello 7 esteso a due collezioni Qdrant separate con `source` esplicito; nessun dataset Livello 6 reale né istanza Ollama/Qdrant viva in questa sessione, stesso limite di sandbox di M1–M3 |
+| M5 | Fix pack post-review: sbloccare l'end-to-end (C1–C8, C10) | [#17](https://github.com/danielesalpietro/caliper-cad/issues/17) | [logbook_fase5.md](logbook_fase5.md) | 🟡 non ancora mergiata (issue [#15](https://github.com/danielesalpietro/caliper-cad/issues/15)/[review_tecnica.md](review_tecnica.md) — C1, C2, C3, C4, C5, C6, C7, C10 chiusi in sandbox: contratto dimensionale per-feature (P2a), calibro NO-GO nel loop, `snap_fit`/min_distance senza crash, strategia `param_first` (P3) + tolleranze sketch-first allargate, memoria virtuale con `tolerance`/`pitch` in chiave + conteggio per caso + `checker_version` revocabile, id Qdrant deterministici + offset persistito, split esecuzione/verdetto (P5) contro un verdetto contraffatto, quick win (AnnAssign, CI su `claude/**`, cleanup `/exec/parts`, bind `127.0.0.1`, Flowise pinnato); 8 test nuovi (TC-M5-1…8) con output rosso pre-fix documentato in logbook_fase5.md, 14 script esistenti senza regressioni; C8 (budget CPU non portabile) non affrontato, resta per M6/M7; verifica indipendente del supervisore prima del gate M6 ancora da fare |
 
 Le milestone sono sequenziali per dipendenza tecnica (M2 richiede M1, M3
-richiede M2, M4 richiede M3 e il Livello 6 esistente) — non per calendario:
-nessuna scadenza è fissata qui, coerentemente con lo stato "concept /
-pre-implementazione" del progetto.
+richiede M2, M4 richiede M3 e il Livello 6 esistente, M5 richiede la
+review tecnica di M1–M4) — non per calendario: nessuna scadenza è
+fissata qui, coerentemente con lo stato "concept / pre-implementazione"
+del progetto. Dopo M5 il piano di recupero (`docs/piano_recupero.md`)
+prosegue con M6 (bring-up reale su RunPod), M7 (topologia Docker sulla
+RTX 3090) e M8 (bootstrap Livello 6 + primo loop fisico).
 
 ## Processo di handoff e CI (a valle di M1-M3)
 

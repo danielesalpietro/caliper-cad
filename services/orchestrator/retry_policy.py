@@ -44,6 +44,7 @@ complesso" e' plausibile, non dimostrato) — RETRY_LOG_PATH esiste apposta
 per tracciarli insieme all'esito del retry successivo, non per assunzione.
 """
 
+import hashlib
 import json
 import os
 import time
@@ -56,6 +57,42 @@ EARLY_EXIT_CONSECUTIVE_REPEATS = 2
 RETRY_LOG_PATH = os.environ.get(
     "RETRY_LOG_PATH", os.path.join(os.path.dirname(__file__), "retry_log.jsonl")
 )
+
+# [M5, C5 — vedi docs/review_tecnica.md, P4] Gli script che decidono un
+# verdetto GEOMETRICO (non "generation") — se uno di questi ha un bug
+# sistematico (gia' successo una volta, [v14]), un fix qui deve azzerare
+# il pregiudizio che quel bug ha accumulato nel log virtuale, non
+# lasciarlo permanente. checker_version (sotto) e' un hash del loro
+# contenuto: virtual_memory.should_exclude_strategy() conta solo i FAIL
+# della versione CORRENTE, cosi' correggere uno di questi file rende
+# automaticamente non piu' contati i FAIL prodotti dalla versione
+# precedente (bacata).
+_CHECKER_FILES = (
+    os.path.join(os.path.dirname(__file__), "..", "verifier", "executor", "gauge_check.py"),
+    os.path.join(os.path.dirname(__file__), "..", "verifier", "executor", "run_and_measure.py"),
+    os.path.join(os.path.dirname(__file__), "..", "verifier", "executor", "measure_verdict.py"),
+)
+
+
+def compute_checker_version() -> str:
+    """Hash corto (12 esadecimali, sha256 troncato — leggibile nel log,
+    stesso stile di spec_key in virtual_memory.py) del contenuto
+    concatenato di _CHECKER_FILES. Un file mancante (es. ambiente di
+    test senza l'albero completo) e' incluso nell'hash come tale
+    (percorso invece di contenuto), invece di sollevare — coerente con
+    "mai un'eccezione che risale per un problema di ambiente", stessa
+    disciplina gia' vista altrove nel progetto."""
+    h = hashlib.sha256()
+    for path in _CHECKER_FILES:
+        try:
+            with open(path, "rb") as f:
+                h.update(f.read())
+        except OSError:
+            h.update(f"missing:{path}".encode("utf-8"))
+    return h.hexdigest()[:12]
+
+
+CHECKER_VERSION = compute_checker_version()
 
 # Soglia per TOPOLOGY_TOLERANCE_ANOMALY — NON ancora calibrata su casi
 # reali (nessun batch con questo errore osservato finora): valore
@@ -145,6 +182,7 @@ class RetryBudget:
         directive_used: str | None,
         outcome: str,
         outcome_error: str | None,
+        failure_class: str | None = None,
     ) -> dict:
         same_as_previous = False
         if self.history:
@@ -162,6 +200,18 @@ class RetryBudget:
             "same_error_as_previous": same_as_previous,
             "source": "virtual",
             "timestamp": time.time(),
+            # [M5, C5 — vedi docs/review_tecnica.md] failure_class:
+            # "geometric"|"generation"|None (None per outcome="PASS", non
+            # ha senso li'), scritto esplicitamente dal chiamante
+            # (generate_and_verify.py) invece di essere dedotto da
+            # outcome_error con un parser di stringhe — solo i record
+            # "geometric" contano per should_exclude_strategy()
+            # (virtual_memory.py). checker_version: hash del checker al
+            # momento di QUESTO tentativo — solo i record della versione
+            # CORRENTE contano per l'esclusione, un fix del checker azzera
+            # il pregiudizio (P4).
+            "failure_class": failure_class,
+            "checker_version": CHECKER_VERSION,
         }
         self.history.append(record)
         self._append_log(record)

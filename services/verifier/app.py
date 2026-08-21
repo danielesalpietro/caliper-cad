@@ -110,6 +110,16 @@ def check_result_assigned(tree):
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id == "result":
                     return {"name": "result_variable", "status": "PASS", "detail": None}
+        # [M5, C10 — vedi docs/review_tecnica.md] ast.AnnAssign (assegnazione
+        # con annotazione di tipo, es. "result: cq.Workplane = ...", PEP 526)
+        # non veniva riconosciuta: solo ast.Assign era controllato. Un
+        # falso FAIL che brucia un tentativo di retry per codice
+        # altrimenti valido — result_variable e' un controllo di
+        # PRESENZA, non deve dipendere da come L2 sceglie di annotare la
+        # variabile.
+        if isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name) and node.target.id == "result" and node.value is not None:
+                return {"name": "result_variable", "status": "PASS", "detail": None}
     return {
         "name": "result_variable",
         "status": "FAIL",

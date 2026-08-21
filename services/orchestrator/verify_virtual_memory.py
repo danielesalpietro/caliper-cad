@@ -40,7 +40,13 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from virtual_memory import MIN_VIRTUAL_FAILURES_FOR_EXCLUSION, should_exclude_strategy, spec_key  # noqa: E402
+from retry_policy import CHECKER_VERSION  # noqa: E402
+from virtual_memory import (  # noqa: E402
+    MIN_VIRTUAL_FAILURES_FOR_EXCLUSION,
+    count_virtual_failures,
+    should_exclude_strategy,
+    spec_key,
+)
 
 THREAD_M6 = {"nominal": "M6", "tolerance_type": "diametrale", "thread_standard": "ISO 68-1", "l2_strategy": "free_code"}
 THREAD_M8 = {"nominal": "M8", "tolerance_type": "diametrale", "thread_standard": "ISO 68-1", "l2_strategy": "free_code"}
@@ -64,8 +70,26 @@ def write_physical_case(dataset_dir, filename, feature, spec, esito):
         json.dump({"prompt": "test", "specifica_strutturata": {"feature": feature, **physical_spec}, "esito": esito}, f)
 
 
-def virtual_fail_record(key, n):
-    return {"case_id": f"case-{n}", "attempt": n, "spec_key": key, "outcome": "FAIL", "source": "virtual"}
+def virtual_fail_record(key, n, case_id=None, failure_class="geometric", checker_version=CHECKER_VERSION):
+    # [M5, C5 — vedi docs/review_tecnica.md] failure_class/checker_version
+    # aggiunti alla fixture esistente (dichiarato in docs/logbook_fase5.md,
+    # come richiesto dall'handoff M5): senza questi campi, i record non
+    # contano piu' per count_virtual_failures() (fail-open verso la
+    # generazione, comportamento voluto per i record pre-M5 — ma qui la
+    # fixture rappresenta un tentativo REALE di questa versione, quindi
+    # deve portarli). case_id di default distinto per ogni "n" (comportamento
+    # INVARIATO delle funzioni esistenti sotto, che simulano "n fallimenti
+    # = n casi distinti" — vedi test_case_id_counting() per il caso nuovo
+    # "stesso case_id, piu' tentativi").
+    return {
+        "case_id": case_id or f"case-{n}",
+        "attempt": n,
+        "spec_key": key,
+        "outcome": "FAIL",
+        "source": "virtual",
+        "failure_class": failure_class,
+        "checker_version": checker_version,
+    }
 
 
 def test_spec_key():
@@ -178,6 +202,101 @@ def test_isolation_across_strategies(tmp):
     return ok
 
 
+def test_case_id_counting(tmp):
+    """[M5, C5, TC-M5-6] count_virtual_failures conta i CASI (case_id
+    distinti), non i tentativi: 3 record FAIL dello STESSO case_id
+    contano 1, non 3 — un solo run sfortunato (RetryBudget scrive un
+    record per tentativo, fino a MAX_RETRY_ATTEMPTS) non deve da solo
+    superare la soglia di esclusione."""
+    log_path = os.path.join(tmp, "case_id_counting.jsonl")
+    key = spec_key("thread", THREAD_M6)
+    # Un solo case_id, 3 tentativi FAIL (stesso run) -> 1 caso, non 3.
+    write_virtual_log(log_path, [virtual_fail_record(key, n, case_id="same-run") for n in range(1, 4)])
+    count_same_run = count_virtual_failures(key, log_path=log_path)
+    print(f"3 FAIL dello stesso case_id -> conteggio casi: {count_same_run} (atteso 1)")
+    ok = count_same_run == 1
+
+    # 2 case_id distinti -> 2 casi.
+    log_path2 = os.path.join(tmp, "case_id_counting_distinct.jsonl")
+    write_virtual_log(
+        log_path2,
+        [virtual_fail_record(key, 1, case_id="run-a"), virtual_fail_record(key, 1, case_id="run-b")],
+    )
+    count_distinct = count_virtual_failures(key, log_path=log_path2)
+    print(f"2 case_id distinti -> conteggio casi: {count_distinct} (atteso 2)")
+    ok = ok and count_distinct == 2
+
+    print("=== Scenario F (conteggio per caso, non per tentativo):", "OK" if ok else "FALLITO", "===\n")
+    return ok
+
+
+def test_generation_failures_excluded(tmp):
+    """[M5, C5, TC-M5-6] Record con failure_class="generation" (errore di
+    generazione/JSON/schema, non un giudizio sulla geometria della
+    strategia) non contano MAI per l'esclusione, indipendentemente da
+    quanti ce ne sono."""
+    log_path = os.path.join(tmp, "generation_excluded.jsonl")
+    key = spec_key("thread", THREAD_M6)
+    write_virtual_log(
+        log_path,
+        [virtual_fail_record(key, n, failure_class="generation") for n in range(1, 6)],  # 5 record, tutti "generation"
+    )
+    count = count_virtual_failures(key, log_path=log_path)
+    print(f"5 record FAIL failure_class='generation' -> conteggio casi geometrici: {count} (atteso 0)")
+    ok = count == 0
+
+    exclude, reason = should_exclude_strategy("thread", THREAD_M6, log_path=log_path, dataset_dir=None)
+    print(f"should_exclude_strategy con soli FAIL 'generation': exclude={exclude} — {reason}")
+    ok = ok and exclude is False
+
+    print("=== Scenario G (errori di generazione mai contati per l'esclusione):", "OK" if ok else "FALLITO", "===\n")
+    return ok
+
+
+def test_checker_version_scoping(tmp):
+    """[M5, C5, TC-M5-6, P4] Record con checker_version DIVERSA dalla
+    versione corrente non contano — un fix del checker (gauge_check.py/
+    run_and_measure.py/measure_verdict.py, vedi retry_policy.py) azzera
+    il pregiudizio accumulato dalla versione precedente invece di
+    lasciarlo permanente (bug reale gia' successo una volta, [v14])."""
+    log_path = os.path.join(tmp, "checker_version.jsonl")
+    key = spec_key("thread", THREAD_M6)
+    write_virtual_log(
+        log_path,
+        [virtual_fail_record(key, n, checker_version="old-buggy-version") for n in range(MIN_VIRTUAL_FAILURES_FOR_EXCLUSION)],
+    )
+    count_old = count_virtual_failures(key, log_path=log_path)  # default: versione CORRENTE
+    print(f"{MIN_VIRTUAL_FAILURES_FOR_EXCLUSION} FAIL con checker_version vecchia -> conteggio con la versione corrente: {count_old} (atteso 0)")
+    ok = count_old == 0
+
+    count_matching_old = count_virtual_failures(key, log_path=log_path, checker_version="old-buggy-version")
+    print(f"Stesso log, contato ESPLICITAMENTE con la vecchia versione: {count_matching_old} (atteso {MIN_VIRTUAL_FAILURES_FOR_EXCLUSION})")
+    ok = ok and count_matching_old == MIN_VIRTUAL_FAILURES_FOR_EXCLUSION
+
+    print("=== Scenario H (fix del checker azzera il pregiudizio):", "OK" if ok else "FALLITO", "===\n")
+    return ok
+
+
+def test_legacy_records_without_new_fields_excluded(tmp):
+    """[M5, C5, TC-M5-6] Record scritti PRIMA di M5 (senza
+    failure_class/checker_version, come li scriveva RetryBudget fino a
+    M4) non devono rompere la lettura — semplicemente esclusi dal
+    conteggio, fail-open verso la generazione (mai verso l'esclusione),
+    comportamento conservativo invariato."""
+    log_path = os.path.join(tmp, "legacy_records.jsonl")
+    key = spec_key("thread", THREAD_M6)
+    legacy_records = [
+        {"case_id": f"legacy-{n}", "attempt": 1, "spec_key": key, "outcome": "FAIL", "source": "virtual"}
+        for n in range(MIN_VIRTUAL_FAILURES_FOR_EXCLUSION + 3)
+    ]
+    write_virtual_log(log_path, legacy_records)
+    count = count_virtual_failures(key, log_path=log_path)
+    print(f"{len(legacy_records)} record legacy (pre-M5, senza failure_class/checker_version) -> conteggio: {count} (atteso 0)")
+    ok = count == 0
+    print("=== Scenario I (record legacy esclusi, nessun crash):", "OK" if ok else "FALLITO", "===\n")
+    return ok
+
+
 def main():
     ok = True
     ok = test_spec_key() and ok
@@ -187,6 +306,10 @@ def main():
         ok = test_dataset_without_corroborating_fail(tmp) and ok
         ok = test_dataset_with_corroborating_fail(tmp) and ok
         ok = test_isolation_across_strategies(tmp) and ok
+        ok = test_case_id_counting(tmp) and ok
+        ok = test_generation_failures_excluded(tmp) and ok
+        ok = test_checker_version_scoping(tmp) and ok
+        ok = test_legacy_records_without_new_fields_excluded(tmp) and ok
 
     print("=== Esito complessivo:", "TUTTI I CONTROLLI OK" if ok else "ALMENO UN CONTROLLO FALLITO", "===")
     return 0 if ok else 1

@@ -53,8 +53,16 @@ services:
     restart: unless-stopped
     networks: [caliper-ai]
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      # [M5, C10 — vedi docs/review_tecnica.md] Bind su 127.0.0.1: prima
+      # di M5 la porta era pubblicata su TUTTE le interfacce (0.0.0.0
+      # implicito), raggiungibile da chiunque sulla rete dell'host senza
+      # autenticazione. Qdrant/Ollama/verifier/stream-agent non hanno
+      # bisogno di essere raggiunti da fuori l'host (solo per ispezione
+      # umana locale, es. curl/debug) — flowise/open-webui/dashboard
+      # restano su tutte le interfacce perche' sono le UI pensate per
+      # accesso da browser, anche da altre macchine sulla rete locale.
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
 
@@ -65,7 +73,8 @@ services:
     restart: unless-stopped
     networks: [caliper-ai]
     ports:
-      - "11434:11434"
+      # [M5, C10] Bind 127.0.0.1 — vedi nota su qdrant sopra.
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     # Richiede NVIDIA Container Toolkit installato sull'host (vedi
@@ -96,7 +105,8 @@ services:
     restart: unless-stopped
     networks: [caliper-ai]
     ports:
-      - "8500:8500"
+      # [M5, C10] Bind 127.0.0.1 — vedi nota su qdrant sopra.
+      - "127.0.0.1:8500:8500"
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       QDRANT_URL: http://qdrant:6333
@@ -124,7 +134,13 @@ services:
     restart: unless-stopped
     networks: [caliper-ai]
     ports:
-      - "8600:8600"
+      # [M5, C10 — vedi docs/review_tecnica.md] Bind 127.0.0.1: prima di
+      # M5 questa porta era pubblicata su tutte le interfacce senza
+      # autenticazione — il verifier accetta codice CadQuery arbitrario
+      # da chiunque la raggiunga (/verify esegue exec(code), vedi
+      # run_and_measure.py). Nessun servizio esterno all'host deve
+      # poterla raggiungere.
+      - "127.0.0.1:8600:8600"
     volumes:
       - verifier_exec:/exec
     depends_on:
@@ -160,7 +176,15 @@ services:
   # non come variabili d'ambiente del container — quelle in .env.example
   # sono di riferimento per eventuali script esterni (L3, ecc.).
   flowise:
-    image: flowiseai/flowise:latest
+    # [M5, C10 — vedi docs/review_tecnica.md] Pinnata a una versione
+    # esplicita invece di "latest": un riavvio del pod/host puo' tirare
+    # un'immagine diversa da quella con cui il chatflow L2/L2.5 e' stato
+    # validato, senza che nessun commit lo registri. 3.1.4 e' l'ultima
+    # stabile al momento di questa milestone (verificato via Docker Hub,
+    # vedi docs/logbook_fase5.md per il dettaglio) — da aggiornare
+    # deliberatamente (bump esplicito, non "latest" che si aggiorna da
+    # solo) quando serve una versione piu' recente.
+    image: flowiseai/flowise:3.1.4
     container_name: caliper-flowise
     restart: always
     networks: [caliper-ai]

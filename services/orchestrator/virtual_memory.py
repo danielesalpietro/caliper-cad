@@ -29,7 +29,7 @@ import json
 import glob
 import os
 
-from retry_policy import RETRY_LOG_PATH
+from retry_policy import CHECKER_VERSION, RETRY_LOG_PATH
 
 # Deciso qui, coerente con EARLY_EXIT_CONSECUTIVE_REPEATS in
 # retry_policy.py (stessa soglia gia' usata per "lo stesso errore due
@@ -43,7 +43,16 @@ MIN_VIRTUAL_FAILURES_FOR_EXCLUSION = 2
 # perche' free_code e sketch_first sono percorsi di generazione diversi
 # (vedi generate_and_verify.py) — un fallimento nell'uno non implica
 # nulla sull'altro.
-SPEC_KEY_FIELDS = ("feature", "nominal", "tolerance_type", "thread_standard", "l2_strategy")
+#
+# [M5, C5 — vedi docs/review_tecnica.md] "tolerance"/"pitch" aggiunti:
+# prima di M5 "M6 tol 0.05" e "M6 tol 0.5" (o M6xi passo 1.0 e M6xi passo
+# 0.75) collassavano sulla stessa spec_key — in contraddizione con
+# l'argomento fondante del filtro esatto del Livello 7 (differenza voluta
+# tra due specifiche numericamente diverse, vedi
+# docs/architettura-prototipo-mesh-llm.md). Entrambi campi top-level
+# della spec L2.5 (vedi l'esempio "pitch": 1.0 in
+# docs/architettura-prototipo-mesh-llm.md), non del preset.
+SPEC_KEY_FIELDS = ("feature", "nominal", "tolerance_type", "thread_standard", "l2_strategy", "tolerance", "pitch")
 
 # Sottoinsieme di SPEC_KEY_FIELDS usato SOLO per la corroborazione fisica
 # (has_physical_failure) — senza "l2_strategy". Lo schema del Livello 6
@@ -100,17 +109,40 @@ def _iter_virtual_records(log_path: str):
                 continue
 
 
-def count_virtual_failures(key: str, log_path: str = RETRY_LOG_PATH) -> int:
-    """Quanti tentativi FAIL del collaudo virtuale esistono per questa
-    spec_key, su TUTTI i case_id (non solo il case corrente) — e' la
-    memoria storica attraverso run diversi, non il budget di un singolo
-    tentativo (quello resta RetryBudget.should_stop_early(), scopo
-    diverso: fermare UN loop in corso, non informare i loop futuri)."""
-    return sum(
-        1
-        for r in _iter_virtual_records(log_path)
-        if r.get("source") == "virtual" and r.get("spec_key") == key and r.get("outcome") == "FAIL"
-    )
+def count_virtual_failures(key: str, log_path: str = RETRY_LOG_PATH, checker_version: str | None = None) -> int:
+    """Quanti CASI (case_id distinti, non tentativi) del collaudo
+    virtuale hanno almeno un FAIL "geometric" per questa spec_key, su
+    TUTTI i case_id (non solo il case corrente) — e' la memoria storica
+    attraverso run diversi, non il budget di un singolo tentativo (quello
+    resta RetryBudget.should_stop_early(), scopo diverso: fermare UN loop
+    in corso, non informare i loop futuri).
+
+    [M5, C5 — vedi docs/review_tecnica.md] Due correzioni rispetto a
+    prima di M5:
+    1. Conta i CASI, non i tentativi: RetryBudget scrive un record per
+       OGNI tentativo dello stesso case_id (fino a MAX_RETRY_ATTEMPTS) —
+       un solo run sfortunato poteva quindi superare da solo la soglia
+       di esclusione, anche se rappresenta un unico episodio, non
+       molteplici conferme indipendenti.
+    2. Solo i record failure_class == "geometric" contano: un errore di
+       generazione/JSON/schema (failure_class == "generation") non dice
+       nulla sulla strategia geometrica — e solo i record della versione
+       CORRENTE del checker (checker_version) contano, cosi' un fix del
+       checker (es. [v14]) azzera il pregiudizio invece di lasciarlo
+       permanente (P4). Record pre-M5 (senza questi campi) sono esclusi
+       dal conteggio — fail-open verso la generazione, mai verso
+       l'esclusione, comportamento conservativo invariato."""
+    current_version = checker_version if checker_version is not None else CHECKER_VERSION
+    failing_case_ids = set()
+    for r in _iter_virtual_records(log_path):
+        if r.get("source") != "virtual" or r.get("spec_key") != key or r.get("outcome") != "FAIL":
+            continue
+        if r.get("failure_class") != "geometric":
+            continue
+        if r.get("checker_version") != current_version:
+            continue
+        failing_case_ids.add(r.get("case_id"))
+    return len(failing_case_ids)
 
 
 def _iter_physical_cases(dataset_dir: str):
@@ -151,6 +183,7 @@ def should_exclude_strategy(
     log_path: str = RETRY_LOG_PATH,
     dataset_dir: str | None = None,
     min_virtual_failures: int = MIN_VIRTUAL_FAILURES_FOR_EXCLUSION,
+    checker_version: str | None = None,
 ) -> tuple[bool, str]:
     """Decide se scartare una strategia PRIMA di generare (M4, criterio
     di accettazione della milestone). Ritorna (escludi, motivo) — il
@@ -163,9 +196,12 @@ def should_exclude_strategy(
     un errore: significa semplicemente "nessuna corroborazione fisica
     possibile", quindi MAI esclusione — fail-open verso la generazione,
     mai fail-open verso l'esclusione. Coerente con la regola anti-bias:
-    l'assenza di dati fisici non puo' MAI abilitare un'esclusione."""
+    l'assenza di dati fisici non puo' MAI abilitare un'esclusione.
+
+    checker_version: default None -> CHECKER_VERSION corrente (vedi
+    retry_policy.py); parametrizzabile solo per i test (M5, C5)."""
     key = spec_key(feature, spec)
-    virtual_failures = count_virtual_failures(key, log_path)
+    virtual_failures = count_virtual_failures(key, log_path, checker_version=checker_version)
 
     if virtual_failures < min_virtual_failures:
         return False, (

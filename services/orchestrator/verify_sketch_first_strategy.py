@@ -149,7 +149,10 @@ def main():
         THREAD_SPEC,
         flowise_texts=[json.dumps(VALID_THREAD_SKETCH)],
         verify_responses=[verify_result("PASS")],
-        gauge_responses=[gauge_result("PASS")],
+        # [M5, C2 — vedi docs/review_tecnica.md] Il PASS richiede ora
+        # ANCHE il NO-GO (deve interferire) dopo un GO PASS — un solo
+        # gauge_result non basta piu'.
+        gauge_responses=[gauge_result("PASS"), gauge_result("FAIL")],
     )
     sent_code = fake.verify_calls[0][0] if fake.verify_calls else None
     a_ok = (
