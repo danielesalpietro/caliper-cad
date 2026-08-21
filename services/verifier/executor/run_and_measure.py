@@ -10,6 +10,19 @@ perche' il watcher e' un processo a lunga vita e job successivi non
 devono poter degradarsi a vicenda.
 
 Uso: python run_and_measure.py <job.json> <result.json>
+
+[M3] Esportazione STEP del pezzo validato (gauge_check.py, vedi
+docs/logbook_fase3.md): /models e' montato READ-ONLY in
+verifier-executor (docker-compose.yml, per i pezzi di riferimento
+statici di M1/M2 — l'AI non doveva entrarci) — un pezzo appena generato
+non puo' finire li'. Va invece scritto sotto /exec/parts, sottocartella
+dello stesso volume verifier_exec gia' condiviso e scrivibile in questo
+container (nessun nuovo mount). gauge_check.py risolve questa cartella
+con una root separata (GENERATED_PARTS_ROOT, part_source="generated"),
+mai confusa con /models (part_source="models", invariato per gli
+script M1/M2 esistenti) — vedi gauge_check.py per il motivo per cui le
+due radici restano distinte anche se ora coesistono nello stesso
+volume.
 """
 
 import json
@@ -25,6 +38,10 @@ import sys
 # codice eseguito piu' sotto).
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
+
+# Sovrascrivibile via env per uso/test fuori Docker — stesso pattern
+# gia' in uso in gauge_check.py per MODELS_ROOT/GAUGES_ROOT.
+GENERATED_PARTS_DIR = os.environ.get("GENERATED_PARTS_DIR", "/exec/parts")
 
 
 def set_limits():
@@ -87,6 +104,29 @@ def main():
         result["error"] = f"misurazione fallita: {type(e).__name__}: {e}"
         write_result(result_path, result)
         return
+
+    # Esporta il pezzo validato come STEP, cosi' un gauge-check successivo
+    # (M3, vedi docstring del modulo) puo' importarlo — solo se la
+    # geometria e' valida: un solido non manifold non e' comunque
+    # gauge-checkabile, non ha senso esportarlo.
+    if result["execution"] == "PASS":
+        job_id = os.path.splitext(os.path.basename(job_path))[0]
+        try:
+            os.makedirs(GENERATED_PARTS_DIR, exist_ok=True)
+            step_rel = f"{job_id}.step"
+            solid.exportStep(os.path.join(GENERATED_PARTS_DIR, step_rel))
+            result["generated_part_step_path"] = step_rel
+        except Exception as e:
+            # Nessun pezzo esportato = nessun gauge-check possibile a
+            # valle: e' un FAIL reale, non un dettaglio da inghiottire in
+            # silenzio (stessa disciplina di "misurazione fallita" sopra).
+            result["execution"] = "FAIL"
+            result["error"] = f"esportazione STEP fallita: {type(e).__name__}: {e}"
+            result["generated_part_step_path"] = None
+            write_result(result_path, result)
+            return
+    else:
+        result["generated_part_step_path"] = None
 
     # Confronto dimensionale — solo per "thread" per ora, unico feature
     # con preset definito (vedi services/orchestrator/presets.json)

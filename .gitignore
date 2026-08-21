@@ -432,3 +432,8 @@ FodyWeavers.xsd
 # generati, non versionati; il profilo PrusaSlicer versionato vive invece in
 # config/prusaslicer/, non qui)
 /data/
+
+# CALIPER — log del retry L3->L2 (RetryBudget, services/orchestrator/retry_policy.py),
+# scritto anche eseguendo a mano gli script verify_*.py senza RETRY_LOG_PATH
+# impostata: output locale di esecuzione, non un artefatto versionato.
+services/orchestrator/retry_log.jsonl

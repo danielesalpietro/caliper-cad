@@ -21,6 +21,13 @@ Copre:
    tentativo, budget esaurito dopo 3 FAIL diversi, uscita anticipata su
    2 FAIL consecutivi con lo stesso errore.
 
+[M3] Le fake_verify* qui sotto ora accettano il parametro 'spec' (kwarg,
+ignorato) — call_verifier() lo manda davvero da M3 in poi (bug corretto,
+vedi docs/logbook_fase3.md e generate_and_verify.py), senza cambiare
+cosa questo script verifica (loop di retry, feature "other" senza
+preset -> nessun gauge-check coinvolto qui, vedi
+verify_gauge_check_loop_wiring.py per quella parte).
+
 Uso: python verify_retry_policy.py
 """
 
@@ -139,11 +146,11 @@ def test_main_loop(monkeypatch_module):
         calls["flowise"] += 1
         return f"# fake code, attempt {calls['flowise']}"
 
-    def fake_verify(code):
+    def fake_verify(code, spec=None):
         calls["verify"] += 1
         return fail_result("dimensional_check fuori tolleranza") if calls["verify"] == 1 else pass_result
 
-    gav.resolve_chatflow_id = lambda: "fake-chatflow-id"
+    gav.resolve_chatflow_id = lambda strategy="free_code": "fake-chatflow-id"
     gav.call_flowise_l2 = fake_flowise
     gav.call_verifier = fake_verify
     sys.argv = ["generate_and_verify.py", '{"feature": "other"}']
@@ -159,7 +166,7 @@ def test_main_loop(monkeypatch_module):
         calls2["flowise"] += 1
         return f"# fake code, attempt {calls2['flowise']}"
 
-    def fake_verify2(code):
+    def fake_verify2(code, spec=None):
         i = calls2["verify"]
         calls2["verify"] += 1
         return fail_result(errors[i])
@@ -177,7 +184,7 @@ def test_main_loop(monkeypatch_module):
         calls3["flowise"] += 1
         return f"# fake code, attempt {calls3['flowise']}"
 
-    def fake_verify3(code):
+    def fake_verify3(code, spec=None):
         return fail_result("stesso_errore_sempre")
 
     gav.call_flowise_l2 = fake_flowise3

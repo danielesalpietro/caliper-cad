@@ -45,10 +45,18 @@ EXEC_POLL_INTERVAL_SECONDS = 0.3
 
 # Attesa lato HTTP per il gauge-check (M1, vedi docs/logbook_fase1.md).
 # Deve superare con margine il timeout esterno del watcher
-# (GAUGE_CHECK_TIMEOUT_SECONDS in executor/watcher.py, oggi 45s) — stesso
-# rapporto gia' in uso sopra (30s qui vs 15s di SUBPROCESS_TIMEOUT_SECONDS
-# nel watcher per exec(code)).
-GAUGE_CHECK_HTTP_TIMEOUT_SECONDS = 60
+# (GAUGE_CHECK_TIMEOUT_SECONDS in executor/watcher.py). [M3, bug trovato
+# collegando il loop reale: questo valore era rimasto a 60s (tarato sul
+# placeholder di M1, 45s esterno) e non e' mai stato aggiornato quando M2
+# ha ricalibrato empiricamente il timeout del watcher a 150s (vedi
+# docs/logbook_fase2.md, worst-case misurato ~65.5s CPU per lo sweep
+# elicoidale completo di TC2) — l'endpoint HTTP avrebbe rinunciato ad
+# aspettare PRIMA che il watcher dichiarasse un vero TIMEOUT diagnosticabile,
+# restituendo il generico "nessuna risposta dall'executor" invece del
+# risultato TIMEOUT strutturato (con preflight/last_checkpoint) che
+# retry_policy.classify_checkpoint si aspetta. Stesso rapporto ~1.3x gia'
+# in uso altrove tra timeout interno/esterno.
+GAUGE_CHECK_HTTP_TIMEOUT_SECONDS = 200
 
 
 class VerifyRequest(BaseModel):
@@ -61,6 +69,9 @@ class GaugeCheckRequest(BaseModel):
     # Assente per "min_distance" (nessun secondo solido, vedi gauge_check.py)
     gauge_step_path: str | None = None
     mode: str = "static_interference"
+    # [M3] "models" (default, invariato) o "generated" — vedi
+    # gauge_check.py per la distinzione tra le due radici.
+    part_source: str = "models"
     # Passati a gauge_check.py cosi' come sono, senza validazione qui —
     # la validazione (campi richiesti per modalita', valori ammessi) resta
     # nel job/result su volume condiviso, stesso confine di fiducia gia'
@@ -132,6 +143,7 @@ def run_execution_check(code: str, spec: dict | None):
         "error": f"nessuna risposta dall'executor entro {EXEC_TIMEOUT_SECONDS}s",
         "measurements": None,
         "dimensional_check": None,
+        "generated_part_step_path": None,
     }
 
 
@@ -141,6 +153,7 @@ def run_gauge_check_job(
     mode: str,
     sweep: dict | None,
     min_distance: dict | None,
+    part_source: str = "models",
 ):
     """Scrive un job "gauge_check" sul volume condiviso e attende il risultato.
 
@@ -168,7 +181,7 @@ def run_gauge_check_job(
     job_path = os.path.join(JOBS_DIR, f"{job_id}.json")
     result_path = os.path.join(RESULTS_DIR, f"{job_id}.json")
 
-    job = {"gauge_check": {"part_step_path": part_step_path, "mode": mode}}
+    job = {"gauge_check": {"part_step_path": part_step_path, "mode": mode, "part_source": part_source}}
     if gauge_step_path is not None:
         job["gauge_check"]["gauge_step_path"] = gauge_step_path
     if sweep is not None:
@@ -230,6 +243,11 @@ def verify(req: VerifyRequest):
         "checks": checks,
         "measurements": exec_result.get("measurements"),
         "dimensional_check": exec_result.get("dimensional_check"),
+        # [M3] path (relativo a GENERATED_PARTS_ROOT in gauge_check.py,
+        # part_source="generated") del pezzo appena esportato da
+        # run_and_measure.py — None se il PASS non c'e' stato o
+        # l'esportazione e' fallita, vedi la sua docstring.
+        "generated_part_step_path": exec_result.get("generated_part_step_path"),
     }
 
 
@@ -247,7 +265,9 @@ def gauge_check(req: GaugeCheckRequest):
     (config/gauges/, versionato in git, MAI generato dall'IA — vedi
     config/gauges/README.md).
     """
-    result = run_gauge_check_job(req.part_step_path, req.gauge_step_path, req.mode, req.sweep, req.min_distance)
+    result = run_gauge_check_job(
+        req.part_step_path, req.gauge_step_path, req.mode, req.sweep, req.min_distance, req.part_source
+    )
     gc = result.get("gauge_check") or {}
     return {
         "status": gc.get("status", result["execution"]),
