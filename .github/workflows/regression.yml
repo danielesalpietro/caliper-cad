@@ -1,0 +1,107 @@
+name: Regression — script di verifica (collaudo virtuale)
+
+# Il progetto non ha una suite di test automatica integrata (vedi
+# docs/architettura-prototipo-mesh-llm.md, v12/v14): ogni milestone del
+# Ciclo di Collaudo Virtuale (docs/logbook.md, M1-M3) ha prodotto script
+# di verifica eseguibili a mano, rieseguiti manualmente ad ogni revisione
+# invece che tenuti automaticamente verdi. Con 12 script accumulati tra
+# M1/M2/M3, il costo di rieseguirli tutti a mano ad ogni cambiamento e'
+# diventato reale — questo workflow li esegue automaticamente su ogni
+# push/PR verso develop, cosi' una regressione si nota subito e non alla
+# prossima revisione manuale.
+#
+# Ogni step e' uno script separato ed esplicito (non un ciclo su
+# verify_*.py trovati per pattern): coerente con la disciplina gia'
+# applicata nel resto del progetto (preset.json esplicito per feature,
+# non un'euristica generica — vedi issue #10) e rende visibile QUALE
+# script fallisce direttamente nella UI di Actions, senza dover aprire i
+# log.
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+jobs:
+  verify-scripts:
+    runs-on: ubuntu-latest
+    # Budget generoso: TC2 (sweep elicoidale completo) misura da solo
+    # ~65s di CPU-time (vedi docs/logbook_fase2.md) su hardware di
+    # sviluppo — runner CI piu' lenti/condivisi possono richiedere di
+    # piu'. Il timeout qui e' una rete di sicurezza per il job nel suo
+    # complesso, non il timeout applicativo (quello vive nel codice
+    # stesso, gia' tarato empiricamente — vedi gauge_check.py).
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # libgl1: dipendenza di OCP/CadQuery (vedi
+      # services/verifier/executor/Dockerfile, stessa immagine base
+      # python:3.11-slim + libgl1 usata in produzione).
+      - name: Installa dipendenze di sistema (libgl1, richiesta da CadQuery/OCC)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1
+
+      # Stessa versione fissata nel Dockerfile di verifier-executor.
+      # pip install diretto: docker build verso Docker Hub e' bloccato da
+      # policy in alcuni ambienti sandbox (vedi docs/logbook_fase1.md) -
+      # gli hosted runner di GitHub Actions non hanno questa restrizione,
+      # ma pip diretto resta comunque piu' veloce di una build Docker
+      # completa per eseguire solo questi script.
+      - name: Installa CadQuery
+        run: pip install --default-timeout=300 cadquery==2.8.0
+
+      # --- M1 (docs/logbook_fase1.md) ---
+      - name: verify_gauge_check.py — M1, geometria sintetica
+        working-directory: services/verifier/executor
+        run: python verify_gauge_check.py
+
+      - name: verify_gauge_check_real_gauges.py — M1, calibri M6 reali
+        working-directory: services/verifier/executor
+        run: python verify_gauge_check_real_gauges.py
+
+      # --- M2 (docs/logbook_fase2.md) ---
+      - name: verify_gauge_check_tc1.py — M2, TC1 accoppiamento albero-mozzo
+        working-directory: services/verifier/executor
+        run: python verify_gauge_check_tc1.py
+
+      - name: verify_gauge_check_tc2.py — M2, TC2 filettatura (sweep elicoidale)
+        working-directory: services/verifier/executor
+        run: python verify_gauge_check_tc2.py
+
+      - name: verify_gauge_check_tc3.py — M2, TC3 snap-fit
+        working-directory: services/verifier/executor
+        run: python verify_gauge_check_tc3.py
+
+      - name: verify_retry_policy.py — M2, contratto di retry (mock)
+        working-directory: services/orchestrator
+        run: python verify_retry_policy.py
+
+      # --- M3 (docs/logbook_fase3.md) ---
+      - name: verify_run_and_measure_export.py — M3, export STEP
+        working-directory: services/verifier/executor
+        run: python verify_run_and_measure_export.py
+
+      - name: verify_gauge_check_part_source.py — M3, radici models/generated
+        working-directory: services/verifier/executor
+        run: python verify_gauge_check_part_source.py
+
+      - name: verify_sketch_schema.py — M3, validazione vincoli 2D
+        working-directory: services/orchestrator
+        run: python verify_sketch_schema.py
+
+      - name: verify_sketch_compiler_thread.py — M3, compilatore + collaudo Go/No-Go
+        working-directory: services/orchestrator
+        run: python verify_sketch_compiler_thread.py
+
+      - name: verify_sketch_first_strategy.py — M3, strategia L2 sketch-first (mock)
+        working-directory: services/orchestrator
+        run: python verify_sketch_first_strategy.py
+
+      - name: verify_gauge_check_loop_wiring.py — M3, collegamento /gauge-check nel retry loop (mock)
+        working-directory: services/orchestrator
+        run: python verify_gauge_check_loop_wiring.py

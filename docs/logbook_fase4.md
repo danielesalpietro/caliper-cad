@@ -63,10 +63,27 @@ condizione che** il campo `source` sia presente su ogni record e che la
 mitigazione del bias auto-rinforzante sopra sia implementata, non solo
 documentata.
 
+## Punto di partenza già esistente (M2/M3, non ripartire da zero)
+
+`services/orchestrator/retry_policy.py` (`RetryBudget.record_attempt()`)
+scrive già, per ogni tentativo del loop L3→L2, un record JSONL
+(`retry_log.jsonl`, ignorato da git — vedi `.gitignore`) con
+`case_id`/`attempt`/`directive_used`/`outcome`/`outcome_error`/
+`same_error_as_previous`/`source: "virtual"`/`timestamp`. **Questo è già
+uno schema di log del collaudo virtuale con il discriminatore `source`
+obbligatorio** — il primo item della checklist sotto è in parte già
+soddisfatto nella forma, non nel contenuto (oggi registra solo l'esito
+di `/verify` + `/gauge-check` per il loop di retry, non ancora un log
+dedicato e interrogabile dal Livello 7). Valuta se estendere questo
+formato invece di inventarne uno parallelo, o se le esigenze del
+Livello 7 (retrieval semantico + filtro esatto) richiedono davvero una
+struttura diversa — non assumerlo, verificalo.
+
 ## Stato
 
 - [ ] Schema del log del collaudo virtuale definito, separato dal Livello 6,
-      con campo `source: virtual` obbligatorio
+      con campo `source: virtual` obbligatorio — valutare se estendere
+      `retry_log.jsonl` (vedi sopra) invece di un formato parallelo
 - [ ] Ingestion automatica dei risultati M1–M3 nel log virtuale
 - [ ] Livello 7 esteso per interrogare entrambe le collezioni con
       discriminatore esplicito nei risultati recuperati
