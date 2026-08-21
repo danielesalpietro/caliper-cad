@@ -95,6 +95,76 @@ il batch di M2 sulle geometrie di controllo (worst-case osservato ×
 margine) — stesso metodo già usato per il bug OpenBLAS/RLIMIT_AS
 (trovato per misura diretta, non per assunzione, vedi `[v14]`).
 
+### Formato del log su TIMEOUT del gauge-check
+
+**Correzione di percorso:** un TIMEOUT (o un FAIL) del gauge-check non
+raggiunge mai il Livello 4 (slicing) — quello vede solo PASS. Rientra
+nella "Policy di retry (Livello 3 → Livello 2)" già definita
+nell'architettura (budget massimo di tentativi, variazione tra un
+tentativo e l'altro, fallback dichiarato al superamento del budget), e
+finisce nel log virtuale separato di M4 (`source: virtual`), mai nel
+Livello 6.
+
+**Vincolo tecnico, non solo di stile:** un `SIGKILL` non lascia nulla da
+ispezionare a posteriori — nessun handler, nessuno stack trace del punto
+in cui l'algoritmo OCC era bloccato. Qualsiasi contesto allegato al log
+deve quindi venire da ciò che si sapeva **prima** di lanciare
+l'operazione, mai dall'osservazione dell'hang:
+
+1. spec strutturata in ingresso (pitch, nominale, tolleranza, feature,
+   calibro usato) — è l'input del job, non qualcosa recuperato post-mortem;
+2. diagnostica pre-flight economica calcolata **prima** del boolean
+   pesante (conteggio facce/edge, `BRepCheck_Analyzer`, tolleranza massima
+   per-entità del B-Rep — un valore anomalo qui è spesso il segnale
+   precoce di geometria quasi-degenere);
+3. checkpoint di avanzamento, se lo sweep elicoidale è discretizzato in N
+   step invece di un'unica chiamata booleana opaca (coerente con "step
+   discreti" già proposto sopra per TC1/TC2) — ogni step scrive su file
+   prima di essere tentato, così il watcher può leggere l'ultimo
+   checkpoint anche se il processo muore senza preavviso.
+
+**Esplicitamente escluso:** nessuna spiegazione causale generata da un
+LLM sul perché si è bloccato — reintrodurrebbe l'incertezza LLM-as-judge
+che il Livello 3 esiste per eliminare. Il log resta dati strutturati, non
+prosa — coerente con la nota già in architettura sul Livello 7 ("senza
+filtro esatto sui parametri strutturati, il retrieval confonderebbe pezzi
+geometricamente diversi ma testualmente simili").
+
+Formato indicativo, coerente con `dimensional_check` già presente in
+`run_and_measure.py`:
+
+```json
+{
+  "execution": "FAIL",
+  "error": "gauge_check_timeout",
+  "gauge_check": {
+    "status": "TIMEOUT",
+    "gauge_used": "thread_M6_GO_ISO68-1.step",
+    "timeout_seconds": 42,
+    "input_spec": {
+      "feature": "thread", "nominal": "M6", "pitch": 1.0,
+      "tolerance": 0.3, "profile_angle_deg": 60,
+      "tolerance_type": "diametrale"
+    },
+    "preflight_diagnostics": {
+      "face_count": 812, "edge_count": 2440,
+      "topology_check": "ok",
+      "max_entity_tolerance_mm": 0.0134
+    },
+    "last_checkpoint": {"step": 14, "total_steps": 40, "helix_position_deg": 126.0},
+    "source": "virtual"
+  }
+}
+```
+
+`source: virtual` non è opzionale — è il discriminatore imposto dalla
+decisione già presa in M4 (vedi
+[`logbook_fase4.md`](logbook_fase4.md)): questi record vanno nel log
+virtuale separato, e un pattern di soli TIMEOUT virtuali non basta da
+solo a escludere una strategia dal retrieval senza un riscontro fisico
+(Livello 5) — un bug del checker (già successo, `[v14]`) non deve
+diventare un pregiudizio permanente e auto-confermato.
+
 ## Milestone (criterio di accettazione, mantenuto)
 
 Esecuzione batch automatica dei tre test case su geometrie **note,
