@@ -167,9 +167,10 @@
 
   <header>
     <div class="badges">
-      <img alt="Status" src="https://img.shields.io/badge/status-concept%20%2F%20pre--implementation-C4471F">
+      <img alt="Status" src="https://img.shields.io/badge/status-early%20prototype-dbab09">
       <img alt="License" src="https://img.shields.io/badge/license-TBD-lightgrey">
       <img alt="Architecture doc" src="https://img.shields.io/badge/docs-architecture.md-2176BC">
+      <img alt="CI" src="https://img.shields.io/badge/CI-regression%20suite-1a7f37">
     </div>
     <h1 class="title">CALIPER</h1>
     <p class="subtitle">A verification layer for LLM-generated CAD geometry — measured before it is trusted.</p>
@@ -191,9 +192,11 @@
       designed to sit between any generation model, cloud or local, and any
       downstream manufacturing step. The pipeline is structured as
       composable nodes with feature-specific presets rather than a
-      monolithic script. This repository currently contains the
-      architecture design and a set of open questions, not a working
-      implementation.
+      monolithic script. This repository contains the architecture design,
+      a set of open questions, and — as of milestones M1–M3 — a working,
+      independently verified deterministic verification layer for one
+      feature class (ISO metric threads). See the
+      <a href="docs/logbook.md">milestone log</a> for the current state.
     </p>
   </section>
 
@@ -329,17 +332,25 @@
 
   <section class="sec" id="status">
     <h2>📊 Status</h2>
+    <p>
+      Detail and provenance for every row below: <a href="docs/logbook.md">docs/logbook.md</a>
+      (milestones M1–M4) and the open issues it links to.
+    </p>
     <table>
       <thead>
         <tr><th>Item</th><th>Status</th></tr>
       </thead>
       <tbody>
         <tr><td>Architecture defined</td><td class="status-ok">✅ yes</td></tr>
-        <tr><td>Specification format (JSON schema)</td><td class="status-pending">⬜ not yet</td></tr>
-        <tr><td>Preset format</td><td class="status-pending">⬜ not yet</td></tr>
-        <tr><td>Declarative pipeline runner</td><td class="status-pending">⬜ not yet</td></tr>
-        <tr><td>Verification code</td><td class="status-pending">⬜ not yet</td></tr>
+        <tr><td>L2.5 specification format (natural language → JSON)</td><td class="status-pending">⬜ not yet</td></tr>
+        <tr><td>Sketch-first 2D constraint schema (M3, thread only)</td><td class="status-ok">✅ yes</td></tr>
+        <tr><td>Preset format</td><td class="status-ok">✅ yes (thread, clearance_fit, snap_fit)</td></tr>
+        <tr><td>Declarative pipeline runner (Flowise, L2 chatflow)</td><td class="status-pending">⬜ not yet — a script-based orchestrator exists instead</td></tr>
+        <tr><td>Verification code (Livello 3 — gauge checks, dimensional checks)</td><td class="status-ok">✅ yes (M1–M3, independently verified)</td></tr>
+        <tr><td>Automated regression CI</td><td class="status-ok">✅ yes — 12 scripts on every push/PR</td></tr>
+        <tr><td>Live end-to-end run (real generation model)</td><td class="status-pending">⬜ not yet — needs a running Flowise instance</td></tr>
         <tr><td>Ground-truth dataset</td><td class="status-pending">⬜ not yet</td></tr>
+        <tr><td>Retrieval loop (Livello 7, virtual/physical firewall)</td><td class="status-pending">⬜ not yet — M4, open</td></tr>
         <tr><td>Local-generation feasibility test</td><td class="status-pending">⬜ not yet</td></tr>
       </tbody>
     </table>
@@ -347,7 +358,7 @@
 
   <footer>
     <p>CALIPER — working name, unreviewed for namespace conflicts</p>
-    <p><a href="README.md">README</a> · <a href="docs/architecture.html">architecture</a> · license: TBD</p>
+    <p><a href="README.md">README</a> · <a href="docs/architecture.html">architecture</a> · <a href="docs/logbook.md">milestone log</a> · license: TBD</p>
   </footer>
 
 </div>

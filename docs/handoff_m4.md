@@ -97,6 +97,12 @@ Deliverable, dalla checklist "Stato" di `docs/logbook_fase4.md`:
 - **Aggiungi i tuoi nuovi script di verifica a
   `.github/workflows/regression.yml`** — non lasciarli solo eseguibili a
   mano, è il punto di questo file.
+- **Aggiorna anche `README.md` (status banner in cima + sezione 7) e
+  `index.html` (tabella di stato)** se il criterio di accettazione di M4
+  cambia — vedi "Processo di handoff e CI" in `docs/logbook.md` per il
+  perché: sono già stati trovati disallineati una volta (issue chiusa
+  ma non ancora numerata qui, vedi commit history), non lasciarli
+  scollegati dallo stato reale.
 - Commenta l'esito su GitHub issue [#5](https://github.com/danielesalpietro/caliper-cad/issues/5).
 - Commit e push sul branch assegnato a questa sessione. NON aprire PR
   senza che te lo chieda esplicitamente.
