@@ -8,10 +8,14 @@
 verification layer (Livello 3 — Go/No-Go gauge checks, dimensional
 checks, a sketch-first generation path) is implemented and independently
 verified for the ISO metric thread feature class (milestones M1–M3, see
-[`docs/logbook.md`](docs/logbook.md)). No live end-to-end run with a real
-generation model yet (needs a running Flowise instance, not available in
-the sandboxes these milestones were built in); no ground-truth dataset
-collected yet.
+[`docs/logbook.md`](docs/logbook.md)). The retrieval loop (Livello 7) now
+distinguishes physical from simulated evidence end-to-end (M4, `source:
+virtual|physical` on every retrieved record, anti-bias gate wired into
+the generation loop) — implemented and independently verified with
+fixtures, not yet run against a live Ollama/Qdrant instance. No live
+end-to-end run with a real generation model yet (needs a running Flowise
+instance, not available in the sandboxes these milestones were built
+in); no ground-truth dataset collected yet.
 
 ---
 
@@ -224,10 +228,24 @@ metric thread feature class:
   with a live generation model (no Flowise instance available in the
   sandboxes this was built in) — see open issue
   [#4](https://github.com/danielesalpietro/caliper-cad/issues/4).
-- **M4 (not started):** closing the retrieval loop — see open issue
-  [#5](https://github.com/danielesalpietro/caliper-cad/issues/5).
+- **M4 (implemented, independently verified):** closes the retrieval
+  loop — `retry_log.jsonl` (`services/orchestrator/retry_policy.py`)
+  extended with `feature`/`spec_key` instead of a parallel format; an
+  anti-bias rule (`services/orchestrator/virtual_memory.py`) that
+  refuses to exclude a generation strategy from N virtual (simulated)
+  failures alone — a physical FAIL (Livello 6) on the same geometry is
+  required, and its absence fails open toward generation, never toward
+  exclusion — wired as a real gate in
+  `services/orchestrator/generate_and_verify.py` before any L2 call, not
+  just documented; the Livello 7 agent (`services/stream-agent/app.py`)
+  now queries two separate Qdrant collections (physical/virtual, never
+  merged) with `source` explicit on every retrieved record, not only in
+  the embedded text. **Not yet done:** no live Ollama/Qdrant instance
+  and no real Livello 6 dataset in the sandboxes this was built in —
+  verified against on-disk fixtures and `py_compile`, not run end-to-end
+  — see open issue [#5](https://github.com/danielesalpietro/caliper-cad/issues/5).
 
-12 verification scripts accumulated across M1–M3 now run automatically
+14 verification scripts accumulated across M1–M4 now run automatically
 on every push/PR via [`.github/workflows/regression.yml`](.github/workflows/regression.yml).
 
 No ground-truth dataset (Livello 6) has been collected yet, and no local-
@@ -250,7 +268,7 @@ architecture doc's risk list. Retrying usually works.
 | `flowise` | execution engine — input, specification normalization, generation, consultive retrieval (Livelli 1, 2.5, 2, 7) | `flowiseai/flowise` | ~950 MB |
 | `ollama` | local model runtime for the retrieval agent (embedding + chat) | `ollama/ollama` | ~4 GB + models |
 | `qdrant` | vector store for the retrieval agent | `qdrant/qdrant` | ~75 MB |
-| `stream-agent` | retrieval/grounding agent (Livello 7) — adapted from [NORTHSTREAM](https://github.com/danielesalpietro/NORTHSTREAM): indexes the frozen dataset from disk instead of consuming a Kafka stream | built locally | ~300 MB |
+| `stream-agent` | retrieval/grounding agent (Livello 7) — adapted from [NORTHSTREAM](https://github.com/danielesalpietro/NORTHSTREAM): indexes the frozen dataset from disk instead of consuming a Kafka stream. **[M4]** Also indexes the virtual gauging log (`retry_log.jsonl`) into a second, separate Qdrant collection — physical and virtual results are never merged, and every retrieved record carries an explicit `source: physical\|virtual` | built locally | ~300 MB |
 | `verifier` | deterministic verifier (Livello 3) — not a Flowise node (Rischio #9), callable as an HTTP tool. Static checks (Python syntax, `import cadquery`, `result` assignment) always; delegates execution + dimensional measurement to `verifier-executor` via a shared volume | built locally | ~150 MB |
 | `verifier-executor` | isolated execution of LLM-generated CadQuery code (Livello 3, phase 2) — `network_mode: none`, communicates with `verifier` only through the `verifier_exec` volume (job/result files), per-job CPU/memory limits via `resource.setrlimit`. Runs the code, measures the bounding box, compares against the spec's `nominal`±`tolerance` where a preset defines the check, and (**[M3]**) exports the validated solid as STEP to a writable subfolder of the same volume (`/exec/parts`) so a gauge check can run against it. **[M1–M2]** Also runs the virtual Go/No-Go gauge check (`gauge_check.py`) as a separate subprocess with its own empirically-calibrated timeout — static B-Rep interference, interference swept along an insertion/screwing path, or exact minimum-distance — comparing a part (known-static or just-generated) against a known gauge STEP; two extra mounts, `${DATA_DIR:-./data}/models` (read-only) and `config/gauges/` (read-only, see [`config/gauges/README.md`](config/gauges/README.md)); no new HTTP route | built locally | ~2.8 GB (CadQuery + OCP + VTK) |
 | `open-webui` | chat interface to query the grounded dataset | `ghcr.io/open-webui/open-webui` | ~1.4 GB |
