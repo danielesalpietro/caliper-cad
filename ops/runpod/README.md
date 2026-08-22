@@ -41,7 +41,41 @@ RLIMIT per-job). Le verifiche di isolamento attive sono scope M7
 | Expose HTTP Ports | 3000, 3010, 6333, 8000, 8500, 8600, 8700, 11434 |
 | Expose TCP Ports | **22** (SSH diretto — vedi "Accesso al pod" sotto) |
 | GPU | 1× RTX 4090 24GB, Secure Cloud, datacenter EU con Network Volume |
-| Env/Secrets | `FLOWISE_USERNAME`, `FLOWISE_PASSWORD`, `FLOWISE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, opzionale `CALIPER_GIT_REF` (default `develop`) |
+| Env/Secrets | vedi **Variabili d'ambiente obbligatorie** sotto — vanno messe con **nome = valore** nel template |
+
+## Variabili d'ambiente obbligatorie (nome = valore nel template)
+
+**RunPod NON eredita variabili né Secrets: ogni variabile va dichiarata
+esplicitamente** come *Environment Variable* del template, con nome **e**
+valore. Una variabile solo nominata (senza valore) o assente non arriva
+alla shell — è la causa dei blocchi visti sul primo pod. `start.sh` ora
+stampa all'avvio quali mancano (cerca `[MANCA]` in
+`/workspace/logs/…` o nell'output del terminale).
+
+| Variabile | Bloccante? | Serve a |
+|---|---|---|
+| `OPENAI_API_KEY` | **SÌ (bloccante)** | generazione L2 reale (nodo ChatOpenAI del chatflow) — senza, E2E-1/E2E-2 non partono; il bootstrap la usa anche per creare la credential Flowise |
+| `ANTHROPIC_API_KEY` | **SÌ (bloccante)** solo se `claude` gira dentro il pod | la sessione `claude` che esegue M6 dentro il pod; non serve se si guida via SSH da fuori |
+| `GITHUB_TOKEN` (scope `repo`) | sì per push/harvest e per il bus di supervisione | clone con push abilitato, `harvest.sh --push`, `agent_bus.sh` |
+| `FLOWISE_USERNAME` / `FLOWISE_PASSWORD` | **non più necessarie** | `flowise_bootstrap.py` (validato dal vivo) genera la password se assente, crea account admin, API key e credential a ogni boot e persiste tutto in `/workspace/.caliper_env`; impostale solo per scegliere tu le credenziali della UI |
+| `FLOWISE_API_KEY` | **non più necessaria** | creata dal bootstrap (`caliper-orchestrator`, permissions RBAC) e scritta in `/workspace/.caliper_env`; l'import dei chatflow al boot la usa da lì |
+| `PUBLIC_KEY` | opzionale | avvio automatico di `sshd` (SSH umano) |
+| `CALIPER_GIT_REF` | opzionale (default `develop`) | branch da cui parte il pod |
+
+## Problemi noti sul primo pod e correzioni
+
+Tutti osservati sul primo bring-up reale (2026-08-22) e corretti in
+`ops/runpod/` — elencati perché la classe "giuntura mai esercitata →
+bug" è esattamente ciò che la review (C9) aveva previsto.
+
+| Problema osservato | Causa | Correzione | Stato |
+|---|---|---|---|
+| Variabili/Secrets non arrivano al pod | RunPod non eredita env: vanno messe con nome=valore nel template | tabella sopra + `start.sh` stampa `[MANCA]` all'avvio | ✅ documentato/diagnostica |
+| `sshd` non parte ("bad permissions → no hostkeys") | host key su `/workspace` (MooseFS forza `0666`), sshd le rifiuta | host key in `/etc/ssh` via `ssh-keygen -A`, copia persistita sul volume | ✅ `start.sh` |
+| `claude: not found` in shell | install npm globale non nel PATH interattivo / fallita in build | auto-reinstall + `PATH` npm globale via `/etc/profile.d/npmbin.sh` | ✅ `start.sh` |
+| Flowise non compare nei processi | avvio lento (30–60s) o path non scrivibile | path già su `/workspace/flowise` nel `supervisord.conf`; controllare `/workspace/logs/flowise.log` | ⚠️ verificare per-pod |
+| `groups: cannot find name for group ID 109` | GID iniettato da RunPod senza nome in `/etc/group` | cosmetico, nessun effetto | ℹ️ ignorabile |
+| Supervisore non raggiunge il pod | egress della sandbox TLS-only (SSH reset) + policy 403 su `*.proxy.runpod.net` | canale via GitHub: `ops/runpod/agent_bus.sh` (bus di comandi) | ✅ workaround |
 
 ## Accesso al pod — due canali, entrambi supportati
 

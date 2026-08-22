@@ -75,15 +75,40 @@ import sys
 # codice eseguito piu' sotto).
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
+# [run0 RunPod, docs/logbook_runpod_run0.md] VTK (dipendenza di OCP)
+# ha un SUO pool SMP, dimensionato sui core VISIBILI — su un pod con
+# nproc=256 ma quota cgroup ~27 vCPU il pool esplode comunque anche
+# con OpenBLAS/OMP a 1. Stessa disciplina: 1 di default, prima di
+# qualunque import di cadquery/OCP.
+os.environ.setdefault("VTK_SMP_MAX_THREADS", "1")
 
 # Sovrascrivibile via env per uso/test fuori Docker — stesso pattern
 # gia' in uso in gauge_check.py per MODELS_ROOT/GAUGES_ROOT.
 GENERATED_PARTS_DIR = os.environ.get("GENERATED_PARTS_DIR", "/exec/parts")
 
+# Limite di memoria per job, sovrascrivibile via env [run0 RunPod]:
+# il default 2GB e' tarato sui container di produzione (docker-compose,
+# core limitati); su host con centinaia di core visibili le librerie
+# native prenotano stack/pool per thread in base a nproc e 2GB di
+# address space non bastano nemmeno a partire (SIGSEGV/allocazione TLS
+# fallita — vedi docs/logbook_runpod_run0.md). Il default NON cambia:
+# chi ha quel problema alza il limite nel template/env del pod con
+# giustificazione, invece di toccare il codice.
+CALIPER_AS_LIMIT_MB = int(os.environ.get("CALIPER_AS_LIMIT_MB", "2048"))
+# Se impostata, limita anche lo stack: glibc usa RLIMIT_STACK come
+# dimensione di default degli stack dei pthread — con 256 thread da
+# 8MB sono 2GB di address space prenotati solo di stack. 2 (MB) e' un
+# valore sensato sul pod; di default NON viene toccato nulla.
+CALIPER_STACK_LIMIT_MB = os.environ.get("CALIPER_STACK_LIMIT_MB", "")
+
 
 def set_limits():
     resource.setrlimit(resource.RLIMIT_CPU, (10, 10))  # 10s di CPU
-    resource.setrlimit(resource.RLIMIT_AS, (2 * 1024**3, 2 * 1024**3))  # 2GB memoria
+    as_bytes = CALIPER_AS_LIMIT_MB * 1024**2
+    resource.setrlimit(resource.RLIMIT_AS, (as_bytes, as_bytes))
+    if CALIPER_STACK_LIMIT_MB:
+        stack_bytes = int(CALIPER_STACK_LIMIT_MB) * 1024**2
+        resource.setrlimit(resource.RLIMIT_STACK, (stack_bytes, stack_bytes))
 
 
 def write_export_status(path, status):

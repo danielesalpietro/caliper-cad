@@ -44,12 +44,17 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl git jq gnupg software-properties-common \
         libgl1 libglib2.0-0 openssh-server \
+        build-essential \
     && add-apt-repository -y ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y --no-install-recommends \
         python3.11 python3.11-venv python3.11-dev \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
+# build-essential: richiesto da node-gyp (better-sqlite3, dipendenza
+# nativa di Flowise) — la sua assenza, mascherata dal vecchio "|| true",
+# e' la causa radice di "Flowise/claude assenti dal pod" trovata nel
+# run0 (docs/logbook_runpod_run0.md).
 
 # --- Ollama: binario + librerie GPU copiati dall'immagine ufficiale
 # --- pinnata via bind-mount (l'endpoint tgz di ollama.com ha risposto
@@ -73,8 +78,36 @@ COPY --from=qdrant-src /qdrant /opt/qdrant
 
 # --- Flowise (pinnato — la review ha bocciato ':latest', C10/P6) e
 # --- Claude Code CLI (la sessione M6 gira DENTRO il pod, vedi piano §4).
-RUN npm install -g flowise@${FLOWISE_VERSION} @anthropic-ai/claude-code \
-    && flowise --version || true
+# NIENTE "|| true": nella prima versione mascherava il fallimento di
+# npm install (node-gyp/better-sqlite3 senza toolchain) e l'immagine
+# usciva "verde" ma SENZA Flowise ne' claude — bug reale trovato nel
+# run0 (docs/logbook_runpod_run0.md). Ora: node-gyp puntato al
+# python3.11 (il 3.12 di sistema non ha piu' distutils), install
+# separate, verifica HARD di entrambe le CLI — se mancano, la build
+# fallisce, come deve.
+# PUPPETEER_SKIP_DOWNLOAD: il postinstall di puppeteer (dipendenza dei
+# nodi di web-scraping di Flowise, che non usiamo) scarica ~150MB di
+# Chrome da un CDN Google — inutile nell'immagine e causa di fallimento
+# dell'install dietro proxy (403 osservato in sandbox durante la
+# validazione del bootstrap).
+# Tre forme dello stesso puntamento a python3.11, tutte necessarie
+# (visto in CI, run 32575105164: con la sola NPM_CONFIG_PYTHON uppercase
+# node-gyp trovava comunque il python 3.12 di sistema — better-sqlite3
+# invoca node-gyp direttamente dal proprio install script, senza passare
+# dalla config npm): npm_config_python lowercase e' cio' che ha
+# funzionato dal vivo sul pod (run0); NODE_GYP_FORCE_PYTHON e' letto da
+# node-gyp per primo e bypassa ogni ricerca; PYTHON e' il fallback
+# storico di find-python.
+ENV NPM_CONFIG_PYTHON=/usr/bin/python3.11 \
+    npm_config_python=/usr/bin/python3.11 \
+    NODE_GYP_FORCE_PYTHON=/usr/bin/python3.11 \
+    PYTHON=/usr/bin/python3.11 \
+    PUPPETEER_SKIP_DOWNLOAD=true \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+RUN npm install -g flowise@${FLOWISE_VERSION} \
+    && npm install -g @anthropic-ai/claude-code \
+    && flowise --version \
+    && claude --version
 
 # --- Venv Python: stessi pin dei requirements dei servizi + cadquery
 # --- del Dockerfile di verifier-executor + supervisor per il process tree.

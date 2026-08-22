@@ -66,6 +66,10 @@ import sys
 # Va impostato prima di "import cadquery".
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
+# [run0 RunPod] pool SMP di VTK dimensionato sui core visibili (256 su
+# quel pod, quota reale ~27) — stesso motivo e stessa disciplina delle
+# due righe sopra. Vedi run_and_measure.py per la nota completa.
+os.environ.setdefault("VTK_SMP_MAX_THREADS", "1")
 
 # Radici di mount read-only nel container verifier-executor (vedi
 # docker-compose.yml). Sovrascrivibili via env per uso/test fuori
@@ -138,7 +142,14 @@ VALID_MODES = ("static_interference", "sweep", "min_distance")
 
 def set_limits():
     resource.setrlimit(resource.RLIMIT_CPU, (GAUGE_CHECK_CPU_LIMIT_SECONDS, GAUGE_CHECK_CPU_LIMIT_SECONDS))
-    resource.setrlimit(resource.RLIMIT_AS, (2 * 1024**3, 2 * 1024**3))  # 2GB, stesso limite di run_and_measure.py
+    # Stessi limiti (e stesse env di override, [run0 RunPod]) di
+    # run_and_measure.py — vedi la' per il razionale completo.
+    as_bytes = int(os.environ.get("CALIPER_AS_LIMIT_MB", "2048")) * 1024**2
+    resource.setrlimit(resource.RLIMIT_AS, (as_bytes, as_bytes))
+    stack_mb = os.environ.get("CALIPER_STACK_LIMIT_MB", "")
+    if stack_mb:
+        stack_bytes = int(stack_mb) * 1024**2
+        resource.setrlimit(resource.RLIMIT_STACK, (stack_bytes, stack_bytes))
 
 
 def write_json(path, data):
