@@ -1,0 +1,75 @@
+{
+  "files": [
+    {
+      "path": "env_fingerprint.json",
+      "bytes": 493,
+      "sha256": "faa00769e2cd948478f49287327a9633712adcd1b9eceade2ce126d68b80377a"
+    },
+    {
+      "path": "flowise_chatflows_export.json",
+      "bytes": 58701,
+      "sha256": "ed88c9f02386ed35e997b5a1ee130786de27de30b2c5a0860803a849b81cb5b8"
+    },
+    {
+      "path": "logs/agent_bus.log",
+      "bytes": 282,
+      "sha256": "39f32d01889e60f0cb42d430ed90d79d449f7ae9d336f1e28b8dfc1566649fba"
+    },
+    {
+      "path": "logs/flowise.log",
+      "bytes": 22886,
+      "sha256": "dc6486bf0675893dd254c8a532a095cbf432be497a4f2cea53ddc12643569245"
+    },
+    {
+      "path": "logs/flowise_bootstrap.log",
+      "bytes": 2708,
+      "sha256": "56549a293331c680a038b65d4fdea5baeb503daf9b410da33a3420e5f48052e8"
+    },
+    {
+      "path": "logs/ollama.log",
+      "bytes": 29415,
+      "sha256": "61810116a2dca51c8f5f9b156ae35849d420b6d4a5fd894c6946998155bd0daf"
+    },
+    {
+      "path": "logs/qdrant.log",
+      "bytes": 2733,
+      "sha256": "7ec134297e10a8bf4d0b5a7716f09f0f8b9f74af5580c1c0e414533dee73f96f"
+    },
+    {
+      "path": "logs/stream-agent.log",
+      "bytes": 316,
+      "sha256": "1b14cd69a8092ff2ee1e55905a5709f1125a2b30e6efb498dadb538df3609af0"
+    },
+    {
+      "path": "logs/supervisord.log",
+      "bytes": 2047,
+      "sha256": "e3416841b2e55e09c9c9dcba1ead1f4889269b6ee7cdbcf2e9be81259820d379"
+    },
+    {
+      "path": "logs/verifier-executor.log",
+      "bytes": 44,
+      "sha256": "19ae89b2cf7fa9e4ee7b158320d15cafa11789f3b76d407b1fc408533059ffeb"
+    },
+    {
+      "path": "logs/verifier.log",
+      "bytes": 316,
+      "sha256": "8db9ee9174313f7a3eb99eccc86e334c5cd831ce15a33e9bcb5638313146bb77"
+    },
+    {
+      "path": "incoming/fingerprint-run1.json",
+      "bytes": 493,
+      "sha256": "3d2160a272868b23b313955af51f06b8dd837eab1fb8f05a120766451b7d473c"
+    },
+    {
+      "path": "incoming/tc-e1-repeat.log",
+      "bytes": 1128,
+      "sha256": "c0c0f6c3f549c0161d3d3b8b49795efff45fd8c8d07c5c1dfc696769281c4b42"
+    },
+    {
+      "path": "incoming/tc-e1.log",
+      "bytes": 353,
+      "sha256": "1ccc29fdb608b7003551fbd273c6aa54bacb6cec347c1d6d6ccfc1fcaff8534e"
+    }
+  ],
+  "count": 14
+}

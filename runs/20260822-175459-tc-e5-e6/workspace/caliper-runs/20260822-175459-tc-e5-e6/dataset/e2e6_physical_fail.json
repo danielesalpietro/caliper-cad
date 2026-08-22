@@ -1,0 +1,1 @@
+{"prompt": "foro filettato M6, passo 0.05 (test E2E-6)", "specifica_strutturata": {"feature": "thread", "nominal": "M6", "pitch": 0.05, "thread_standard": "ISO 68-1", "tolerance_type": "diametrale"}, "esito": "FAIL", "materiale": "PLA", "macchina": "test-e2e6"}

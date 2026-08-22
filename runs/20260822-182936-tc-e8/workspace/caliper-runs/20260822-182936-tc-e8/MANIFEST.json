@@ -1,0 +1,140 @@
+{
+  "files": [
+    {
+      "path": "env_fingerprint.json",
+      "bytes": 493,
+      "sha256": "f9533327a8e7f6c946272955dacfc3e7575138820d878cc4f213652766587832"
+    },
+    {
+      "path": "flowise_chatflows_export.json",
+      "bytes": 58839,
+      "sha256": "2ef1ff3e631ece632ca5f1a5b9da0a078d7d3a648a722664d763653e35d56ec1"
+    },
+    {
+      "path": "retry_log.jsonl",
+      "bytes": 2870,
+      "sha256": "36e6a30b7fe42823f4fc9e4fa1f4cf598b8073e8d306da77d95085e66e860565"
+    },
+    {
+      "path": "logs/agent_bus.log",
+      "bytes": 282,
+      "sha256": "39f32d01889e60f0cb42d430ed90d79d449f7ae9d336f1e28b8dfc1566649fba"
+    },
+    {
+      "path": "logs/bench_l25.log",
+      "bytes": 4955,
+      "sha256": "bc5bcc815a7e14dbd00fb00ef46afb9ac2e21b5edaf7ec19bbd3191ebc3cc9e2"
+    },
+    {
+      "path": "logs/flowise.log",
+      "bytes": 44720,
+      "sha256": "194089851c0f61b0402e5319f6ba1355705190038c3471aa86872b2ec67fea4e"
+    },
+    {
+      "path": "logs/flowise_bootstrap.log",
+      "bytes": 2708,
+      "sha256": "56549a293331c680a038b65d4fdea5baeb503daf9b410da33a3420e5f48052e8"
+    },
+    {
+      "path": "logs/ollama.log",
+      "bytes": 453951,
+      "sha256": "18d0d257878a30611a6ceda4eb83f9809f22b704eb07c2a6ee6a510e30dab44a"
+    },
+    {
+      "path": "logs/qdrant.log",
+      "bytes": 6958,
+      "sha256": "926cd1e45e09eb17ed2293aff09e097f874601f1698f52f1a0f2c0fb8ba6595b"
+    },
+    {
+      "path": "logs/stream-agent.log",
+      "bytes": 839,
+      "sha256": "d86dfbf8635690786c89dccfbd4df58f5dfa475224b46fd045e632e423305605"
+    },
+    {
+      "path": "logs/supervisord.log",
+      "bytes": 4411,
+      "sha256": "5620d525247702c86ac52d906350c67f0d910efb8426814c3a18963faeebb0bf"
+    },
+    {
+      "path": "logs/verifier-executor.log",
+      "bytes": 220,
+      "sha256": "2d63be0c5b1f1db28dd4e4702eb4155c619573c82f06f2b4db354853f9da5db8"
+    },
+    {
+      "path": "logs/verifier.log",
+      "bytes": 1059,
+      "sha256": "9435cfc7dde9f9d2e155602a8897fa2dcd75bfda54f89b51cd2f4d5dfa7d2926"
+    },
+    {
+      "path": "parts/2c32dde3-0e62-4bf4-a28c-ff6a1205cc75.step",
+      "bytes": 331024,
+      "sha256": "b3bac6ac506825808af2079cfb980cd413ab01a29be26abeb01554ed7621dc24"
+    },
+    {
+      "path": "incoming/fingerprint-run1.json",
+      "bytes": 493,
+      "sha256": "3d2160a272868b23b313955af51f06b8dd837eab1fb8f05a120766451b7d473c"
+    },
+    {
+      "path": "incoming/tc-e1-after-schema-fix.log",
+      "bytes": 1548,
+      "sha256": "e1e2404d594868885a9ede70cd9f10025febd2e18eac9c1ccad82800d8a8b1e9"
+    },
+    {
+      "path": "incoming/tc-e1-repeat.log",
+      "bytes": 1128,
+      "sha256": "c0c0f6c3f549c0161d3d3b8b49795efff45fd8c8d07c5c1dfc696769281c4b42"
+    },
+    {
+      "path": "incoming/tc-e1.log",
+      "bytes": 353,
+      "sha256": "1ccc29fdb608b7003551fbd273c6aa54bacb6cec347c1d6d6ccfc1fcaff8534e"
+    },
+    {
+      "path": "incoming/tc-e2.log",
+      "bytes": 4606,
+      "sha256": "9f7b6ee4e719082dcec2333da6e42a302495c060fb1242a02ca7973d985b6780"
+    },
+    {
+      "path": "incoming/tc-e3.log",
+      "bytes": 4424,
+      "sha256": "ca2a8dc082deb6cc0f8f827a314777f5342e02f53713df69d98175e67c279679"
+    },
+    {
+      "path": "incoming/tc-e6.log",
+      "bytes": 6035,
+      "sha256": "9786276a3dd5f71954bcace170ec412bfd5c134c153a3ff681cada34c67b0a82"
+    },
+    {
+      "path": "incoming/tc-e7.log",
+      "bytes": 180,
+      "sha256": "8f02229875618df6c9a6ecde263cf7a257f43a637b8b2570e384f6179c6f83b3"
+    },
+    {
+      "path": "incoming/bench-l25/bench_l25_cases.csv",
+      "bytes": 13373,
+      "sha256": "cfe17e5264b0a17f799d2ba58dc3401afe1909e9497df1bf4452705930518f77"
+    },
+    {
+      "path": "incoming/bench-l25/bench_l25_summary.md",
+      "bytes": 513,
+      "sha256": "1728e7be7d47242281157d38ae7a663b76f910f19f7ef947c308df81f8d0a7f9"
+    },
+    {
+      "path": "incoming/bench-l25/hardware_fingerprint.md",
+      "bytes": 3778,
+      "sha256": "4a17f05b97b9f58e04b4879fce744002f970ec1f5b84376caeac67d6db9bdda3"
+    },
+    {
+      "path": "dataset/e2e5_case1.json",
+      "bytes": 220,
+      "sha256": "4eb67ece4faf3f632e436aa2d9048cffc8d76b6852a2f7077f944bebaf5f2760"
+    },
+    {
+      "path": "dataset/e2e6_physical_fail.json",
+      "bytes": 262,
+      "sha256": "82f44d363f53ce93a0aac1c5d7035e3f92ef899d3de00ada74da437ce6a6f137"
+    }
+  ],
+  "count": 27
+}

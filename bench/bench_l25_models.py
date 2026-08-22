@@ -106,7 +106,7 @@ def http_json(url, body=None, headers=None, timeout=300):
 
 def load_template_and_fields():
     cf = json.load(open(CHATFLOW))
-    fd = json.loads(cf["flowData"]) if isinstance(cf.get("flowData"), str) else cf["flowData"]
+    fd = json.loads(cf["flowData"]) if isinstance(cf.get("flowData"), str) else cf.get("flowData", cf)
     template, fields = None, []
     for n in fd.get("nodes", []):
         name = n.get("data", {}).get("name")
