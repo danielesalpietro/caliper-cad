@@ -85,13 +85,21 @@ export OLLAMA_HOST=0.0.0.0:11434
 if [ -n "${PUBLIC_KEY:-}" ]; then
   mkdir -p /root/.ssh && chmod 700 /root/.ssh
   printf '%s\n' "$PUBLIC_KEY" > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
-  mkdir -p "$WORKSPACE/ssh" /run/sshd
-  for t in ed25519 ecdsa; do
-    [ -f "$WORKSPACE/ssh/ssh_host_${t}_key" ] || ssh-keygen -q -t "$t" -f "$WORKSPACE/ssh/ssh_host_${t}_key" -N ""
-  done
+  mkdir -p /run/sshd
+  # Host key su /etc/ssh (filesystem del container), NON sul Network
+  # Volume: MooseFS (mfs#...runpod.net su /workspace) forza i permessi a
+  # 0666 e sshd rifiuta una host key world-readable ("bad permissions ->
+  # no hostkeys available -> exiting") — bug reale osservato sul primo
+  # pod. Persistiamo invece una copia sul volume e la reidratiamo con
+  # chmod 600 in /etc/ssh, cosi' il fingerprint resta stabile tra pod
+  # senza incorrere nei permessi del volume.
+  if [ -d "$WORKSPACE/ssh" ] && ls "$WORKSPACE"/ssh/ssh_host_* >/dev/null 2>&1; then
+    cp -f "$WORKSPACE"/ssh/ssh_host_* /etc/ssh/ 2>/dev/null || true
+  fi
+  ssh-keygen -A  # crea in /etc/ssh solo le host key mancanti, permessi corretti
+  chmod 600 /etc/ssh/ssh_host_*_key 2>/dev/null || true
+  mkdir -p "$WORKSPACE/ssh" && cp -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub "$WORKSPACE/ssh/" 2>/dev/null || true
   /usr/sbin/sshd \
-    -o "HostKey=$WORKSPACE/ssh/ssh_host_ed25519_key" \
-    -o "HostKey=$WORKSPACE/ssh/ssh_host_ecdsa_key" \
     -o "PermitRootLogin=prohibit-password" \
     -o "PasswordAuthentication=no" \
     && echo "sshd avviato (porta 22, solo chiave)"
