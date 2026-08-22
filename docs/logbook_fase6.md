@@ -574,3 +574,38 @@ nello schema del parser strutturato del chatflow L2.5 ("one of:
 diametrale, per_lato, su_nocciolo, su_cresta") **non offre l'opzione
 vuota**, in tensione con l'istruzione del template ("leave it empty
 if not specified"). Verificato leggendo lo schema live (vedi sotto).
+
+### Fix candidato tolerance_type — ROSSO->VERDE confermato
+
+**Rosso (baseline, gia' documentato sopra)**: 4/4 su
+`{"question": "foro filettato M6, tolleranza 0.3mm, passo 1.0"}`,
+`tolerance_type:"diametrale"` sempre inventato.
+
+**Fix applicato** (`services/flowise/chatflows/l25-specification-normalization.json`,
+nodo `structuredOutputParser`, campo `tolerance_type` nello schema):
+description passata da `"one of: diametrale, per_lato, su_nocciolo,
+su_cresta"` a `"one of: diametrale, per_lato, su_nocciolo, su_cresta
+or empty string if not specified in the prompt"` — esattamente il
+testo proposto dal supervisore. File versionato aggiornato, poi
+propagato al chatflow LIVE con `PUT /api/v1/chatflows/<id>`
+(non un re-import: il chatflow esisteva gia', `import_chatflows.py`
+salta i chatflow con nome gia' presente).
+
+**Verde (stesso identico prompt, 4 ripetizioni)**:
+```
+1: tolerance_type=""
+2: tolerance_type=""
+3: tolerance_type=""
+4: tolerance_type=""
+```
+
+**4/4 — rosso->verde confermato**, stessa disciplina delle altre
+milestone. Nessun'altra riga dello schema toccata. `stdout` completo
+in `/workspace/caliper-runs/incoming/tc-e1-after-schema-fix.log`.
+
+**Nota per E2E-1 nella tabella**: con questo fix, l'esito di E2E-1 su
+questo chatflow torna ad essere un PASS pulito rispetto all'atteso
+originale dell'handoff (`tolerance_type`/`measured_as` vuoti). Il fix
+e' gia' sul chatflow versionato su questo branch — chi importa/usa
+`services/flowise/chatflows/l25-specification-normalization.json` da
+qui in poi lo eredita.
