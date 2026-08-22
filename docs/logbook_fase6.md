@@ -248,3 +248,68 @@ finire", ora "la generazione finisce, il collaudo fisico no". Passo
 avanti reale, non solo diagnosi.
 
 Procedo ora con i TC-E2E non-executor come da istruzioni.
+
+### E2E-1 — correzione esito (direttiva supervisore) e indagine tolerance_type
+
+**Esito corretto: ROSSO** sull'aspettativa documentata (non
+"PASS con riserva" come annotato inizialmente — il supervisore ha
+corretto la classificazione ed e' quella giusta: `tolerance_type` non
+vuoto e' una deviazione reale dallo specificato, non un dettaglio
+cosmetico).
+
+**1. Il prompt template istruisce gia' esplicitamente a non inventare
+valori** (`services/flowise/chatflows/l25-specification-normalization.json`,
+nodo `promptTemplate`, testo esatto verificato dal vivo su questo
+chatflow):
+
+> "Extract only what the prompt states explicitly - do not invent
+> values. If a field is genuinely ambiguous or missing, leave it as an
+> empty string rather than guessing."
+
+Quindi: **non e' un bug del prompt** (ramo "SI" della direttiva) —
+niente fix al template. E' non-compliance del modello
+(`granite4:1b`, chatflow a `temperature: "0"`).
+
+**2. Stima della frequenza — 3 ripetizioni + il tentativo originale
+(4 osservazioni totali), stesso input**:
+
+```
+1: tolerance_type="diametrale"
+2: tolerance_type="diametrale"
+3: tolerance_type="diametrale"
+4: tolerance_type="diametrale"
+```
+
+**4/4 (100%)** — non e' un comportamento raro/flaky da stimare in
+frequenza, e' **deterministico e ripetibile** con questo chatflow a
+`temperature=0`: il modello ignora l'istruzione esplicita in modo
+sistematico per questo campo, su questo input. `stdout` completo delle
+3 ripetizioni in `/workspace/caliper-runs/incoming/tc-e1-repeat.log`.
+
+**3. Cosa fa l'orchestratore a valle** (`generate_and_verify.py`,
+`apply_preset()`, riga 168):
+
+```python
+if not enriched.get("tolerance_type") and "default_tolerance_type" in preset:
+    enriched["tolerance_type"] = preset["default_tolerance_type"]
+```
+
+**Consuma silenziosamente** un `tolerance_type` gia' valorizzato da
+L2.5 — la condizione `not enriched.get(...)` e' vera solo se il campo
+e' vuoto, quindi se L2.5 lo ha gia' riempito (anche per errore) il
+preset non lo tocca e il valore passa cosi' com'e', **senza nessuna
+distinzione tra "dichiarato dall'utente" e "inventato dal modello"**.
+
+In questo caso specifico il valore inventato ("diametrale") coincide
+col default del preset per "thread" — nessuna differenza osservabile
+a valle qui. Ma e' un punto cieco reale: se L2.5 avesse inventato un
+valore DIVERSO dal default (es. "per_lato"), sarebbe passato ugualmente
+senza alcun rifiuto, influenzando silenziosamente il calcolo
+dimensionale/gauge-check a valle.
+
+**Candidato fix per il supervisore (non applicato qui)**: un
+"firewall" a valle di L2.5 che rifiuti (o quantomeno segnali) campi
+gia' valorizzati che il template istruisce esplicitamente a lasciare
+vuoti — oggi non esiste, `apply_preset()` non e' quel controllo (fa
+solo da fallback per i campi VUOTI, non da validazione di quelli
+GIA' pieni). Nessun fix unilaterale applicato, come da istruzione.
