@@ -803,3 +803,44 @@ per invalidita' geometrica genuina invece che per timeout, o
 `run_and_measure.py`), oppure si accetta questo comportamento (un
 timeout esplicito e' comunque un fallimento onesto, non un crash
 silenzioso) — decisione del supervisore, non presa qui.
+
+### E2E-4 — codice iniettato con foro Ø7 (bypass L2, conferma live di C2)
+
+**Comando**: codice CadQuery scritto a mano (nessun L2, nessun
+chatflow coinvolto), POST diretto a `/verify` poi due `/gauge-check`
+(GO e NO-GO), stesso pezzo:
+```python
+import cadquery as cq
+_host = cq.Workplane("XY").box(10, 10, 8, centered=(True, True, False))
+_hole = cq.Workplane("XY").circle(3.5).extrude(8)   # foro liscio Ø7mm, NON filettato
+result = _host.cut(_hole)
+```
+
+**Output reale**:
+- `POST /verify`: `status:"PASS"` (esecuzione/geometria ok — nessun
+  `dimensional_check`, spec non inviata).
+- `POST /gauge-check` GO (`thread_M6_GO_ISO68-1.step`): `status:"PASS"`,
+  `interference_volume_mm3:0.0` — atteso, il foro Ø7 e' piu' largo del
+  calibro GO, nessuna interferenza.
+- `POST /gauge-check` NO-GO (`thread_M6_NOGO_ISO68-1.step`):
+  **`status:"PASS"`, `interference_volume_mm3:0.0`** — **nessuna
+  interferenza anche col calibro NO-GO**, che invece DOVREBBE
+  interferire per un pezzo genuinamente filettato (il foro liscio Ø7 e'
+  piu' largo pure del NO-GO, quindi lo lascia passare senza toccarlo).
+
+**Interpretazione (verificata nel codice, non assunta)**:
+`generate_and_verify.py` riga 698: `if nogo_result["status"] == "PASS":`
+→ riga 705: `outcome_error = "gauge_check_nogo_no_interference"` — la
+regola e' esattamente "NO-GO senza interferenza = FAIL finale" (C2).
+Ho bypassato l'orchestratore (chiamate dirette all'API, come
+prescritto dal test), quindi il verdetto finale non e' stato calcolato
+automaticamente da un loop — ma la regola che lo calcolerebbe e'
+verificata riga per riga nel sorgente e corrisponde esattamente
+all'esito osservato: **avrebbe prodotto FAIL finale**
+(`gauge_check_nogo_no_interference`).
+
+**Esito: PASS pulito** — corrisponde esattamente al criterio
+dell'handoff ("NO-GO senza interferenza -> FAIL finale, conferma live
+di C2"). `stdout` completo in
+`/workspace/caliper-runs/incoming/tc-e4-verify.log` e
+`tc-e4-gauge.log`.
