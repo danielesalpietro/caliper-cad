@@ -1,0 +1,110 @@
+{
+  "files": [
+    {
+      "path": "env_fingerprint.json",
+      "bytes": 493,
+      "sha256": "db4beadb50402c658476c9208585ed6b0ecd8b5dccc1943372dc73682757055e"
+    },
+    {
+      "path": "flowise_chatflows_export.json",
+      "bytes": 58701,
+      "sha256": "ed88c9f02386ed35e997b5a1ee130786de27de30b2c5a0860803a849b81cb5b8"
+    },
+    {
+      "path": "retry_log.jsonl",
+      "bytes": 2369,
+      "sha256": "e3203ab085e9458e673952ef008805203162f3ce00b1de3ae527a6da32afc4c1"
+    },
+    {
+      "path": "logs/agent_bus.log",
+      "bytes": 282,
+      "sha256": "39f32d01889e60f0cb42d430ed90d79d449f7ae9d336f1e28b8dfc1566649fba"
+    },
+    {
+      "path": "logs/bench_l25.log",
+      "bytes": 1974,
+      "sha256": "f3b5e1d4631d289d50b0e58d5b3b0edabf1b2bd68af229c291520a132f2a6a6a"
+    },
+    {
+      "path": "logs/flowise.log",
+      "bytes": 24194,
+      "sha256": "61ff71de2e69ff02041be62c52730c25ce647796e6f3a14e841062c55bb5d388"
+    },
+    {
+      "path": "logs/flowise_bootstrap.log",
+      "bytes": 2708,
+      "sha256": "56549a293331c680a038b65d4fdea5baeb503daf9b410da33a3420e5f48052e8"
+    },
+    {
+      "path": "logs/ollama.log",
+      "bytes": 232075,
+      "sha256": "fe201ad39b283c595d20b53d5801e0a04e06bcfb2c486b7bdad062e90ecfe4ad"
+    },
+    {
+      "path": "logs/qdrant.log",
+      "bytes": 6670,
+      "sha256": "68ffcd17c91104c1f06e6c30dc285b2b65d970e09bd5a71b6821c2f51643a1ca"
+    },
+    {
+      "path": "logs/stream-agent.log",
+      "bytes": 839,
+      "sha256": "d86dfbf8635690786c89dccfbd4df58f5dfa475224b46fd045e632e423305605"
+    },
+    {
+      "path": "logs/supervisord.log",
+      "bytes": 3089,
+      "sha256": "c2abac2f4decbab4ea1671c328bc9a9df31b80ae25a86cdf1d9db7b523713afb"
+    },
+    {
+      "path": "logs/verifier-executor.log",
+      "bytes": 132,
+      "sha256": "7d1e1628c058d1081cdaa4eb52b9508077c3ec7610255f49ad2ae0a396c36b2e"
+    },
+    {
+      "path": "logs/verifier.log",
+      "bytes": 616,
+      "sha256": "1e3ef4c4f396d94f3e875e7036e53327b724fa24fe6fc4cdc2b02bb1742e1ca1"
+    },
+    {
+      "path": "incoming/fingerprint-run1.json",
+      "bytes": 493,
+      "sha256": "3d2160a272868b23b313955af51f06b8dd837eab1fb8f05a120766451b7d473c"
+    },
+    {
+      "path": "incoming/tc-e1-repeat.log",
+      "bytes": 1128,
+      "sha256": "c0c0f6c3f549c0161d3d3b8b49795efff45fd8c8d07c5c1dfc696769281c4b42"
+    },
+    {
+      "path": "incoming/tc-e1.log",
+      "bytes": 353,
+      "sha256": "1ccc29fdb608b7003551fbd273c6aa54bacb6cec347c1d6d6ccfc1fcaff8534e"
+    },
+    {
+      "path": "incoming/tc-e3.log",
+      "bytes": 4424,
+      "sha256": "ca2a8dc082deb6cc0f8f827a314777f5342e02f53713df69d98175e67c279679"
+    },
+    {
+      "path": "incoming/tc-e6.log",
+      "bytes": 6035,
+      "sha256": "9786276a3dd5f71954bcace170ec412bfd5c134c153a3ff681cada34c67b0a82"
+    },
+    {
+      "path": "incoming/tc-e7.log",
+      "bytes": 90,
+      "sha256": "96c11a8c8f8b361d5d88c6fd78e182fff47a901d2db797870d388c527dcb31cd"
+    },
+    {
+      "path": "dataset/e2e5_case1.json",
+      "bytes": 220,
+      "sha256": "4eb67ece4faf3f632e436aa2d9048cffc8d76b6852a2f7077f944bebaf5f2760"
+    },
+    {
+      "path": "dataset/e2e6_physical_fail.json",
+      "bytes": 262,
+      "sha256": "82f44d363f53ce93a0aac1c5d7035e3f92ef899d3de00ada74da437ce6a6f137"
+    }
+  ],
+  "count": 21
+}
