@@ -1,0 +1,61 @@
+name: Pod boot smoke — avvia caliper-pod e valida (gate pre-affitto)
+
+# Azione correttiva #1 (docs/retrospettiva_m6_bringup.md): il pod NON si
+# affitta finche' l'immagine non e' stata AVVIATA almeno una volta in un
+# ambiente non fatturato. "Build verde" != "boot verde": publish-images
+# compila l'immagine, questo workflow la ESEGUE su un runner CPU e
+# asserisce che lo stack di base ci sia (claude CLI, ollama, qdrant,
+# flowise, cadquery) via `start.sh --selftest`. Se questo e' rosso, non
+# si accende alcun pod GPU.
+#
+# Nota: CPU-only, nessuna GPU sul runner — Ollama non serve la GPU per
+# esistere come binario; il selftest verifica presenza/avviabilita' dei
+# componenti, non l'inferenza.
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Publish images — GHCR (servizi + pod RunPod)"]
+    types: [completed]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  boot-selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull caliper-pod:latest
+        run: docker pull ghcr.io/${{ github.repository_owner }}/caliper-pod:latest
+
+      # Selftest con env bloccanti finte (verifichiamo la PRESENZA dei
+      # binari/pacchetti e la logica del gate, non le chiavi reali): il
+      # selftest deve uscire 0 con le due chiavi valorizzate e i
+      # componenti presenti.
+      - name: start.sh --selftest (componenti presenti)
+        run: |
+          docker run --rm \
+            -e OPENAI_API_KEY=dummy -e ANTHROPIC_API_KEY=dummy \
+            --entrypoint bash \
+            ghcr.io/${{ github.repository_owner }}/caliper-pod:latest \
+            /opt/caliper/ops/runpod/start.sh --selftest
+
+      # Contro-prova: senza le chiavi bloccanti il selftest DEVE fallire
+      # (rc!=0). Se passasse, il gate non protegge nulla.
+      - name: start.sh --selftest deve fallire senza chiavi bloccanti
+        run: |
+          if docker run --rm --entrypoint bash \
+               ghcr.io/${{ github.repository_owner }}/caliper-pod:latest \
+               /opt/caliper/ops/runpod/start.sh --selftest; then
+            echo "ERRORE: il selftest e' passato senza chiavi bloccanti — il gate non funziona"; exit 1
+          else
+            echo "ok: selftest correttamente fallito senza chiavi bloccanti"
+          fi

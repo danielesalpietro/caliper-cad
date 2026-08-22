@@ -12,12 +12,33 @@
 #   FLOWISE_USERNAME / FLOWISE_PASSWORD / FLOWISE_API_KEY
 #   OPENAI_API_KEY    per il Chatflow L2 (configurata poi nella UI Flowise)
 #   ANTHROPIC_API_KEY per Claude Code CLI dentro il pod
-set -euo pipefail
+set -uo pipefail
 
 WORKSPACE=/workspace
 REPO_DIR="$WORKSPACE/caliper-cad"
 REPO_URL_DEFAULT="https://github.com/danielesalpietro/caliper-cad"
 CALIPER_GIT_REF="${CALIPER_GIT_REF:-develop}"
+
+# --selftest: valida la configurazione ed esce non-zero se manca una
+# variabile BLOCCANTE — cosi' un pod mal configurato fallisce subito e a
+# voce alta, invece di restare acceso a pagamento in stato inutile
+# (azione correttiva #2, docs/retrospettiva_m6_bringup.md). Usato anche
+# dal boot-smoke di CI (.github/workflows/pod-boot-smoke.yml).
+if [ "${1:-}" = "--selftest" ]; then
+  rc=0
+  for v in OPENAI_API_KEY ANTHROPIC_API_KEY; do
+    if [ -z "${!v:-}" ]; then echo "SELFTEST [BLOCCANTE MANCANTE] $v"; rc=1; else echo "SELFTEST [ok] $v"; fi
+  done
+  for v in GITHUB_TOKEN FLOWISE_USERNAME FLOWISE_PASSWORD; do
+    [ -z "${!v:-}" ] && echo "SELFTEST [warn] $v assente (non bloccante)"
+  done
+  command -v claude >/dev/null 2>&1 && echo "SELFTEST [ok] claude CLI" || { echo "SELFTEST [manca] claude CLI"; rc=1; }
+  command -v ollama >/dev/null 2>&1 && echo "SELFTEST [ok] ollama" || { echo "SELFTEST [manca] ollama"; rc=1; }
+  [ -x /opt/qdrant/qdrant ] && echo "SELFTEST [ok] qdrant" || { echo "SELFTEST [manca] qdrant"; rc=1; }
+  command -v flowise >/dev/null 2>&1 && echo "SELFTEST [ok] flowise" || { echo "SELFTEST [manca] flowise"; rc=1; }
+  /opt/venv/bin/python -c "import cadquery" 2>/dev/null && echo "SELFTEST [ok] cadquery" || { echo "SELFTEST [manca] cadquery"; rc=1; }
+  echo "SELFTEST rc=$rc"; exit $rc
+fi
 
 echo "== CALIPER pod start $(date -u +%FT%TZ) =="
 
@@ -137,6 +158,19 @@ fi
 export FLOWISE_USERNAME="${FLOWISE_USERNAME:-}"
 export FLOWISE_PASSWORD="${FLOWISE_PASSWORD:-}"
 export FLOWISE_SECRETKEY_OVERWRITE="${FLOWISE_SECRETKEY_OVERWRITE:-}"
+
+# --- Bus di comando col supervisore (azione correttiva #4): avvio
+# automatico se GITHUB_TOKEN c'e', cosi' il supervisore torna a poter
+# guidare via GitHub senza paste manuali. Silenzioso se il token manca.
+if [ -n "${GITHUB_TOKEN:-}" ] && [ -f "$REPO_DIR/ops/runpod/agent_bus.sh" ]; then
+  if ! pgrep -f agent_bus.sh >/dev/null 2>&1; then
+    GITHUB_TOKEN="$GITHUB_TOKEN" nohup bash "$REPO_DIR/ops/runpod/agent_bus.sh" \
+      > "$WORKSPACE/logs/agent_bus.log" 2>&1 &
+    echo "agent_bus avviato (bus GitHub col supervisore)"
+  fi
+else
+  echo "GITHUB_TOKEN assente — agent_bus non avviato (supervisione via push manuali)"
+fi
 
 echo "== avvio supervisord =="
 exec /opt/venv/bin/supervisord -n -c "$REPO_DIR/ops/runpod/supervisord.conf"
