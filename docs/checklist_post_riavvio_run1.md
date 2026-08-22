@@ -50,17 +50,28 @@ va rifatto, senza riscoprirlo da zero.
       (persistente) ma **non committati** — sopravvivono solo se
       `start.sh` non li sovrascrive con un checkout pulito
 
-## 4. Esecutore (SIGSEGV) — lo stato NON e' fixato di default
-- [ ] Il fix `taskset -c <core reali>` era validato SOLO in isolamento
-      (`verify_param_first.py` lanciato a mano) — **mai** applicato al
-      servizio `verifier-executor`/`watcher.py` reale in questa
-      sessione. Se serve E2E-2/8 dal vivo, va deciso/applicato di
-      nuovo (proposta al supervisore, non un fix unilaterale mio)
-- [ ] `run_and_measure.py` riga ~106: `RLIMIT_CPU` ancora hardcoded a
-      10s? (verificare se il supervisore l'ha reso parametrico nel
-      frattempo)
-- [ ] `GAUGE_CHECK_TIMEOUT_SECONDS` in `watcher.py` ancora hardcoded a
-      150 (non da env)? Stessa domanda
+## 4. Esecutore (SIGSEGV) — RISOLTO in questa sessione, ma solo a runtime
+**Aggiornato a fine sessione**: il fix e' stato trovato, validato E
+applicato al servizio reale (non piu' solo isolamento) — E2E-2/4/7/8/9
+tutti PASS attraverso la pipeline HTTP vera. Ma:
+- [ ] `CALIPER_CPU_LIMIT_S`/`CALIPER_STACK_LIMIT_MB`/`CALIPER_AS_LIMIT_MB`/
+      `GAUGE_CHECK_TIMEOUT_SECONDS` sono overridabili via env nel CODICE
+      (merge di `claude/executor-knobs-run1`, committato) — questa parte
+      sopravvive a un riavvio, e' su git.
+- [ ] **MA** l'applicazione runtime su `[program:verifier-executor]` in
+      `supervisord.conf` (`command=taskset -c 0-11 ...` +
+      `CALIPER_STACK_LIMIT_MB="2"` + `CALIPER_AS_LIMIT_MB="16384"`) e'
+      SOLO su `/workspace` (non committata, stessa categoria del fix
+      SSRF di Flowise) — verificare se sopravvissuta, altrimenti
+      riapplicarla (vedi `docs/logbook_fase6.md`, sezione "Tentativo 5"
+      per i valori esatti). `taskset -c 0-11` e' specifico DEI CORE DI
+      QUESTO POD (nodo NUMA 0) — su un pod diverso vanno
+      ricontrollati (`lscpu`, sezione NUMA) prima di riusare "0-11" a
+      memoria.
+- [ ] `GAUGE_CHECK_CPU_LIMIT_SECONDS` ricalibrato a 140s (E2E-8,
+      worst-case 91.35s misurato) — solo proposto, non applicato come
+      default nel codice. `CALIPER_CPU_LIMIT_S` per `run_and_measure.py`
+      invece NON ricalibrato affatto (resta 10s, E2E-3 lo dimostra).
 
 ## 5. Percorsi/env da NON riassumere a memoria
 - [ ] `RETRY_LOG_PATH` — il default del modulo Python punta DENTRO il
