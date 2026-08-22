@@ -609,3 +609,37 @@ originale dell'handoff (`tolerance_type`/`measured_as` vuoti). Il fix
 e' gia' sul chatflow versionato su questo branch — chi importa/usa
 `services/flowise/chatflows/l25-specification-normalization.json` da
 qui in poi lo eredita.
+
+## Passo 1 (continua) — Tentativo 5 (direttiva supervisore, bounded 10 min): VERDE COMPLETO
+
+**Comando esatto**:
+```
+taskset -c 0-11 env CALIPER_STACK_LIMIT_MB=2 CALIPER_AS_LIMIT_MB=16384 \
+  PYTHONFAULTHANDLER=1 python3 verify_param_first.py
+```
+
+Rispetto al tentativo 4 (che aveva sbloccato SOLO `run_and_measure.py`,
+lasciando `gauge_check.py` in SIGSEGV): stesso `taskset -c 0-11`,
+stesso `CALIPER_STACK_LIMIT_MB=2`, `CALIPER_AS_LIMIT_MB` alzato da
+6144 a **16384** (16GB — il workload di `gauge_check.py`, sweep a 21
+step, evidentemente necessitava di piu' margine di `CALIPER_AS_LIMIT_MB`
+del singolo build di `run_and_measure.py`).
+
+**Risultato — VERDE COMPLETO, prima volta in tutto lo sforzo M6**:
+```
+run_and_measure.py: PASS, STEP esportato (job_paramfirst.step)
+GO sweep:    PASS, residuo=0.305925mm3 (soglia <=0.5mm3)
+NO-GO sweep: interferenza=20.158069mm3 rilevata (soglia >1mm3, stesso
+             ordine di grandezza del caso di riferimento a mano)
+=== Esito complessivo: TUTTI I CONTROLLI OK ===
+```
+
+Nessun output faulthandler (nessun crash da ispezionare — non
+servito, ma richiesto/pronto se fosse servito).
+
+**Applicazione al servizio reale** (come da direttiva): `taskset -c
+0-11` nel `command=` + `CALIPER_STACK_LIMIT_MB`/`CALIPER_AS_LIMIT_MB`
+nell'`environment=` di `[program:verifier-executor]` in
+`supervisord.conf`, ricaricato via `supervisorctl` (mai il supervisord
+principale) — config esatta e verifica E2E-2/E2E-8 nella sezione
+successiva.
