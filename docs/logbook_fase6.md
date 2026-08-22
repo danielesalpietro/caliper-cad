@@ -405,3 +405,45 @@ sottoprocesso simulato.
 `stream-agent` riavviato con `supervisorctl -s
 unix:///run/supervisord.sock restart stream-agent` — mai toccato il
 supervisord principale, coerente con la regola vincolante.
+
+### E2E-6 — 2 FAIL virtuali + 1 FAIL fisico stessa chiave → nessuna chiamata a Flowise
+
+**Setup**: 2 run distinti di `generate_and_verify.py` sulla stessa spec
+di E2E-3 (`pitch:0.05`, `param_first`) — ognuno fallisce (stesso
+SIGSEGV noto) e produce un `case_id` DIVERSO nel log virtuale (la
+soglia conta CASI distinti, non tentativi — `count_virtual_failures()`
+in `virtual_memory.py`, verificato leggendo il sorgente prima di agire,
+non per tentativi). Aggiunta 1 fixture fisica L6 con FAIL sulla stessa
+spec (`/workspace/data/dataset/e2e6_physical_fail.json`,
+`geometry_key` — senza `l2_strategy` — coerente con quella virtuale).
+
+Nota operativa: primo tentativo fallito per un mio errore di
+estrazione della API key da `/workspace/.caliper_env` (il file usa
+apici singoli `export VAR='...'`, il mio `tr -d '"'` toglieva i doppi
+apici, non i singoli — la privata restava tra apici letterali, `401
+Unauthorized`). Corretto sorgendo il file con `. /workspace/.caliper_env`
+invece di grep/cut/tr manuale.
+
+**Comando (3o run, quello che verifica il criterio)**:
+```
+RETRY_LOG_PATH=/workspace/data/virtual_log/retry_log.jsonl L2_STRATEGY=param_first \
+L6_DATASET_DIR=/workspace/data/dataset python3 generate_and_verify.py \
+  '{"feature":"thread","nominal":"M6","pitch":0.05,"engagement_length_mm":8.0}'
+```
+
+**Output reale**:
+```
+-> Memoria del collaudo virtuale (...): 2 fallimenti virtuali >= soglia 2,
+   corroborati da almeno un fallimento fisico (Livello 6) sulla stessa
+   strategia — esclusione applicata.
+=== Strategia scartata dalla memoria del collaudo virtuale — generazione NON avviata. ===
+```
+
+**Verifica "0 richieste nei log"**: righe di `/workspace/logs/flowise.log`
+contate PRIMA (357) e DOPO (357) il run — **invariate**, nessuna
+richiesta ha raggiunto Flowise.
+
+**Esito: PASS pulito**, corrisponde esattamente al criterio
+dell'handoff ("orchestratore esce prima di chiamare Flowise, 0
+richieste nei log"). `stdout` completo (3 run concatenati) in
+`/workspace/caliper-runs/incoming/tc-e6.log`.
