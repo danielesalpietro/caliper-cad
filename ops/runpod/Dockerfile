@@ -44,12 +44,17 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl git jq gnupg software-properties-common \
         libgl1 libglib2.0-0 openssh-server \
+        build-essential \
     && add-apt-repository -y ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y --no-install-recommends \
         python3.11 python3.11-venv python3.11-dev \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
+# build-essential: richiesto da node-gyp (better-sqlite3, dipendenza
+# nativa di Flowise) — la sua assenza, mascherata dal vecchio "|| true",
+# e' la causa radice di "Flowise/claude assenti dal pod" trovata nel
+# run0 (docs/logbook_runpod_run0.md).
 
 # --- Ollama: binario + librerie GPU copiati dall'immagine ufficiale
 # --- pinnata via bind-mount (l'endpoint tgz di ollama.com ha risposto
@@ -73,8 +78,18 @@ COPY --from=qdrant-src /qdrant /opt/qdrant
 
 # --- Flowise (pinnato — la review ha bocciato ':latest', C10/P6) e
 # --- Claude Code CLI (la sessione M6 gira DENTRO il pod, vedi piano §4).
-RUN npm install -g flowise@${FLOWISE_VERSION} @anthropic-ai/claude-code \
-    && flowise --version || true
+# NIENTE "|| true": nella prima versione mascherava il fallimento di
+# npm install (node-gyp/better-sqlite3 senza toolchain) e l'immagine
+# usciva "verde" ma SENZA Flowise ne' claude — bug reale trovato nel
+# run0 (docs/logbook_runpod_run0.md). Ora: node-gyp puntato al
+# python3.11 (il 3.12 di sistema non ha piu' distutils), install
+# separate, verifica HARD di entrambe le CLI — se mancano, la build
+# fallisce, come deve.
+ENV NPM_CONFIG_PYTHON=/usr/bin/python3.11
+RUN npm install -g flowise@${FLOWISE_VERSION} \
+    && npm install -g @anthropic-ai/claude-code \
+    && flowise --version \
+    && claude --version
 
 # --- Venv Python: stessi pin dei requirements dei servizi + cadquery
 # --- del Dockerfile di verifier-executor + supervisor per il process tree.
