@@ -1,0 +1,11 @@
+# Context della build root (ops/runpod/Dockerfile — immagine caliper-pod).
+# I Dockerfile dei servizi usano context propri sotto services/ e non
+# leggono questo file.
+.git
+.github
+runs
+data
+docs/architecture.html
+**/__pycache__
+**/*.pyc
+retry_log.jsonl

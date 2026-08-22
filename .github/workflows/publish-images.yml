@@ -1,0 +1,132 @@
+name: Publish images — GHCR (servizi + pod RunPod)
+
+# Builda e pubblica su GHCR:
+#   - le 4 immagini di servizio del docker-compose (verifier,
+#     verifier-executor, stream-agent, dashboard) — PRIMA BUILD DELLA
+#     STORIA DEL PROGETTO: fino alla review (docs/review_tecnica.md, C9)
+#     nessuna immagine era mai stata costruita, nemmeno una volta. Da qui
+#     in poi ogni push rilevante le ricostruisce: la classe di bug
+#     "Dockerfile COPY dimenticata" (trovata in M1) diventa un fallimento
+#     di CI, non una scoperta a runtime.
+#   - l'immagine monolitica caliper-pod per RunPod (ops/runpod/Dockerfile,
+#     vedi docs/piano_recupero.md §4): stack completo a versioni pinnate,
+#     passata a RunPod come immagine nostra invece di un template generico.
+#
+# Tag: ogni build pubblica :git-<shortsha>; i push su develop pubblicano
+# anche :latest. Per run riproducibili usare sempre il tag :git-*.
+#
+# Nota visibilita': il primo push crea i package GHCR come PRIVATI.
+# Perche' RunPod possa fare pull senza credenziali, rendere pubblico
+# almeno caliper-pod (GitHub > profilo > Packages > caliper-pod >
+# Package settings > Change visibility), oppure configurare le
+# credenziali registry nel template RunPod.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop, claude/review-tecnica]
+    paths:
+      - "services/**"
+      - "config/gauges/**"
+      - "ops/runpod/**"
+      - "docker-compose.ghcr.yml"
+      - ".github/workflows/publish-images.yml"
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  service-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: caliper-verifier
+            context: services/verifier
+            dockerfile: services/verifier/Dockerfile
+          - name: caliper-verifier-executor
+            context: services/verifier/executor
+            dockerfile: services/verifier/executor/Dockerfile
+          - name: caliper-stream-agent
+            context: services/stream-agent
+            dockerfile: services/stream-agent/Dockerfile
+          - name: caliper-dashboard
+            context: services/dashboard
+            dockerfile: services/dashboard/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.name }}"
+          TAGS="${IMAGE}:git-${SHORT_SHA}"
+          if [ "${GITHUB_REF_NAME}" = "develop" ]; then
+            TAGS="${TAGS},${IMAGE}:latest"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+
+  pod-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      # L'immagine pod e' grande (CadQuery + Flowise + Ollama + Qdrant):
+      # libera spazio sul runner prima della build.
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /opt/hostedtoolcache /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          df -h /
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/caliper-pod"
+          TAGS="${IMAGE}:git-${SHORT_SHA}"
+          if [ "${GITHUB_REF_NAME}" = "develop" ]; then
+            TAGS="${TAGS},${IMAGE}:latest"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ops/runpod/Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=caliper-pod
+          cache-to: type=gha,scope=caliper-pod,mode=max

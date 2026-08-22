@@ -1,0 +1,25 @@
+# CALIPER — override: usa le immagini pre-buildate da GHCR invece delle
+# build locali. Le immagini sono prodotte da
+# .github/workflows/publish-images.yml (prima build della storia del
+# progetto fatta in CI — chiude parte della criticita' C9 della review).
+#
+# Uso (M7, RTX 3090):
+#   docker compose -f docker-compose.yml -f docker-compose.ghcr.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.ghcr.yml up -d
+#
+# Tag: ":latest" viene pubblicato solo dai push su develop; per un run
+# riproducibile usare il tag ":git-<shortsha>" del commit desiderato
+# (override con CALIPER_IMAGE_TAG).
+#
+# File separato, non una modifica a docker-compose.yml: la sessione M5
+# sta gia' toccando quel file (blocco H) — niente conflitti evitabili.
+
+services:
+  verifier:
+    image: ghcr.io/danielesalpietro/caliper-verifier:${CALIPER_IMAGE_TAG:-latest}
+  verifier-executor:
+    image: ghcr.io/danielesalpietro/caliper-verifier-executor:${CALIPER_IMAGE_TAG:-latest}
+  stream-agent:
+    image: ghcr.io/danielesalpietro/caliper-stream-agent:${CALIPER_IMAGE_TAG:-latest}
+  dashboard:
+    image: ghcr.io/danielesalpietro/caliper-dashboard:${CALIPER_IMAGE_TAG:-latest}
