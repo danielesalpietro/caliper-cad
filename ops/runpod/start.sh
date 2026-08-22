@@ -42,6 +42,25 @@ fi
 
 echo "== CALIPER pod start $(date -u +%FT%TZ) =="
 
+# --- Stato persistente delle credenziali: /workspace/.caliper_env
+# (volume) e' la fonte unica sopravvissuta ai riavvii — la sorgiamo
+# PRIMA della diagnostica, cosi' cio' che il bootstrap ha gia' salvato
+# (FLOWISE_API_KEY, credential id, password generata) risulta [ok].
+if [ -f "$WORKSPACE/.caliper_env" ]; then
+  set -a; . "$WORKSPACE/.caliper_env"; set +a
+  echo "caricato $WORKSPACE/.caliper_env"
+fi
+# FLOWISE_PASSWORD: se assente la GENERIAMO (istanza Flowise del pod,
+# non un segreto esterno) e la persistiamo — zero passaggi manuali.
+if [ -z "${FLOWISE_PASSWORD:-}" ]; then
+  FLOWISE_PASSWORD="$(openssl rand -base64 18 2>/dev/null || head -c 18 /dev/urandom | base64)"
+  export FLOWISE_PASSWORD
+  echo "export FLOWISE_PASSWORD='$FLOWISE_PASSWORD'" >> "$WORKSPACE/.caliper_env"
+  chmod 600 "$WORKSPACE/.caliper_env"
+  echo "FLOWISE_PASSWORD generata e persistita in .caliper_env"
+fi
+export FLOWISE_USERNAME="${FLOWISE_USERNAME:-caliper-admin@caliper.local}"
+
 # --- Diagnostica env: RunPod NON eredita le variabili, vanno messe
 # --- ESPLICITAMENTE (nome=valore) come Environment Variables del
 # --- template. Le stampiamo subito cosi' un pod mal configurato lo dice
@@ -171,6 +190,17 @@ if [ -n "${GITHUB_TOKEN:-}" ] && [ -f "$REPO_DIR/ops/runpod/agent_bus.sh" ]; the
 else
   echo "GITHUB_TOKEN assente — agent_bus non avviato (supervisione via push manuali)"
 fi
+
+# --- Bootstrap Flowise automatico (account, api key, credential OpenAI,
+# aggancio ai chatflow L2) — in background: lo script aspetta da solo che
+# Flowise risponda al ping. Idempotente a ogni boot. Vedi
+# flowise_bootstrap.py (endpoint verificati dal sorgente 3.1.4).
+(
+  /opt/venv/bin/python "$REPO_DIR/ops/runpod/flowise_bootstrap.py" \
+    >> "$WORKSPACE/logs/flowise_bootstrap.log" 2>&1 \
+    && echo "flowise-bootstrap: OK (vedi logs/flowise_bootstrap.log)" \
+    || echo "flowise-bootstrap: FALLITO (vedi logs/flowise_bootstrap.log)"
+) &
 
 echo "== avvio supervisord =="
 exec /opt/venv/bin/supervisord -n -c "$REPO_DIR/ops/runpod/supervisord.conf"
