@@ -1,0 +1,1 @@
+{"prompt": "foro filettato M6, tolleranza 0.3mm, passo 1.0", "specifica_strutturata": {"feature": "thread", "nominal": "M6", "pitch": 1.0, "tolerance": 0.3}, "esito": "PASS", "materiale": "PLA", "macchina": "test-e2e5"}
