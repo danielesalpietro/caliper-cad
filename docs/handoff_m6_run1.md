@@ -117,3 +117,30 @@ resta la fonte: input, output attesi, note su E2E-8/C8. Delta run1:
   Cambi ad architettura o a codice condiviso: proposta al supervisore
   su issue #18, non decisione unilaterale.
 - Davanti a un blocco di configurazione: harvest + stop, non debug live.
+
+## Addendum — bench matrice modelli L2.5 (a fine suite, PRIMA dello stop)
+
+Motivato dall'esito di E2E-1 (invenzione deterministica di
+`tolerance_type` con granite4:1b) e dalla volontà dell'utente di
+provare più modelli. Timebox 60 minuti, DOPO l'ultimo TC-E2E e prima
+dell'harvest finale:
+
+    BENCH_MODELS="granite4:1b,granite4:3b,qwen3:8b,llama3.1:8b" \
+    OPENAI_API_KEY=... python3 bench/bench_l25_models.py
+
+Lo script legge template e schema DAL chatflow versionato (nessuna
+copia), scarica da solo i modelli Ollama mancanti, aggiunge gpt-4o-mini
+come riferimento API se la chiave c'è, e scrive
+`bench_l25_summary.md` + `bench_l25_cases.csv` in
+`/workspace/caliper-runs/incoming/bench-l25/` — da includere
+nell'harvest finale. Metrica decisiva: `inventati% = 0`. La SCELTA del
+modello resta all'utente sui numeri; nessun cambio di chatflow in
+questo run.
+
+Nota diagnostica del supervisore su E2E-1: la descrizione del campo
+`tolerance_type` nello schema del parser ("one of: diametrale, ...")
+NON offre l'opzione vuota — istruzione in tensione col template
+("leave it empty"). Fix candidato economico, da provare DOPO il bench
+(così il bench fotografa il comportamento attuale): aggiungere
+"or empty string if not specified in the prompt" alla descrizione,
+ripetere E2E-1, e se rosso→verde ri-esportare il chatflow sul branch.
