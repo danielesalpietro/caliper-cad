@@ -323,7 +323,16 @@ def call_flowise_l2(chatflow_id: str, spec_json: str, temperature: float | None 
     req.add_header("Authorization", f"Bearer {FLOWISE_API_KEY}")
     with urllib.request.urlopen(req, timeout=90) as resp:
         data = json.loads(resp.read().decode("utf-8"))
-    return data.get("text", "")
+    # [M6, verificato dal vivo contro Flowise 3.1.4] quando il
+    # chatflow usa uno Structured Output Parser (param_first/
+    # sketch_first), la prediction API restituisce il risultato in
+    # "json", non in "text" (che manca del tutto). "text" resta
+    # prioritario per free_code (LLM Chain senza output parser).
+    if "text" in data:
+        return data["text"]
+    if "json" in data:
+        return json.dumps(data["json"])
+    return ""
 
 
 def generate_code_for_attempt(strategy: str, chatflow_id: str, spec_json: str, temperature: float | None, feature: str):
@@ -472,18 +481,33 @@ def gauge_check_failure_error_string(gc_response: dict) -> str:
 
 def main():
     if len(sys.argv) < 2:
-        print("Uso: python generate_and_verify.py '<spec JSON L2.5>'")
+        print("Uso: python generate_and_verify.py '<spec JSON L2.5>' [--confirm]")
         return 1
     if not FLOWISE_API_KEY:
         print("FLOWISE_API_KEY non impostata.")
         return 1
 
+    confirm_required = "--confirm" in sys.argv[2:]
     spec = json.loads(sys.argv[1])
     presets = load_presets()
     enriched_spec = apply_preset(spec, presets)
     if enriched_spec != spec:
         print("-> Preset applicato:")
         print(json.dumps(enriched_spec, indent=2, ensure_ascii=False))
+
+    if confirm_required:
+        # [M6, Rischio #5] mitigazione mai implementata prima di M6: la
+        # spec normalizzata da L2.5 (arricchita di preset qui sopra)
+        # andava a L2 senza conferma umana. Forma minima: stampa la
+        # spec e chiede y/n PRIMA di qualunque chiamata di rete (anche
+        # prima di resolve_chatflow_id) -- un rifiuto non deve costare
+        # nulla.
+        print("\n-> Spec da confermare prima di generare (Livello 2):")
+        print(json.dumps(enriched_spec, indent=2, ensure_ascii=False))
+        answer = input("Procedere con la generazione L2? [y/N] ").strip().lower()
+        if answer != "y":
+            print("\n=== Generazione annullata (--confirm, risposta diversa da 'y'). ===")
+            return 1
 
     preset = get_preset(presets, enriched_spec.get("feature", ""))
     nogo_job = None

@@ -1,0 +1,65 @@
+{
+  "files": [
+    {
+      "path": "env_fingerprint.json",
+      "bytes": 509,
+      "sha256": "5be2d9cb0bc6c2610b9b5daad6d2833ffe8580f29d1b471414102de3c6ef5a5e"
+    },
+    {
+      "path": "flowise_chatflows_export.json",
+      "bytes": 70588,
+      "sha256": "5311efd6823d3b7ac4cef4770a7aa10f3639100dd58dbe654e6e6c0e65944992"
+    },
+    {
+      "path": "incoming/fingerprint-m6.json",
+      "bytes": 482,
+      "sha256": "c7fb02650b832da18ebe61f7d40c733d62822cd1f22f6818f847239ee17be9f7"
+    },
+    {
+      "path": "logs/agent_bus.log",
+      "bytes": 139,
+      "sha256": "f263f40718f5a74aec3003a28f287a70c109defacdbcbd8ae19f7b4dde310fc4"
+    },
+    {
+      "path": "logs/flowise.log",
+      "bytes": 22028,
+      "sha256": "b75e35b329e983cfb4d01cc8e0aeecaf013e2459b26690663df2de32e0c3e4e3"
+    },
+    {
+      "path": "logs/npm_install_flowise.log",
+      "bytes": 39435,
+      "sha256": "a5d99358ae06c839523dfa5755bf3edeb91db3b2c2e628cf5ce0bffc3f9f6ca5"
+    },
+    {
+      "path": "logs/ollama.log",
+      "bytes": 14579,
+      "sha256": "bf9928a1b8050acdb319abc52cdf8c3af9dd5910ddda95ed2a6dcf0a900af5de"
+    },
+    {
+      "path": "logs/qdrant.log",
+      "bytes": 11603,
+      "sha256": "01c8170db4b0907e8eda4a882844f44e9159198bbe5193d091fa1da8eb4e0ac6"
+    },
+    {
+      "path": "logs/stream-agent.log",
+      "bytes": 4171,
+      "sha256": "2e227da00082ab556600d63a8bd9a89543b76564ec2ee66572920cc55c02208a"
+    },
+    {
+      "path": "logs/supervisord.log",
+      "bytes": 5439,
+      "sha256": "3928cd05e34cafc0212a70c36dfe965f9785379677d392ae7563ac13aa8fba65"
+    },
+    {
+      "path": "logs/verifier-executor.log",
+      "bytes": 132,
+      "sha256": "7d1e1628c058d1081cdaa4eb52b9508077c3ec7610255f49ad2ae0a396c36b2e"
+    },
+    {
+      "path": "logs/verifier.log",
+      "bytes": 4022,
+      "sha256": "ec94ce400f62ce309c321c1714211082cad266981751c3a75ace7a5f467a10af"
+    }
+  ],
+  "count": 12
+}
