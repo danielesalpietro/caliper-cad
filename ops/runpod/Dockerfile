@@ -90,7 +90,18 @@ COPY --from=qdrant-src /qdrant /opt/qdrant
 # Chrome da un CDN Google — inutile nell'immagine e causa di fallimento
 # dell'install dietro proxy (403 osservato in sandbox durante la
 # validazione del bootstrap).
+# Tre forme dello stesso puntamento a python3.11, tutte necessarie
+# (visto in CI, run 32575105164: con la sola NPM_CONFIG_PYTHON uppercase
+# node-gyp trovava comunque il python 3.12 di sistema — better-sqlite3
+# invoca node-gyp direttamente dal proprio install script, senza passare
+# dalla config npm): npm_config_python lowercase e' cio' che ha
+# funzionato dal vivo sul pod (run0); NODE_GYP_FORCE_PYTHON e' letto da
+# node-gyp per primo e bypassa ogni ricerca; PYTHON e' il fallback
+# storico di find-python.
 ENV NPM_CONFIG_PYTHON=/usr/bin/python3.11 \
+    npm_config_python=/usr/bin/python3.11 \
+    NODE_GYP_FORCE_PYTHON=/usr/bin/python3.11 \
+    PYTHON=/usr/bin/python3.11 \
     PUPPETEER_SKIP_DOWNLOAD=true \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm install -g flowise@${FLOWISE_VERSION} \
