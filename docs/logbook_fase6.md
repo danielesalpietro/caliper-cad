@@ -513,3 +513,64 @@ nell'handoff, su questo codice). `stdout` in
 `watcher.py` -> `int(os.environ.get("GAUGE_CHECK_TIMEOUT_SECONDS", "150"))`,
 cosi' l'handoff/test puo' davvero forzare il percorso strutturato
 senza dover aspettare 150s reali.
+
+## Addendum — bench matrice modelli L2.5
+
+**Bug nel bench script incontrato e risolto**: `bench/bench_l25_models.py`
+(appena scritto dal supervisore, non ancora rivisto) falliva subito con
+`KeyError: 'flowData'` — `load_template_and_fields()` leggeva il file
+versionato del chatflow (`services/flowise/chatflows/l25-*.json`, che
+e' GIA' il contenuto di `flowData`, struttura `{"nodes":[...],
+"edges":[...]}` alla radice) come se fosse la risposta dell'API
+Flowise (che invece avvolge tutto in `{"flowData": "<json-string>",
+"name":..., "id":...}`). Fix minimale (riga 109): usa `cf` direttamente
+se non c'e' una chiave `"flowData"`, invece di richiederla sempre.
+Versionato su questo branch (`bench/bench_l25_models.py`) con il fix
+gia' applicato.
+
+**Comando eseguito**:
+```
+BENCH_MODELS="granite4:1b,granite4:3b,qwen3:8b,llama3.1:8b" \
+OPENAI_API_KEY=... python3 bench/bench_l25_models.py
+```
+
+**Risultati** (15 casi con atteso noto, per modello — vedi
+`docs/hardware_fingerprint_run1.md` per l'hardware esatto, RTX A6000 +
+2x EPYC 7543, necessario per reinterpretare le latenze su hardware
+diverso):
+
+| modello | backend | json_ok% | **inventati%** | estratti_ok% | lat media (s) |
+|---|---|---|---|---|---|
+| granite4:1b | ollama | 100.0 | **51.4** | 92.9 | 1.2 |
+| granite4:3b | ollama | 100.0 | **5.7** | 95.2 | 0.98 |
+| qwen3:8b | ollama | 100.0 | **2.9** | 100.0 | 18.94 |
+| llama3.1:8b | ollama | 100.0 | **2.9** | 100.0 | 1.56 |
+| gpt-4o-mini | openai | 100.0 | **0.0** | 95.2 | 1.11 |
+
+**Osservazioni**:
+- `granite4:1b` (modello attualmente in produzione nel chatflow L2.5)
+  e' il PEGGIORE della matrice per la metrica decisiva (51.4%
+  inventati) — coerente con quanto osservato dal vivo in E2E-1 (4/4
+  invenzioni deterministiche).
+- Solo `gpt-4o-mini` raggiunge la soglia di candidatura dichiarata
+  (`inventati=0`) — ma e' un modello API a pagamento, non locale.
+- Tra i modelli Ollama locali, `llama3.1:8b` e' il migliore rapporto
+  compliance/latenza (2.9% inventati, 100% estratti, 1.56s medi) —
+  `qwen3:8b` ha la stessa compliance ma e' **12x piu' lento** (18.94s,
+  osservato con GPU attiva al 43% util — vedi fingerprint hardware,
+  non un collo di bottiglia CPU).
+- **Scelta del modello lasciata all'utente/supervisore sui numeri**,
+  come da addendum — nessun cambio al chatflow live in questo run per
+  questo motivo.
+
+File completi (inclusi nell'harvest): `bench_l25_summary.md`,
+`bench_l25_cases.csv` (15 casi × 5 modelli, dettaglio per singola
+chiamata) in `/workspace/caliper-runs/incoming/bench-l25/`.
+
+## Fix candidato tolerance_type (dopo il bench, come da addendum)
+
+Diagnosi del supervisore: la descrizione del campo `tolerance_type`
+nello schema del parser strutturato del chatflow L2.5 ("one of:
+diametrale, per_lato, su_nocciolo, su_cresta") **non offre l'opzione
+vuota**, in tensione con l'istruzione del template ("leave it empty
+if not specified"). Verificato leggendo lo schema live (vedi sotto).
