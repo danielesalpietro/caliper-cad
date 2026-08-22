@@ -193,19 +193,59 @@ Qdrant coi dati esistenti — ma rifà da capo: chiave SSH,
 `build-essential`, npm install Flowise, credenziali in
 `/root/.caliper_env`.
 
+## Ripresa dopo l'incidente
+
+Il pod **non** ha ricreato il container da zero: era un riavvio del
+processo principale (probabile restart policy RunPod), non una
+riprovisioning. Overlay effimero **sopravvissuto per intero**:
+`build-essential`, Flowise npm-installato, `/root/.caliper_env` (tutte
+e tre le credenziali), `/root/.git-credentials`. `start.sh` è ripartito
+da capo (comportamento atteso: entrypoint del container), quindi il
+repo su `/workspace/caliper-cad` era tornato su `develop` — riallineato
+al branch di sessione con `git reset --hard
+origin/claude/m6-runpod-bringup-run0` dopo aver pushato dal clone
+locale (che non dipende dal pod).
+
+`sshd` invece **non** è ripartito da solo (richiede `PUBLIC_KEY` nel
+template RunPod, non impostata — la chiave era stata aggiunta a mano
+su un file non persistente). Riavviato a mano dal web terminal RunPod.
+Le host key SSH erano state rigenerate la prima volta su
+`/workspace/ssh` (Network Volume MooseFS) e sshd le rifiutava
+(`Permissions 0666 ... too open` — MooseFS forza permessi larghi,
+stesso bug già risolto una volta nel commit `52fed61` e mai persistito
+perché quel fix era anch'esso su overlay effimero). Fix di questo run:
+`ssh-keygen -A` genera le host key in `/etc/ssh` (overlay, ma va bene:
+l'identità della host key cambia a ogni riavvio pod comunque, non è un
+problema di sicurezza per un accesso solo-chiave).
+
+## Flowise — account e API key
+
+Flowise 3.x usa un vero sistema di account (registrazione con
+email/password, JWT, DB in `/workspace/flowise/database.sqlite`), non
+le vecchie var d'ambiente `FLOWISE_USERNAME`/`PASSWORD` di Flowise
+1.x/2.x (quelle nel `supervisord.conf` risultano quindi inefficaci con
+questa versione — da segnalare, non bloccante). La creazione
+dell'account (inserimento password) non è un'azione automatizzabile
+lato mio: l'ha completata l'utente via browser (RunPod Connect, porta
+3000, `/organization-setup`), poi generato una API key da
+Settings → API Keys. Chiave salvata in `/root/.caliper_env`
+(`FLOWISE_API_KEY`), verificata (`GET /api/v1/chatflows` → 200).
+
+**Import chatflow L2.5**: `python3 services/flowise/import_chatflows.py`
+(con `FLOWISE_URL=http://localhost:3000`, `FLOWISE_API_KEY` in env) →
+`Importato: 'CALIPER - L2.5 Specification Normalization'`. Idempotente
+per costruzione (salta se già presente), non ri-testato in questo run.
+
 ## Prossimi passi
 
-1. **Utente**: verificare stato pod su dashboard RunPod, riavviare se
-   necessario.
-2. Se il pod riparte da `start.sh`: verificare se
-   `FLOWISE_USERNAME`/`FLOWISE_PASSWORD`/`OPENAI_API_KEY` sono ora nei
-   Secrets del template RunPod (eviterebbe di doverle re-impostare a
-   mano ogni volta) — altrimenti rifornirle come in questo run.
-3. Rigenerare la chiave SSH locale e farla autorizzare di nuovo (o
-   verificare se `PUBLIC_KEY` del template RunPod for basta).
-4. Reinstallare `build-essential` + Flowise (stessa procedura
-   documentata sopra, dovrebbe essere più veloce con la cache npm se
-   `~/.npm` non è sul volume — verificare).
-5. Da lì, riprendere da dove interrotto: Flowise up, chatflow L2/L2.5,
-   flag `--confirm`, suite TC-E2E-1…9, C8, harvest, logbook_fase6.md,
-   commento su issue #18.
+1. Costruire e versionare i chatflow L2 (free-code e param-first) in
+   `services/flowise/chatflows/` — oggi non esistono (gap dichiarato in
+   M3). Usare nodo ChatOpenAI con `OPENAI_API_KEY`, non ChatOllama.
+2. Aggiungere il flag `--confirm` a `generate_and_verify.py` (Rischio
+   #5, unica modifica applicativa ammessa in M6).
+3. Eseguire la suite TC-E2E-1…9, con `harvest.sh` dopo ognuno.
+4. Nota per il Dockerfile/supervisord.conf (fuori scope M6, da
+   segnalare al supervisore): `FLOWISE_USERNAME`/`FLOWISE_PASSWORD` in
+   `supervisord.conf` non hanno effetto su Flowise 3.x — l'account va
+   creato una volta e persiste su `/workspace/flowise` (volume), quindi
+   non è un problema per pod successivi finché il volume non cambia.
