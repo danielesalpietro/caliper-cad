@@ -8,6 +8,25 @@ va rifatto, senza riscoprirlo da zero.
 - [ ] SSH funziona con la stessa chiave? (`PUBLIC_KEY` nel template
       dovrebbe reinnestarla — se no, richiede intervento web terminal
       come nel run0)
+- [ ] **La porta esterna cambia ad ogni riavvio** (RunPod la
+      riassegna) — chiedere sempre il nuovo `ssh ... -p <porta>` dal
+      pannello, non riusare quella del run precedente (mi e' successo:
+      "Connection refused" sulla vecchia porta, poi l'utente ne ha
+      dato una nuova).
+- [ ] **Round 1 di questa serie (2026-08-22, secondo tentativo di
+      restart): `sshd` avviato a mano da web terminal risultava come
+      processo vivo (`pgrep -ax sshd` lo mostrava, stato
+      `[listener]`) ma la connessione da fuori dava comunque
+      `Connection refused`, e `ss -tlnp | grep :22` non ha stampato
+      nulla di visibile (echo "SSHD UP" non e' apparso — la pipe si e'
+      fermata li').** Causa NON accertata in quel tentativo (sessione
+      interrotta prima di poter leggere l'output completo di
+      `ss -tlnp` senza filtro). Prossima volta: eseguire `ss -tlnp`
+      SENZA filtro per primo (vedere tutte le porte in ascolto, non
+      solo presumere che :22 ci sia), e controllare anche se il
+      pannello RunPod mappa davvero la porta esterna sul container
+      port 22 (non dare per scontato — potrebbe essere un mismatch di
+      mappatura lato RunPod, non un problema di sshd stesso).
 - [ ] `OPENAI_API_KEY`/`GITHUB_TOKEN` presenti nell'ambiente REALE di
       boot (`/proc/<pid-supervisord>/environ`, non la propria shell —
       falso allarme gia' preso 2 volte in questa sessione)
