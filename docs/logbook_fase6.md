@@ -745,3 +745,61 @@ Chiunque cambi `taskset -c ...` in futuro dovrebbe rimisurare, non
 riusare 140s come costante universale — stessa cautela gia' presente
 nel piano originale ("i numeri dipendenti dall'ambiente si
 rimisurano in QUESTO ambiente").
+
+### E2E-3 — RIPROVA dopo il fix SIGSEGV (l'esito precedente e' SUPERSEDED)
+
+**Nota**: la sezione "E2E-3" precedente in questo file (quella con
+`case_id=bbb26cf5...`/`913db86a...`) resta per lo storico ma e'
+**SUPERSEDED da questa**, come da direttiva del supervisore.
+
+**Comando** (identico a prima, ora con `taskset`+`CALIPER_*` attivi sul
+servizio `verifier-executor` reale):
+```
+L2_STRATEGY=param_first L6_DATASET_DIR=/workspace/data/dataset \
+RETRY_LOG_PATH=/workspace/data/virtual_log/retry_log.jsonl \
+python3 generate_and_verify.py '{"feature":"thread","nominal":"M6","pitch":0.05,"engagement_length_mm":8.0}'
+```
+
+**Output reale**: stesso pattern di prima — 2 tentativi, entrambi FAIL
+identici (`"il processo non fidato non ha prodotto uno stato di
+esportazione leggibile"`), uscita anticipata, `final_status:
+unrecoverable_virtual`, `case_id` stabile tra i tentativi.
+`stdout` in `/workspace/caliper-runs/incoming/tc-e3-retry.log`.
+
+**Causa verificata direttamente** (non assunta): invocato
+`run_and_measure.py` a mano, stesse condizioni esatte del servizio
+(`taskset -c 0-11`, `CALIPER_STACK_LIMIT_MB=2`,
+`CALIPER_AS_LIMIT_MB=16384`), sullo stesso codice generato per
+`pitch=0.05` — **exit=137 (SIGKILL)**, non piu' SIGSEGV. Causa: il
+`run_and_measure.py` ha `CALIPER_CPU_LIMIT_S` overridabile da
+`origin/claude/executor-knobs-run1` (merge fatto), ma il DEFAULT resta
+10s — **non alzato** sul servizio `verifier-executor` in questo run
+(a differenza di `CALIPER_STACK_LIMIT_MB`/`CALIPER_AS_LIMIT_MB`, che
+lo sono). Un dente di filettatura a `pitch=0.05` (`h≈0.0433mm`, quasi
+degenere) e' numericamente piu' pesante da elaborare per OCC del caso
+normale di E2E-2 (`pitch=1.0`, passato in 8-9s di CPU stimati dal
+worst-case E2E-8) — genuinamente supera i 10s di budget CPU, causa
+`RLIMIT_CPU` reale, non piu' il bug del thread-pool.
+
+**Valutazione onesta**: la MECCANICA del retry loop corrisponde
+esattamente al criterio dell'handoff (≤3 tentativi, uscita anticipata,
+`unrecoverable_virtual`, `case_id` collegato). La CAUSA pero' non e'
+"invalidita' geometrica" nel senso stretto della validazione locale di
+`sketch_compiler.py` (che accetta `pitch=0.05` come matematicamente
+valido, vedi verifica gia' fatta nel run precedente) — e' un budget
+CPU insufficiente per questo caso specifico su
+`run_and_measure.py` (10s, non ricalibrato per questa milestone,
+diverso da `GAUGE_CHECK_CPU_LIMIT_SECONDS` che *e'* stato ricalibrato
+in E2E-8). **Esito: PASS sui criteri meccanici dichiarati
+dall'handoff**, con questa riserva onesta sulla causa specifica —
+non e' piu' confuso dal bug SIGSEGV originale, ma resta un limite di
+budget CPU non ancora ricalibrato per `run_and_measure.py` (solo
+`gauge_check.py` lo e' stato in E2E-8).
+
+**Candidato per il supervisore**: se si vuole che `pitch=0.05` fallisca
+per invalidita' geometrica genuina invece che per timeout, o
+`CALIPER_CPU_LIMIT_S` va alzato in modo simmetrico a
+`GAUGE_CHECK_CPU_LIMIT_SECONDS` (stessa ricalibrazione C8, ma per
+`run_and_measure.py`), oppure si accetta questo comportamento (un
+timeout esplicito e' comunque un fallimento onesto, non un crash
+silenzioso) — decisione del supervisore, non presa qui.
