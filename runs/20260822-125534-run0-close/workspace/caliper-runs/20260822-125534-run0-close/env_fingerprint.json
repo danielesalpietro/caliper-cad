@@ -1,0 +1,17 @@
+{
+  "timestamp_utc": "2026-08-22T12:55:37Z",
+  "hostname": "84bacb71e8d0",
+  "nproc": "256",
+  "memory": "1031817MB",
+  "gpu": "NVIDIA GeForce RTX 3090, 24576 MiB, 610.43.02 ",
+  "python": "Python 3.11.15 ",
+  "cadquery": "2.8.0",
+  "node": "v20.20.2",
+  "flowise": "flowise@3.1.4",
+  "ollama": "ollama version is 0.32.15 ",
+  "qdrant": "qdrant 1.19.0 ",
+  "repo_commit": "c34d304",
+  "repo_branch": "claude/m6-runpod-bringup-run0",
+  "runpod_pod_id": "non impostato",
+  "runpod_gpu_count": "non impostato"
+}
