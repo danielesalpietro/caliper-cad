@@ -12,10 +12,21 @@ verified for the ISO metric thread feature class (milestones M1–M3, see
 distinguishes physical from simulated evidence end-to-end (M4, `source:
 virtual|physical` on every retrieved record, anti-bias gate wired into
 the generation loop) — implemented and independently verified with
-fixtures, not yet run against a live Ollama/Qdrant instance. No live
-end-to-end run with a real generation model yet (needs a running Flowise
-instance, not available in the sandboxes these milestones were built
-in); no ground-truth dataset collected yet.
+fixtures, not yet run against a live Ollama/Qdrant instance. A full
+critical technical review of M1–M4
+([`docs/review_tecnica.md`](docs/review_tecnica.md), issue
+[#15](https://github.com/danielesalpietro/caliper-cad/issues/15)) found
+three undocumented blocking defects on never-exercised seams; a recovery
+plan ([`docs/piano_recupero.md`](docs/piano_recupero.md), milestones
+M5–M8) is now in progress: the M5 fix pack is implemented and
+independently verified (issue
+[#17](https://github.com/danielesalpietro/caliper-cad/issues/17)), and
+all service images plus a RunPod pod image are now built and published
+to GHCR on every push — the first builds in the project's history. No
+live end-to-end run with a real generation model yet (scope of M6 on
+RunPod, issue
+[#18](https://github.com/danielesalpietro/caliper-cad/issues/18)); no
+ground-truth dataset collected yet (scope of M8).
 
 ---
 
@@ -245,11 +256,41 @@ metric thread feature class:
   verified against on-disk fixtures and `py_compile`, not run end-to-end
   — see open issue [#5](https://github.com/danielesalpietro/caliper-cad/issues/5).
 
-14 verification scripts accumulated across M1–M4 now run automatically
-on every push/PR via [`.github/workflows/regression.yml`](.github/workflows/regression.yml).
+- **Review tecnica + piano di recupero (post-M4):** a read-only critical
+  review of the whole project
+  ([`docs/review_tecnica.md`](docs/review_tecnica.md), issue
+  [#15](https://github.com/danielesalpietro/caliper-cad/issues/15))
+  found, among others, three blocking defects on seams never exercised
+  end-to-end — the dimensional bbox check contradicting M3's host-block
+  topology (C1), only the GO gauge wired into the loop (C2), the
+  `snap_fit` preset crashing the orchestrator (C3) — and a forgeable
+  verdict (C7). The recovery plan
+  ([`docs/piano_recupero.md`](docs/piano_recupero.md)) tracks milestones
+  M5–M8 (issues
+  [#17](https://github.com/danielesalpietro/caliper-cad/issues/17)–[#20](https://github.com/danielesalpietro/caliper-cad/issues/20)).
+- **M5 (implemented, independently verified — merge pending):** the fix
+  pack closing C1–C7 and C10 quick wins, including a per-feature
+  dimensional contract, the NO-GO gauge in the loop, a trusted
+  measurement process (`measure_verdict.py`) that makes the verdict
+  unforgeable by generated code, a `param_first` L2 strategy,
+  deterministic Qdrant point ids, and a revocable virtual-memory
+  exclusion keyed on `tolerance`/`pitch`/`checker_version`. Details and
+  red-before-green evidence in
+  [`docs/logbook_fase5.md`](docs/logbook_fase5.md).
+- **Images on GHCR:** all four compose service images plus the
+  monolithic RunPod pod image (`ops/runpod/`, pinned versions) are built
+  and published by
+  [`.github/workflows/publish-images.yml`](.github/workflows/publish-images.yml)
+  on every relevant push — the first image builds in the project's
+  history.
 
-No ground-truth dataset (Livello 6) has been collected yet, and no local-
-generation feasibility test (Rischio #1) has been run.
+The verification scripts accumulated across M1–M5 (14 through M4, 21
+after M5) run automatically on every push/PR via
+[`.github/workflows/regression.yml`](.github/workflows/regression.yml).
+
+No ground-truth dataset (Livello 6) has been collected yet (scope of
+M8), and no local-generation feasibility test (Rischio #1) has been run
+(optional extra of M6, served via vLLM).
 
 ## 8. Local stack (Docker)
 
