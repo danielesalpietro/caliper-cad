@@ -123,3 +123,65 @@ oltre, procedo con i TC-E2E che non usano l'esecutore (E2E-1, 3, 5, 6,
 run0, ora con un dato in più (SIGKILL a `AS_LIMIT_MB` alto) da passare
 al supervisore per la prossima iterazione — non una pista risolta,
 un'osservazione aggiuntiva.
+
+## Passo 2 — Suite TC-E2E
+
+### Bloccante trovato e risolto prima di E2E-1 — SSRF policy di Flowise 3.1.4
+
+Primo tentativo E2E-1 fallito: `{"statusCode":500,...,"message":"Error:
+predictionsServices.buildChatflow - Error: Access to this host is
+denied by policy."}`. Causa (letta direttamente nel sorgente installato,
+`flowise-components/dist/src/httpSecurity.js`): Flowise 3.1.4 ha una
+protezione SSRF **attiva di default** (`HTTP_SECURITY_CHECK !==
+'false'`) con una deny-list che include `localhost`/`127.0.0.0/8`/
+`10.0.0.0/8` ecc. — blocca esattamente `http://localhost:11434`, la
+`baseUrl` del nodo ChatOllama nel chatflow L2.5. Non emerso nel run0
+(mai invocato L2.5 dal vivo li').
+
+**Necessario per l'architettura** (Flowise e Ollama nello stesso
+container, comunicazione via localhost e' l'intero disegno), non un
+workaround opzionale. **Fix applicato SOLO runtime su questo pod**
+(non nel repo — modifica a config condivisa, va proposta al
+supervisore): aggiunto `HTTP_SECURITY_CHECK="false"` alla riga
+`environment=` di `[program:flowise]` in
+`ops/runpod/supervisord.conf` (file locale sul pod, non committato),
+ricaricato con `supervisorctl -s unix:///run/supervisord.sock reread
+&& update` — **mai** toccato il supervisord principale, solo il
+programma `flowise` (regola rispettata). Verde dopo il riavvio
+mirato.
+
+**Da proporre al supervisore (issue #18)**: aggiungere
+`HTTP_SECURITY_CHECK="false"` permanentemente alla riga `environment=`
+di `[program:flowise]` in `ops/runpod/supervisord.conf` — bloccante
+strutturale per l'architettura corrente (Flowise deve raggiungere
+Ollama su localhost), non specifico di questo pod.
+
+### E2E-1 — prompt naturale a L2.5 vivo
+
+**Comando**:
+```
+POST /api/v1/prediction/8b2163da-1c4a-4ae0-91bf-dff89b752bbb
+{"question": "foro filettato M6, tolleranza 0.3mm, passo 1.0"}
+```
+
+**Output reale**:
+```json
+{"feature":"thread","nominal":"M6","pitch":1,"tolerance":0.3,"tolerance_type":"diametrale","measured_as":""}
+```
+
+**Atteso (handoff_m6.md)**: `feature:thread, nominal:M6, pitch:1.0,
+tolerance:0.3`, `tolerance_type`/`measured_as` vuoti.
+
+**Esito: PASS CON RISERVA — discrepanza onesta**. `feature`, `nominal`,
+`pitch`, `tolerance` coincidono esattamente. `measured_as` e' vuoto
+come atteso. **`tolerance_type` NON e' vuoto**: il modello ha inferito
+`"diametrale"` (che e' anche il default del preset "thread" in
+`presets.json` — coincidenza plausibile: il modello potrebbe aver
+"indovinato" il default piu' comune per filettature, oppure il
+template del prompt lo predispone a questo). Non e' un fallimento
+bloccante (il campo e' un tipo valido, e sara' comunque sovrascritto/
+confermato da `apply_preset()` a valle se vuoto), ma e' una
+discrepanza reale rispetto all'output atteso documentato — riportata
+cosi' com'e', non smussata a "PASS" silenzioso.
+
+`stdout` salvato in `/workspace/caliper-runs/incoming/tc-e1.log`.
