@@ -54,11 +54,11 @@ stampa all'avvio quali mancano (cerca `[MANCA]` in
 
 | Variabile | Bloccante? | Serve a |
 |---|---|---|
-| `OPENAI_API_KEY` | **SÌ (bloccante)** | generazione L2 reale (nodo ChatOpenAI del chatflow) — senza, E2E-1/E2E-2 non partono |
-| `ANTHROPIC_API_KEY` | **SÌ (bloccante)** | la sessione `claude` che esegue M6 dentro il pod |
+| `OPENAI_API_KEY` | **SÌ (bloccante)** | generazione L2 reale (nodo ChatOpenAI del chatflow) — senza, E2E-1/E2E-2 non partono; il bootstrap la usa anche per creare la credential Flowise |
+| `ANTHROPIC_API_KEY` | **SÌ (bloccante)** solo se `claude` gira dentro il pod | la sessione `claude` che esegue M6 dentro il pod; non serve se si guida via SSH da fuori |
 | `GITHUB_TOKEN` (scope `repo`) | sì per push/harvest e per il bus di supervisione | clone con push abilitato, `harvest.sh --push`, `agent_bus.sh` |
-| `FLOWISE_USERNAME` / `FLOWISE_PASSWORD` | consigliata | login Flowise (altrimenti istanza aperta) |
-| `FLOWISE_API_KEY` | dopo il primo login | import dei chatflow versionati e chiamate REST dell'orchestratore |
+| `FLOWISE_USERNAME` / `FLOWISE_PASSWORD` | **non più necessarie** | `flowise_bootstrap.py` (validato dal vivo) genera la password se assente, crea account admin, API key e credential a ogni boot e persiste tutto in `/workspace/.caliper_env`; impostale solo per scegliere tu le credenziali della UI |
+| `FLOWISE_API_KEY` | **non più necessaria** | creata dal bootstrap (`caliper-orchestrator`, permissions RBAC) e scritta in `/workspace/.caliper_env`; l'import dei chatflow al boot la usa da lì |
 | `PUBLIC_KEY` | opzionale | avvio automatico di `sshd` (SSH umano) |
 | `CALIPER_GIT_REF` | opzionale (default `develop`) | branch da cui parte il pod |
 
