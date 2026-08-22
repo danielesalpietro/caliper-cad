@@ -135,7 +135,12 @@ HELICAL_SWEEP_VOLUME_EPSILON_MM3 = 0.5
 # + bbox — insufficiente per un intero sweep elicoidale, causava
 # SIGKILL prima ancora di un vero timeout diagnosticabile. Margine
 # ~1.5x sul worst-case misurato: 65.5 * 1.5 ~ 98, arrotondato a 100.
-GAUGE_CHECK_CPU_LIMIT_SECONDS = int(os.environ.get("GAUGE_CHECK_CPU_LIMIT_SECONDS", "100"))
+# [run1, E2E-8/C8 — docs/logbook_fase6.md] Ricalibrato su hardware
+# reale (RTX A6000 + EPYC 7543, affinita' 12 core): worst-case misurato
+# 91.35s di CPU-time per lo sweep completo — il vecchio default 100
+# (tarato in sandbox M2 su 65.5s) aveva margine quasi nullo li'.
+# Stessa disciplina 1.5x: 91.35 * 1.5 ~ 137 -> 140.
+GAUGE_CHECK_CPU_LIMIT_SECONDS = int(os.environ.get("GAUGE_CHECK_CPU_LIMIT_SECONDS", "140"))
 
 VALID_MODES = ("static_interference", "sweep", "min_distance")
 

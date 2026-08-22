@@ -54,6 +54,22 @@ Se una finisce in chat → revocala e rigenerala.
 
 Dettaglio campi e "problemi noti" in `ops/runpod/README.md`.
 
+### 0.4 — Checklist pre-accensione (da compilare a OGNI run, costo zero)
+
+Ultima verifica prima di "dare fuoco ai cannoni". Se una riga non è
+spuntabile, non si accende: ognuna costa secondi ora e ore fatturate poi.
+
+| # | Verifica | Come |
+|---|---|---|
+| 1 | Publish **e** boot-smoke verdi sullo **stesso** `:git-<sha>` | pagina Actions: le due run più recenti sul merge di develop |
+| 2 | Package GHCR `caliper-pod` **pubblico** (o credenziali registry nel template) | pagina del package → visibilità; senza, RunPod non fa pull |
+| 3 | Template: Container Image = `:git-<sha>` esatto (mai `:latest` per run riproducibili) | campo del template |
+| 4 | Env bloccanti presenti **con valore**: `OPENAI_API_KEY`, `GITHUB_TOKEN` | template; chiavi testabili a costo zero: `curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $OPENAI_API_KEY" https://api.openai.com/v1/models` → 200; `curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/danielesalpietro/caliper-cad` → 200 |
+| 5 | Deciso CHI guida la sessione esecutrice: `claude` nel pod (→ `ANTHROPIC_API_KEY` nel template) **oppure** SSH esterno (→ `PUBLIC_KEY` nel template) | una delle due env presente, coerente con la scelta |
+| 6 | Handoff del run raggiungibile e prompt di lancio pronto | es. `docs/handoff_m6_run1.md` + commento su issue #18 |
+| 7 | Network Volume `caliper-artifacts` esiste ed è nel DC scelto | pannello RunPod → Storage |
+| 8 | Regola di chiusura chiara a chi esegue: harvest VERDE prima dello stop | è nel prompt di lancio |
+
 ---
 
 ## Fase 1 — accensione (💰 qui inizia il costo GPU)
