@@ -12,11 +12,24 @@ name: Pod boot smoke — avvia caliper-pod e valida (gate pre-affitto)
 # esistere come binario; il selftest verifica presenza/avviabilita' dei
 # componenti, non l'inferenza.
 
+# TRIGGER [fix post-M6]: nato con `workflow_run` sul completamento del
+# publish, MAI scattato in pratica (osservato su 3 publish di develop
+# consecutivi, a workflow registrato da ore — run 18/19/20). Sostituito
+# con un trigger `push` sugli stessi path del publish + attesa attiva
+# dell'immagine :git-<sha> esatta su GHCR: deterministico, senza
+# dipendere dall'aggancio tra workflow, e testa la SHA giusta invece di
+# :latest. workflow_dispatch resta per i run manuali.
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Publish images — GHCR (servizi + pod RunPod)"]
-    types: [completed]
+  push:
+    branches: [develop]
+    paths:
+      - "services/**"
+      - "config/gauges/**"
+      - "ops/runpod/**"
+      - "docker-compose.ghcr.yml"
+      - ".github/workflows/publish-images.yml"
+      - ".github/workflows/pod-boot-smoke.yml"
 
 permissions:
   contents: read
@@ -25,7 +38,7 @@ permissions:
 jobs:
   boot-selftest:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: docker/login-action@v3
         with:
@@ -33,8 +46,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull caliper-pod:latest
-        run: docker pull ghcr.io/${{ github.repository_owner }}/caliper-pod:latest
+      # Il publish parte dallo stesso push e impiega ~5-25 min: qui si
+      # aspetta che l'immagine :git-<shortsha> esista davvero (poll, non
+      # fallimento immediato). Su dispatch manuale si ripiega su :latest
+      # (nessun publish parallelo da attendere). Se dopo 30 min il tag
+      # non c'e', il publish e' fallito — e questo job fallisce con un
+      # messaggio chiaro, come deve.
+      - name: Attendi l'immagine su GHCR e pull
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="git-$(echo '${{ github.sha }}' | cut -c1-7)"
+          else
+            TAG="latest"
+          fi
+          IMG="ghcr.io/${{ github.repository_owner }}/caliper-pod:${TAG}"
+          echo "immagine sotto test: $IMG"
+          for i in $(seq 1 30); do
+            if docker pull "$IMG"; then
+              docker tag "$IMG" caliper-pod-under-test
+              exit 0
+            fi
+            echo "non ancora su GHCR (tentativo $i/30) — attendo 60s"
+            sleep 60
+          done
+          echo "ERRORE: $IMG assente dopo 30 min — publish fallito o tag inatteso"; exit 1
 
       # Selftest con env bloccanti finte (verifichiamo la PRESENZA dei
       # binari/pacchetti e la logica del gate, non le chiavi reali): il
@@ -45,7 +80,7 @@ jobs:
           docker run --rm \
             -e OPENAI_API_KEY=dummy -e ANTHROPIC_API_KEY=dummy \
             --entrypoint bash \
-            ghcr.io/${{ github.repository_owner }}/caliper-pod:latest \
+            caliper-pod-under-test \
             /opt/caliper/ops/runpod/start.sh --selftest
 
       # Contro-prova: senza le chiavi bloccanti il selftest DEVE fallire
@@ -53,7 +88,7 @@ jobs:
       - name: start.sh --selftest deve fallire senza chiavi bloccanti
         run: |
           if docker run --rm --entrypoint bash \
-               ghcr.io/${{ github.repository_owner }}/caliper-pod:latest \
+               caliper-pod-under-test \
                /opt/caliper/ops/runpod/start.sh --selftest; then
             echo "ERRORE: il selftest e' passato senza chiavi bloccanti — il gate non funziona"; exit 1
           else
