@@ -643,3 +643,45 @@ nell'`environment=` di `[program:verifier-executor]` in
 `supervisord.conf`, ricaricato via `supervisorctl` (mai il supervisord
 principale) — config esatta e verifica E2E-2/E2E-8 nella sezione
 successiva.
+
+### E2E-2 — generazione reale via pipeline live: PASS COMPLETO
+
+**Config applicata al servizio `verifier-executor` reale** (runtime,
+`ops/runpod/supervisord.conf`, ricaricata via `supervisorctl`, mai il
+supervisord principale):
+```
+[program:verifier-executor]
+command=taskset -c 0-11 /opt/venv/bin/python watcher.py
+environment=PATH="...",GENERATED_PARTS_DIR="/workspace/exec/parts",CALIPER_STACK_LIMIT_MB="2",CALIPER_AS_LIMIT_MB="16384"
+```
+(core 0-11: stesso nodo NUMA 0 di questo pod — vedi
+`docs/hardware_fingerprint_run1.md`; `CALIPER_AS_LIMIT_MB=16384`, non
+6144: il valore che ha sbloccato SOLO `run_and_measure.py` nel
+tentativo 4 non bastava per `gauge_check.py`, vedi tentativo 5).
+
+**Comando** (spec confermata, stessa di E2E-1):
+```
+L2_STRATEGY=param_first L6_DATASET_DIR=/workspace/data/dataset \
+RETRY_LOG_PATH=/workspace/data/virtual_log/retry_log.jsonl \
+python3 generate_and_verify.py \
+  '{"feature":"thread","nominal":"M6","pitch":1.0,"tolerance":0.3,"engagement_length_mm":8.0}'
+```
+
+**Output reale — PASS al tentativo 1/3**:
+- `/verify`: PASS (tutti i check, incluso `execution_and_geometry`).
+- Go/No-Go GO: **PASS**, `interference_volume_mm3: 0.305925` (soglia
+  ≤0.5mm³, 21/21 step completati, nessuna interferenza).
+- Go/No-Go NO-GO: **FAIL** (atteso — deve interferire),
+  `interference_volume_mm3: 20.158069` (soglia >1mm³, rilevata già al
+  primo step).
+- `exit=0`.
+
+**Verifica dei criteri dell'handoff, tutti confermati**:
+- STEP reale su disco: `/workspace/exec/parts/2c32dde3-0e62-4bf4-a28c-ff6a1205cc75.step` (331KB).
+- Record in `retry_log.jsonl`: `outcome:"PASS"`, `spec_key` completa
+  (`feature`, `l2_strategy`, `nominal`, `pitch`, `thread_standard`,
+  `tolerance`, `tolerance_type`), `case_id` presente.
+
+**Esito: PASS pulito, primo E2E-2 riuscito in tutto lo sforzo M6**
+(run0+run1). `stdout` completo in
+`/workspace/caliper-runs/incoming/tc-e2.log`.
