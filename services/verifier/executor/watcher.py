@@ -81,9 +81,10 @@ GENERATED_PARTS_CLEANUP_INTERVAL_SECONDS = 300
 # (preflight_diagnostics + last_checkpoint) scatta SOLO su
 # subprocess.TimeoutExpired, cioe' su QUESTO timeout — col valore
 # hardcoded il test E2E-7 non poteva esercitarlo senza un job che
-# impiegasse davvero >150s (vedi docs/logbook_fase6.md, E2E-7). Il
-# default resta 150: la taratura empirica M2 non cambia.
-GAUGE_CHECK_TIMEOUT_SECONDS = int(os.environ.get("GAUGE_CHECK_TIMEOUT_SECONDS", "150"))
+# impiegasse davvero >150s (vedi docs/logbook_fase6.md, E2E-7).
+# Default 210 = limite interno di gauge_check (140, ricalibrato C8 sul
+# worst-case run1 di 91.35s) x lo stesso rapporto ~1.5 di sempre.
+GAUGE_CHECK_TIMEOUT_SECONDS = int(os.environ.get("GAUGE_CHECK_TIMEOUT_SECONDS", "210"))
 
 
 def _write_result(result_path, data):
