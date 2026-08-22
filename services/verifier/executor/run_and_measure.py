@@ -100,10 +100,18 @@ CALIPER_AS_LIMIT_MB = int(os.environ.get("CALIPER_AS_LIMIT_MB", "2048"))
 # 8MB sono 2GB di address space prenotati solo di stack. 2 (MB) e' un
 # valore sensato sul pod; di default NON viene toccato nulla.
 CALIPER_STACK_LIMIT_MB = os.environ.get("CALIPER_STACK_LIMIT_MB", "")
+# [run1, tentativo 4 — docs/logbook_fase6.md] RLIMIT_CPU conta il tempo
+# CPU SOMMATO su tutti i thread: su host con nproc gonfiato (128-256
+# visibili, quota cgroup ~1/9) i pool nativi dimensionati sui core
+# visibili bruciano 10s in una frazione di secondo di wall-clock ->
+# SIGKILL (semantica di RLIMIT_CPU con soft=hard), scambiato per OOM
+# nel run0. Default 10 invariato (produzione); sul pod si alza o si
+# restringe l'affinita' (taskset), che e' il fix vero.
+CALIPER_CPU_LIMIT_S = int(os.environ.get("CALIPER_CPU_LIMIT_S", "10"))
 
 
 def set_limits():
-    resource.setrlimit(resource.RLIMIT_CPU, (10, 10))  # 10s di CPU
+    resource.setrlimit(resource.RLIMIT_CPU, (CALIPER_CPU_LIMIT_S, CALIPER_CPU_LIMIT_S))
     as_bytes = CALIPER_AS_LIMIT_MB * 1024**2
     resource.setrlimit(resource.RLIMIT_AS, (as_bytes, as_bytes))
     if CALIPER_STACK_LIMIT_MB:
