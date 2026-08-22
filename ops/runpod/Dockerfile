@@ -85,7 +85,14 @@ COPY --from=qdrant-src /qdrant /opt/qdrant
 # python3.11 (il 3.12 di sistema non ha piu' distutils), install
 # separate, verifica HARD di entrambe le CLI — se mancano, la build
 # fallisce, come deve.
-ENV NPM_CONFIG_PYTHON=/usr/bin/python3.11
+# PUPPETEER_SKIP_DOWNLOAD: il postinstall di puppeteer (dipendenza dei
+# nodi di web-scraping di Flowise, che non usiamo) scarica ~150MB di
+# Chrome da un CDN Google — inutile nell'immagine e causa di fallimento
+# dell'install dietro proxy (403 osservato in sandbox durante la
+# validazione del bootstrap).
+ENV NPM_CONFIG_PYTHON=/usr/bin/python3.11 \
+    PUPPETEER_SKIP_DOWNLOAD=true \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm install -g flowise@${FLOWISE_VERSION} \
     && npm install -g @anthropic-ai/claude-code \
     && flowise --version \
