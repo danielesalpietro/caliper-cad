@@ -10,25 +10,35 @@ richiede un'istanza Flowise viva, non disponibile in questo sandbox, vedi
 docs/logbook_fase3.md). Nessuna pretesa di validare qui l'esecuzione
 end-to-end reale.
 
-Cinque scenari:
+Sette scenari (A-E di M3, F/G aggiunti in M5 per C2 — vedi
+docs/review_tecnica.md e docs/handoff_m5.md):
 
-A. /verify PASS + /gauge-check PASS al primo tentativo -> successo
-   immediato, un solo record nel budget.
-B. /verify PASS ma /gauge-check TIMEOUT (con checkpoint che classifica
-   SWEEP_TIMEOUT_EARLY) al tentativo 1, poi entrambi PASS al tentativo 2
-   -> verifica che retry_context.directive nella spec inviata a L2 al
-   tentativo 2 sia esattamente SWEEP_TIMEOUT_EARLY (non un numero grezzo,
-   vedi retry_policy.py) e che il loop recuperi correttamente.
+A. /verify PASS + GO PASS + NO-GO con interferenza al primo tentativo ->
+   successo immediato, un solo record nel budget. [M5] Da questa
+   milestone il PASS richiede ANCHE il NO-GO (deve interferire) — prima
+   bastava il solo GO (vedi F/G sotto per i due casi dedicati al NO-GO).
+B. /verify PASS ma gauge-check (GO) TIMEOUT (con checkpoint che
+   classifica SWEEP_TIMEOUT_EARLY) al tentativo 1, poi GO+NO-GO PASS al
+   tentativo 2 -> verifica che retry_context.directive nella spec
+   inviata a L2 al tentativo 2 sia esattamente SWEEP_TIMEOUT_EARLY (non
+   un numero grezzo, vedi retry_policy.py) e che il loop recuperi
+   correttamente.
 C. Feature senza gauge_check_mode nel preset (clearance_fit) -> /verify
    PASS basta, gauge-check MAI chiamato (preset non ancora esteso a
    questa feature, fuori scope M3).
-D. /gauge-check FAIL con lo stesso errore per 2 tentativi consecutivi ->
-   uscita anticipata (stessa RetryBudget di M2, ora esercitata da un
-   fallimento del gauge-check invece che di /verify).
+D. gauge-check (GO) FAIL con lo stesso errore per 2 tentativi
+   consecutivi -> uscita anticipata (stessa RetryBudget di M2, ora
+   esercitata da un fallimento del gauge-check invece che di /verify);
+   il NO-GO non viene mai raggiunto se il GO fallisce.
 E. La spec inoltrata a /verify (via call_verifier) e' quella del
    tentativo corrente, non un dizionario vuoto — verifica il bug trovato
    e corretto in preparazione a questa milestone (vedi docstring di
    generate_and_verify.py, punto 1).
+F. [M5, C2] GO PASS + NO-GO SENZA interferenza -> FAIL con errore stabile
+   gauge_check_nogo_no_interference (foro sovradimensionato, mai
+   rilevato dal solo GO prima di questo fix).
+G. [M5, C2] GO PASS + NO-GO CON interferenza -> PASS (entrambi i calibri
+   verificati, caso "felice" del fix).
 
 Uso: python verify_gauge_check_loop_wiring.py
 Nessuna dipendenza esterna (nessun cadquery/fastapi, solo stdlib +
@@ -128,30 +138,35 @@ THREAD_SPEC = {"feature": "thread", "nominal": "M6", "tolerance": 0.3}
 def main():
     ok = True
 
-    print("=== A. /verify PASS + /gauge-check PASS al tentativo 1 ===")
+    print("=== A. /verify PASS + GO PASS + NO-GO con interferenza al tentativo 1 ===")
+    # [M5, C2] Da questa milestone il PASS richiede ANCHE il NO-GO
+    # (deve interferire) — vedi Blocco F/G sotto per i due casi nuovi
+    # dedicati al NO-GO; qui si aggiorna solo il numero di chiamate
+    # attese per lo scenario "tutto liscio al tentativo 1".
     exit_code, fake = run_scenario(
         THREAD_SPEC,
         verify_responses=[verify_result("PASS")],
-        gauge_responses=[gauge_result("PASS")],
+        gauge_responses=[gauge_result("PASS"), gauge_result("FAIL")],
     )
-    a_ok = exit_code == 0 and len(fake.verify_calls) == 1 and len(fake.gauge_calls) == 1
-    print("Atteso: successo immediato, 1 verify + 1 gauge-check:", "OK" if a_ok else "FALLITO", f"(exit={exit_code})")
+    a_ok = exit_code == 0 and len(fake.verify_calls) == 1 and len(fake.gauge_calls) == 2
+    print("Atteso: successo immediato, 1 verify + 2 gauge-check (GO poi NO-GO):", "OK" if a_ok else "FALLITO", f"(exit={exit_code})")
     ok = ok and a_ok
 
-    print("\n=== B. gauge-check TIMEOUT early al tentativo 1, recupero al tentativo 2 ===")
+    print("\n=== B. gauge-check (GO) TIMEOUT early al tentativo 1, recupero al tentativo 2 ===")
     exit_code, fake = run_scenario(
         THREAD_SPEC,
         verify_responses=[verify_result("PASS"), verify_result("PASS")],
         gauge_responses=[
             gauge_result("TIMEOUT", last_checkpoint={"step": 2, "total_steps": 20}),  # 2/20 = 0.1 < 0.33 -> EARLY
-            gauge_result("PASS"),
+            gauge_result("PASS"),  # GO al tentativo 2
+            gauge_result("FAIL"),  # NO-GO al tentativo 2 (deve interferire per il PASS finale)
         ],
     )
     directive_in_retry = None
     if len(fake.flowise_calls) >= 2:
         second_spec = json.loads(fake.flowise_calls[1])
         directive_in_retry = second_spec.get("retry_context", {}).get("directive")
-    b_ok = exit_code == 0 and len(fake.gauge_calls) == 2 and directive_in_retry == "SWEEP_TIMEOUT_EARLY"
+    b_ok = exit_code == 0 and len(fake.gauge_calls) == 3 and directive_in_retry == "SWEEP_TIMEOUT_EARLY"
     print(
         f"Atteso: recupero al tentativo 2, directive=SWEEP_TIMEOUT_EARLY nella spec di retry (trovato: {directive_in_retry}):",
         "OK" if b_ok else "FALLITO",
@@ -181,11 +196,40 @@ def main():
     )
     ok = ok and d_ok
 
+    print("\n=== F. [M5, C2] GO PASS + NO-GO senza interferenza -> FAIL (foro sovradimensionato mai rilevato dal solo GO) ===")
+    exit_code, fake = run_scenario(
+        THREAD_SPEC,
+        verify_responses=[verify_result("PASS"), verify_result("PASS")],
+        gauge_responses=[gauge_result("PASS"), gauge_result("PASS"), gauge_result("PASS"), gauge_result("PASS")],
+    )
+    nogo_step_used = fake.gauge_calls[1][1].get("gauge_step_path") if len(fake.gauge_calls) >= 2 else None
+    f_ok = exit_code == 1 and len(fake.gauge_calls) == 4 and nogo_step_used == "thread_M6_NOGO_ISO68-1.step"
+    print(
+        f"Atteso: NO-GO chiamato dopo ogni GO PASS (4 chiamate: GO+NOGO x2 tentativi, poi uscita anticipata), "
+        f"verdetto finale FAIL — PRIMA di M5 il NO-GO non era mai chiamato e questo caso dava PASS silenzioso al "
+        f"tentativo 1 (1 sola chiamata gauge-check): {'OK' if f_ok else 'FALLITO'} "
+        f"(exit={exit_code}, gauge_calls={len(fake.gauge_calls)}, nogo_step_used={nogo_step_used})"
+    )
+    ok = ok and f_ok
+
+    print("\n=== G. [M5, C2] GO PASS + NO-GO con interferenza -> PASS (entrambi i calibri verificati) ===")
+    exit_code, fake = run_scenario(
+        THREAD_SPEC,
+        verify_responses=[verify_result("PASS")],
+        gauge_responses=[gauge_result("PASS"), gauge_result("FAIL")],
+    )
+    g_ok = exit_code == 0 and len(fake.gauge_calls) == 2 and fake.gauge_calls[1][1].get("gauge_step_path") == "thread_M6_NOGO_ISO68-1.step"
+    print(
+        f"Atteso: successo solo dopo GO PASS E NO-GO con interferenza (2 chiamate gauge-check, GO poi NOGO): "
+        f"{'OK' if g_ok else 'FALLITO'} (exit={exit_code}, gauge_calls={len(fake.gauge_calls)})"
+    )
+    ok = ok and g_ok
+
     print("\n=== E. la spec inoltrata a /verify e' quella reale del tentativo, non vuota (bug corretto) ===")
     exit_code, fake = run_scenario(
         THREAD_SPEC,
         verify_responses=[verify_result("PASS")],
-        gauge_responses=[gauge_result("PASS")],
+        gauge_responses=[gauge_result("PASS"), gauge_result("FAIL")],
     )
     _, sent_spec = fake.verify_calls[0]
     e_ok = (

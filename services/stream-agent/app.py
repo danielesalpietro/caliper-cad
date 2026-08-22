@@ -54,6 +54,7 @@ import json
 import os
 import threading
 import time
+import uuid
 from collections import deque
 from datetime import datetime, timezone
 
@@ -74,10 +75,51 @@ DATASET_DIR = os.getenv("DATASET_DIR", "/data/dataset")
 # Livello 6): l'indexer legge in modo incrementale per byte-offset, vedi
 # index_virtual_log_once().
 VIRTUAL_LOG_PATH = os.getenv("VIRTUAL_LOG_PATH", "/data/virtual_log/retry_log.jsonl")
+# [M5, C6 — vedi docs/review_tecnica.md] Offset persistito su file
+# accanto al log (letto all'avvio, riscritto ad ogni avanzamento) — vedi
+# _load_virtual_log_offset()/_save_virtual_log_offset(). Prima di M5
+# _virtual_log_offset viveva solo in RAM: ogni riavvio del processo lo
+# azzerava, ri-leggendo l'intero log dall'inizio a ogni riavvio.
+VIRTUAL_LOG_OFFSET_PATH = os.getenv("VIRTUAL_LOG_OFFSET_PATH", VIRTUAL_LOG_PATH + ".offset")
 POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "30"))
 COLLECTION_PHYSICAL = "caliper_l6_dataset"
 COLLECTION_VIRTUAL = "caliper_virtual_log"
 MAX_BUFFER = 500
+
+# [M5, C6] Namespace fisso per uuid.uuid5 — deve restare stabile per
+# sempre (cambiarlo cambierebbe TUTTI gli id gia' calcolati): un
+# namespace standard RFC 4122 va benissimo, non ha bisogno di essere
+# specifico del progetto.
+_ID_NAMESPACE = uuid.NAMESPACE_URL
+
+
+def deterministic_point_id(key: str) -> str:
+    """[M5, C6 — vedi docs/review_tecnica.md] Id Qdrant deterministico
+    dal CONTENUTO di 'key', mai da hash() nativo di Python: hash(str) e'
+    randomizzato per processo (PYTHONHASHSEED, ne' il Dockerfile ne'
+    docker-compose.yml lo fissano) — a ogni riavvio ogni caso gia'
+    indicizzato riceveva un id NUOVO, l'upsert non deduplicava mai e le
+    collezioni si riempivano di duplicati (bug reale, non solo teorico:
+    verificato con due processi separati che calcolano id diversi per la
+    stessa chiave, vedi verify_stream_agent_ids.py). uuid.uuid5 e'
+    deterministico per costruzione (stesso namespace + stessa stringa ->
+    stesso UUID, sempre, in qualunque processo) — nessuna necessita' di
+    '%(2**63)'/abs() ne' del rischio di collisione che introducevano."""
+    return str(uuid.uuid5(_ID_NAMESPACE, key))
+
+
+def _load_virtual_log_offset() -> int:
+    try:
+        with open(VIRTUAL_LOG_OFFSET_PATH, "r", encoding="utf-8") as f:
+            return int(f.read().strip() or "0")
+    except (OSError, ValueError):
+        return 0
+
+
+def _save_virtual_log_offset(offset: int) -> None:
+    with open(VIRTUAL_LOG_OFFSET_PATH, "w", encoding="utf-8") as f:
+        f.write(str(offset))
+
 
 app = FastAPI(title="CALIPER Livello 7 — grounding agent")
 
@@ -86,7 +128,7 @@ indexed_virtual = deque(maxlen=MAX_BUFFER)
 qdrant = QdrantClient(url=QDRANT_URL)
 _ready_collections: set[str] = set()
 _indexed_files = set()
-_virtual_log_offset = 0
+_virtual_log_offset = _load_virtual_log_offset()
 
 
 def ensure_collection(collection_name: str, vector_size: int):
@@ -165,7 +207,7 @@ def index_dataset_once():
                 collection_name=COLLECTION_PHYSICAL,
                 points=[
                     qmodels.PointStruct(
-                        id=abs(hash(path)) % (2**63),
+                        id=deterministic_point_id(path),
                         vector=vector,
                         payload={"text": text, "source": "physical", "source_file": path},
                     )
@@ -197,6 +239,10 @@ def index_virtual_log_once():
             f.seek(_virtual_log_offset)
             new_lines = f.readlines()
             _virtual_log_offset = f.tell()
+        # [M5, C6] Persistito subito dopo l'avanzamento — un riavvio
+        # rilegge da qui, non dall'inizio del file (vedi
+        # _load_virtual_log_offset() al modulo load).
+        _save_virtual_log_offset(_virtual_log_offset)
     except OSError as e:
         print(f"unreadable virtual log {VIRTUAL_LOG_PATH}: {e}")
         return
@@ -219,7 +265,7 @@ def index_virtual_log_once():
             continue
 
         text = virtual_record_to_text(record)
-        point_id = abs(hash(f"{record.get('case_id')}:{record.get('attempt')}")) % (2**63)
+        point_id = deterministic_point_id(f"{record.get('case_id')}:{record.get('attempt')}")
         try:
             vector = embed_text(text)
             ensure_collection(COLLECTION_VIRTUAL, len(vector))

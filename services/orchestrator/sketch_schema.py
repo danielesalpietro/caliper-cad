@@ -43,8 +43,21 @@ principio del controllo statico a fasi del Livello 3):
 
 import math
 
-NUMERIC_TOLERANCE_MM = 1e-6
-NUMERIC_TOLERANCE_DEG = 1e-3
+# [M5, C4 — vedi docs/review_tecnica.md] Prima di questa milestone,
+# 1e-6mm/1e-3gradi pretendevano precisione da double IEEE per QUALUNQUE
+# coordinata dichiarata dall'LLM (es. il punto di radice del profilo M6
+# e' 2.1339745962155613mm — arrotondato a 4 decimali, l'errore di
+# ~2.5e-5mm sposta l'angolo calcolato di ~1.5e-3 gradi, gia' sopra la
+# vecchia soglia): per passare, il modello doveva emettere trigonometria
+# a precisione piena, esattamente il compito che sketch-first voleva
+# togliergli. Allargate di ~3 ordini di grandezza (1e-3mm/0.1 gradi):
+# ancora sufficienti a bloccare un'affermazione grossolanamente falsa
+# (angolo dichiarato 90 quando le coordinate implicano 60, vedi
+# verify_sketch_first_strategy.py::INVALID_ANGLE_THREAD_SKETCH), non piu'
+# a pretendere una precisione che un LLM non puo' realisticamente
+# emettere per un valore arrotondato a 4 decimali.
+NUMERIC_TOLERANCE_MM = 1e-3
+NUMERIC_TOLERANCE_DEG = 0.1
 
 SUPPORTED_OPERATION_TYPES = ("helical_thread_cut",)
 

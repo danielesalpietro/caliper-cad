@@ -6,6 +6,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgl1 \
 RUN pip install --no-cache-dir --default-timeout=300 cadquery==2.8.0
 
 WORKDIR /app
-COPY run_and_measure.py watcher.py gauge_check.py .
+COPY run_and_measure.py measure_verdict.py watcher.py gauge_check.py .
 
 CMD ["python", "watcher.py"]

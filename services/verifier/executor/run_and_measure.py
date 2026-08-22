@@ -1,5 +1,5 @@
 """
-CALIPER — Livello 3, esecutore isolato per un singolo job.
+CALIPER — Livello 3, esecutore ISOLATO e NON FIDATO di un singolo job.
 
 Invocato come processo separato (mai in-process nel watcher), con limiti
 di risorse impostati PRIMA di eseguire il codice non fidato. Il
@@ -9,7 +9,32 @@ container, ma applica comunque limiti di CPU/memoria per singolo job
 perche' il watcher e' un processo a lunga vita e job successivi non
 devono poter degradarsi a vicenda.
 
-Uso: python run_and_measure.py <job.json> <result.json>
+[M5, C7 — vedi docs/review_tecnica.md, proposta P5] Fino a M4 questo
+script eseguiva exec(code) E scriveva il verdetto finale (result.json)
+nello STESSO processo: il codice non fidato poteva quindi leggere
+sys.argv, scrivere un result.json contraffatto ("execution": "PASS") e
+chiamare os._exit(0) per uscire prima che qualunque controllo reale
+avvenisse — un PASS falsificabile dal codice sotto giudizio (vedi
+verify_verdict_integrity.py per la fixture avversariale). Split adottato:
+
+- QUESTO processo (non fidato) esegue exec(code) ed esporta SOLO lo STEP
+  del solido 'result' — non scrive MAI il verdetto finale (result.json):
+  scrive solo uno "stato di esportazione" interno (export_status.json,
+  mai il nome/formato del verdetto pubblico) che measure_verdict.py (il
+  processo FIDATO, mai exec di codice esterno, vedi la sua docstring)
+  legge come semplice DIAGNOSTICA, non come fonte di verita' — l'unica
+  fonte di verita' e' lo STEP effettivamente scritto su disco, che
+  measure_verdict.py re-importa e ri-misura indipendentemente da zero.
+- watcher.py chiama SEMPRE measure_verdict.py dopo questo script (a meno
+  di timeout, vedi la sua docstring) e measure_verdict.py e' l'UNICO
+  scrittore di result.json, incondizionatamente (sovrascrive qualunque
+  file gia' presente li' — questo, non la segretezza del path, e' la
+  difesa reale contro il PASS contraffatto: anche se il codice non
+  fidato indovina il path di result.json e ci scrive comunque prima di
+  uscire, measure_verdict.py lo sovrascrive subito dopo con il proprio
+  verdetto, calcolato da zero).
+
+Uso: python run_and_measure.py <job.json> <export_status.json>
 
 [M3] Esportazione STEP del pezzo validato (gauge_check.py, vedi
 docs/logbook_fase3.md): /models e' montato READ-ONLY in
@@ -23,6 +48,18 @@ mai confusa con /models (part_source="models", invariato per gli
 script M1/M2 esistenti) — vedi gauge_check.py per il motivo per cui le
 due radici restano distinte anche se ora coesistono nello stesso
 volume.
+
+Riserva onesta (C7, non risolta qui): l'handoff chiede anche di togliere
+la leggibilita' di /models a QUESTO processo specifico (non gli serve,
+non fa gauge-check) — ma /models e' montato a livello dell'intero
+container verifier-executor (docker-compose.yml), condiviso da tutti i
+sottoprocessi (questo, measure_verdict.py, gauge_check.py): docker-compose
+non offre un modo per montare un volume solo per UN sottoprocesso dentro
+lo stesso container, servirebbe un container/namespace separato per
+questo stadio — cambio architetturale piu' grande, fuori scope per
+questa milestone (non e' un'assunzione silenziosa: la vera difesa contro
+la falsificazione resta la separazione processo-che-esegue /
+processo-che-giudica sopra, non l'irraggiungibilita' di /models).
 """
 
 import json
@@ -49,106 +86,51 @@ def set_limits():
     resource.setrlimit(resource.RLIMIT_AS, (2 * 1024**3, 2 * 1024**3))  # 2GB memoria
 
 
-def parse_nominal_mm(nominal):
-    if isinstance(nominal, str) and nominal.upper().startswith("M"):
-        try:
-            return float(nominal[1:].split("x")[0])
-        except ValueError:
-            return None
-    return None
-
-
-def write_result(path, result):
+def write_export_status(path, status):
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(result, f)
+        json.dump(status, f)
 
 
 def main():
-    job_path, result_path = sys.argv[1], sys.argv[2]
+    job_path, export_status_path = sys.argv[1], sys.argv[2]
     with open(job_path, "r", encoding="utf-8") as f:
         job = json.load(f)
     code = job["code"]
-    spec = job.get("spec") or {}
 
-    result = {"execution": "FAIL", "error": None, "measurements": None, "dimensional_check": None}
+    # [M5, C7] Nessun campo qui non e' un verdetto: "export_ok" dice solo
+    # se QUESTO processo e' riuscito a esportare uno STEP, mai se il
+    # pezzo e' dimensionalmente corretto — quella decisione, e ogni
+    # campo che il chiamante vedra' come "execution"/PASS/FAIL, spetta
+    # solo a measure_verdict.py, sulla base dello STEP reimportato da
+    # zero, non su questi campi presi per buoni.
+    status = {"export_ok": False, "error": None, "generated_part_step_path": None}
 
     namespace = {}
     try:
         exec(code, namespace)  # nosec - codice non fidato, isolato per processo/container
     except Exception as e:
-        result["error"] = f"{type(e).__name__}: {e}"
-        write_result(result_path, result)
+        status["error"] = f"{type(e).__name__}: {e}"
+        write_export_status(export_status_path, status)
         return
 
     obj = namespace.get("result")
     if obj is None:
-        result["error"] = "'result' non trovato dopo l'esecuzione"
-        write_result(result_path, result)
+        status["error"] = "'result' non trovato dopo l'esecuzione"
+        write_export_status(export_status_path, status)
         return
 
     try:
         solid = obj.val() if hasattr(obj, "val") else obj
-        is_valid = solid.isValid()
-        bb = solid.BoundingBox()
-        measurements = {
-            "is_valid": is_valid,
-            "bbox_x_mm": round(bb.xlen, 4),
-            "bbox_y_mm": round(bb.ylen, 4),
-            "bbox_z_mm": round(bb.zlen, 4),
-        }
-        result["measurements"] = measurements
-        result["execution"] = "PASS" if is_valid else "FAIL"
-        if not is_valid:
-            result["error"] = "geometria non manifold/watertight"
-    except Exception as e:
-        result["error"] = f"misurazione fallita: {type(e).__name__}: {e}"
-        write_result(result_path, result)
-        return
-
-    # Esporta il pezzo validato come STEP, cosi' un gauge-check successivo
-    # (M3, vedi docstring del modulo) puo' importarlo — solo se la
-    # geometria e' valida: un solido non manifold non e' comunque
-    # gauge-checkabile, non ha senso esportarlo.
-    if result["execution"] == "PASS":
         job_id = os.path.splitext(os.path.basename(job_path))[0]
-        try:
-            os.makedirs(GENERATED_PARTS_DIR, exist_ok=True)
-            step_rel = f"{job_id}.step"
-            solid.exportStep(os.path.join(GENERATED_PARTS_DIR, step_rel))
-            result["generated_part_step_path"] = step_rel
-        except Exception as e:
-            # Nessun pezzo esportato = nessun gauge-check possibile a
-            # valle: e' un FAIL reale, non un dettaglio da inghiottire in
-            # silenzio (stessa disciplina di "misurazione fallita" sopra).
-            result["execution"] = "FAIL"
-            result["error"] = f"esportazione STEP fallita: {type(e).__name__}: {e}"
-            result["generated_part_step_path"] = None
-            write_result(result_path, result)
-            return
-    else:
-        result["generated_part_step_path"] = None
+        os.makedirs(GENERATED_PARTS_DIR, exist_ok=True)
+        step_rel = f"{job_id}.step"
+        solid.exportStep(os.path.join(GENERATED_PARTS_DIR, step_rel))
+        status["export_ok"] = True
+        status["generated_part_step_path"] = step_rel
+    except Exception as e:
+        status["error"] = f"esportazione STEP fallita: {type(e).__name__}: {e}"
 
-    # Confronto dimensionale — solo per "thread" per ora, unico feature
-    # con preset definito (vedi services/orchestrator/presets.json)
-    feature = spec.get("feature")
-    if feature == "thread" and result["measurements"]:
-        nominal_mm = parse_nominal_mm(spec.get("nominal", ""))
-        tolerance = spec.get("tolerance")
-        measured_diameter = max(measurements["bbox_x_mm"], measurements["bbox_y_mm"])
-        if nominal_mm is not None and tolerance is not None:
-            delta = abs(measured_diameter - nominal_mm)
-            within = delta <= tolerance
-            result["dimensional_check"] = {
-                "nominal_mm": nominal_mm,
-                "measured_diameter_mm": measured_diameter,
-                "tolerance_mm": tolerance,
-                "delta_mm": round(delta, 4),
-                "status": "PASS" if within else "FAIL",
-            }
-            if not within:
-                result["execution"] = "FAIL"
-
-    write_result(result_path, result)
+    write_export_status(export_status_path, status)
 
 
 if __name__ == "__main__":

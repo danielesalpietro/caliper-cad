@@ -37,7 +37,9 @@ d'implementazione restano fuori da cio' che il livello dichiarativo
 vede.
 """
 
-from sketch_schema import SketchValidationError, point_lookup, assert_valid_sketch_spec
+import math
+
+from sketch_schema import CROSS_FIELD_TOLERANCE_MM, SketchValidationError, point_lookup, assert_valid_sketch_spec
 
 CUT_OVERLAP_MM = 0.05
 
@@ -108,15 +110,32 @@ def compile_thread_sketch_to_code(spec: dict) -> str:
     # I punti di cresta (raggio massimo, entro tolleranza) prendono
     # l'overlap di stabilizzazione OCC — vedi CUT_OVERLAP_MM sopra. Il
     # punto di radice (raggio minore) resta esatto.
+    #
+    # [M5, C4 — vedi docs/review_tecnica.md] La soglia qui era 1e-6mm,
+    # piu' STRETTA di NUMERIC_TOLERANCE_MM (oggi 1e-3, vedi
+    # sketch_schema.py): una spec con la cresta a "r_major - 5e-4" era
+    # VALIDA per lo schema (entro tolleranza) ma questo confronto non
+    # riconosceva il punto come cresta, saltando l'overlap di
+    # stabilizzazione OCC — finestra di quasi-tangenza che
+    # CUT_OVERLAP_MM esiste apposta per evitare. Allineata a
+    # CROSS_FIELD_TOLERANCE_MM (stessa soglia di sketch_schema.py per la
+    # consistenza sketch/operation, non un terzo numero indipendente):
+    # qualunque punto che lo schema accetta come cresta riceve ora
+    # l'overlap.
     profile_coords = []
     for pid in ordered_ids:
         x, y = points[pid]
-        is_crest = abs(x - r_major) <= 1e-6
+        is_crest = abs(x - r_major) <= CROSS_FIELD_TOLERANCE_MM
         profile_coords.append((x + CUT_OVERLAP_MM if is_crest else x, y))
 
     move_x, move_y = profile_coords[0]
     profile_lines = "\n    ".join(f".lineTo({x!r}, {y!r})" for x, y in profile_coords[1:])
 
+    code = _emit_thread_code(move_x, move_y, profile_lines, pitch_mm, engagement_length_mm, r_major, host_x, host_y, host_z)
+    return code
+
+
+def _emit_thread_code(move_x, move_y, profile_lines, pitch_mm, engagement_length_mm, r_major, host_x, host_y, host_z):
     code = f'''import cadquery as cq
 
 # Profilo a V compilato da vincoli sketch-first (M3) — punti/linee
@@ -142,3 +161,98 @@ _host = (
 result = _host.cut(_thread_pin)
 '''
     return code
+
+
+# ---------------------------------------------------------------------------
+# param_first (M5, C4/P3 — vedi docs/review_tecnica.md)
+# ---------------------------------------------------------------------------
+#
+# Per le feature con preset, sketch-first (sopra) chiede all'LLM di
+# emettere coordinate 2D che codificano una trigonometria che il
+# compilatore gia' conosce (lo stesso profilo a V e' interamente
+# determinato da pitch_mm e dall'angolo del preset) — "sposta la
+# fragilita', non la elimina" (stesso pattern gia' riconosciuto in
+# issue #10, qui applicato alla milestone sketch-first stessa). Qui L2
+# emette SOLO i 4 parametri fisici della filettatura
+# (major_diameter_mm, pitch_mm, engagement_length_mm, host_xy_mm): il
+# compilatore costruisce la spec sketch canonica con la STESSA
+# trigonometria gia' validata in
+# config/gauges/generate_thread_gauge.build_thread_plug()
+# (H = pitch/(2*tan(angolo/2)), r_major = D/2, r_minor = r_major - H) e
+# riusa compile_thread_sketch_to_code() — nessuna seconda via
+# geometrica, un solo posto che sa costruire il profilo a V.
+
+
+def build_thread_sketch_spec_from_params(params: dict, profile_angle_deg: float = 60.0) -> dict:
+    """Costruisce la spec sketch-first canonica (stesso schema di
+    hand_written_thread_spec() in verify_sketch_compiler_thread.py) dai
+    soli parametri fisici della strategia 'param_first'. Solleva
+    SketchValidationError (stessa classe di assert_valid_sketch_spec) se
+    i parametri non descrivono una filettatura fisicamente valida —
+    generate_and_verify.py la tratta identicamente a un errore di
+    validazione sketch-first (FAIL di generazione, RETRY_GENERIC, vedi
+    generate_code_for_attempt())."""
+    required = ("major_diameter_mm", "pitch_mm", "engagement_length_mm", "host_xy_mm")
+    for name in required:
+        value = params.get(name)
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+            raise SketchValidationError([f"{name} deve essere un numero positivo, trovato {value!r}"])
+
+    major_diameter_mm = params["major_diameter_mm"]
+    pitch_mm = params["pitch_mm"]
+    engagement_length_mm = params["engagement_length_mm"]
+    host_xy_mm = params["host_xy_mm"]
+
+    if host_xy_mm <= major_diameter_mm:
+        raise SketchValidationError(
+            [f"host_xy_mm={host_xy_mm} deve essere maggiore del diametro maggiore {major_diameter_mm} (il foro non ci starebbe dentro)"]
+        )
+
+    r_major = major_diameter_mm / 2.0
+    h = pitch_mm / (2 * math.tan(math.radians(profile_angle_deg / 2)))
+    r_minor = r_major - h
+    if r_minor <= 0:
+        raise SketchValidationError(
+            [
+                f"major_diameter_mm={major_diameter_mm}, pitch_mm={pitch_mm}, angolo={profile_angle_deg}: "
+                f"raggio di radice <= 0 ({r_minor:.6f}mm) — profilo a V non valido (stesso vincolo di "
+                "config/gauges/generate_thread_gauge.build_thread_plug())"
+            ]
+        )
+
+    return {
+        "feature": "thread",
+        "sketch": {
+            "points": [
+                {"id": "p_crest_a", "x": r_major, "y": -pitch_mm / 2},
+                {"id": "p_crest_b", "x": r_major, "y": pitch_mm / 2},
+                {"id": "p_root", "x": r_minor, "y": 0.0},
+            ],
+            "lines": [
+                {"id": "l_flank_in", "start": "p_crest_a", "end": "p_root"},
+                {"id": "l_flank_out", "start": "p_root", "end": "p_crest_b"},
+                {"id": "l_close", "start": "p_crest_b", "end": "p_crest_a"},
+            ],
+            "arcs": [],
+            "dimensions": [
+                {"type": "distance", "refs": ["p_crest_a", "p_crest_b"], "value_mm": pitch_mm, "label": "pitch"},
+                {"type": "angle", "refs": ["l_flank_in", "l_flank_out"], "value_deg": profile_angle_deg, "label": "thread_profile_angle"},
+            ],
+        },
+        "operation": {
+            "type": "helical_thread_cut",
+            "host": {"type": "block", "size_mm": [host_xy_mm, host_xy_mm, engagement_length_mm]},
+            "major_diameter_mm": major_diameter_mm,
+            "pitch_mm": pitch_mm,
+            "engagement_length_mm": engagement_length_mm,
+            "right_handed": True,
+        },
+    }
+
+
+def compile_thread_params_to_code(params: dict, profile_angle_deg: float = 60.0) -> str:
+    """param_first -> CadQuery, passando dalla stessa spec sketch
+    canonica e dallo stesso compilatore di sketch-first (vedi docstring
+    sopra) — mai una via geometrica indipendente."""
+    spec = build_thread_sketch_spec_from_params(params, profile_angle_deg)
+    return compile_thread_sketch_to_code(spec)

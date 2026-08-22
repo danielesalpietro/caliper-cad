@@ -75,13 +75,28 @@ def main():
 
         # Import DOPO aver impostato le env var — vedi nota tecnica sopra.
         import generate_and_verify as gav
+        from retry_policy import CHECKER_VERSION
         from virtual_memory import MIN_VIRTUAL_FAILURES_FOR_EXCLUSION, spec_key
 
         key_m6 = spec_key("other", {**spec_m6, "l2_strategy": "free_code"})
+        # [M5, C5 — vedi docs/review_tecnica.md] failure_class/checker_version
+        # aggiunti alla fixture (dichiarato in docs/logbook_fase5.md): senza
+        # questi campi i record non contano piu' per count_virtual_failures()
+        # (fail-open verso la generazione) — case_id DISTINTI per ogni record,
+        # non lo stesso, altrimenti conterebbero come un solo caso (vedi
+        # verify_virtual_memory.py::test_case_id_counting).
         write_virtual_log(
             log_path,
             [
-                {"case_id": f"prior-{n}", "attempt": 1, "spec_key": key_m6, "outcome": "FAIL", "source": "virtual"}
+                {
+                    "case_id": f"prior-{n}",
+                    "attempt": 1,
+                    "spec_key": key_m6,
+                    "outcome": "FAIL",
+                    "source": "virtual",
+                    "failure_class": "geometric",
+                    "checker_version": CHECKER_VERSION,
+                }
                 for n in range(MIN_VIRTUAL_FAILURES_FOR_EXCLUSION)
             ],
         )

@@ -19,6 +19,11 @@ stesso stile degli altri verify_*.py in questa directory):
    generated_part_step_path resta presente: il pezzo esiste davvero sul
    disco anche se il caso non passa il confronto con la specifica.
 
+[M5, C7] Da questa milestone run_and_measure.py non scrive piu' il
+verdetto da solo (split esecuzione/verdetto, vedi la sua docstring e
+verify_verdict_integrity.py) — questo script chiama ora anche
+measure_verdict.py come secondo stadio, stessa sequenza del watcher.
+
 Uso: python verify_run_and_measure_export.py
 Richiede cadquery installato (vedi verify_gauge_check.py per il dettaglio).
 """
@@ -30,6 +35,7 @@ import sys
 import tempfile
 
 RUN_AND_MEASURE = os.path.join(os.path.dirname(__file__), "run_and_measure.py")
+MEASURE_VERDICT = os.path.join(os.path.dirname(__file__), "measure_verdict.py")
 
 CODE_VALID = """
 import cadquery as cq
@@ -38,13 +44,23 @@ result = cq.Workplane("XY").box(10, 10, 5)
 
 
 def run(code, spec, tmp, tag, parts_dir):
+    # [M5, C7 — vedi docs/review_tecnica.md] run_and_measure.py non
+    # scrive piu' il verdetto finale da solo (esporta solo lo STEP, vedi
+    # la sua docstring) — measure_verdict.py (processo fidato) e' ora
+    # sempre il secondo passo, stessa sequenza usata da
+    # watcher.py::process_code_job(). Vedi anche verify_verdict_integrity.py.
     job_path = os.path.join(tmp, f"job_{tag}.json")
+    export_status_path = os.path.join(tmp, f"export_status_{tag}.json")
     result_path = os.path.join(tmp, f"result_{tag}.json")
     with open(job_path, "w", encoding="utf-8") as f:
         json.dump({"code": code, "spec": spec}, f)
     env = dict(os.environ)
     env["GENERATED_PARTS_DIR"] = parts_dir
-    subprocess.run([sys.executable, RUN_AND_MEASURE, job_path, result_path], env=env, check=True, capture_output=True)
+    subprocess.run([sys.executable, RUN_AND_MEASURE, job_path, export_status_path], env=env, check=True, capture_output=True)
+    subprocess.run(
+        [sys.executable, MEASURE_VERDICT, job_path, export_status_path, result_path],
+        env=env, check=True, capture_output=True,
+    )
     with open(result_path, "r", encoding="utf-8") as f:
         return json.load(f)
 

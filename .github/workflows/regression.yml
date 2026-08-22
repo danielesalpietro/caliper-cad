@@ -19,7 +19,13 @@ name: Regression — script di verifica (collaudo virtuale)
 
 on:
   push:
-    branches: [develop]
+    # [M5, C10 — vedi docs/review_tecnica.md] Prima di M5 la CI girava
+    # solo su develop: i branch delle sessioni (claude/**) non
+    # eseguivano la regressione finche' non aprivano una PR verso
+    # develop — una regressione introdotta a meta' sessione restava
+    # invisibile fino a quel momento. "pull_request: branches: [develop]"
+    # resta invariato (una PR gia' copre il push sul branch sorgente).
+    branches: [develop, "claude/**"]
   pull_request:
     branches: [develop]
 
@@ -72,6 +78,15 @@ jobs:
       # completa per eseguire solo questi script.
       - name: Installa CadQuery
         run: pip install --default-timeout=300 cadquery==2.8.0
+
+      # [M5] verify_stream_agent_ids.py e verify_result_variable_annassign.py
+      # importano rispettivamente services/stream-agent/app.py e
+      # services/verifier/app.py — nessuna istanza Qdrant/Ollama viva
+      # richiesta (vedi le loro docstring), ma le dipendenze devono
+      # essere installabili per l'import. Stesse versioni dei rispettivi
+      # requirements.txt.
+      - name: Installa dipendenze di stream-agent/verifier (fastapi, qdrant-client, requests)
+        run: pip install --default-timeout=300 fastapi==0.115.0 qdrant-client==1.11.1 requests==2.32.3 pydantic==2.9.2 uvicorn==0.30.6
 
       # --- M1 (docs/logbook_fase1.md) ---
       - name: verify_gauge_check.py — M1, geometria sintetica
@@ -132,3 +147,36 @@ jobs:
       - name: verify_virtual_memory_loop_gate.py — M4, gate anti-bias nel loop reale (mock rete)
         working-directory: services/orchestrator
         run: python verify_virtual_memory_loop_gate.py
+
+      # --- M5 (docs/logbook_fase5.md) — fix pack post-review, docs/review_tecnica.md ---
+      # Nota: verify_gauge_check_loop_wiring.py (C2, TC-M5-2) e
+      # verify_virtual_memory.py (C5, TC-M5-6) sono stati ESTESI da M5
+      # con nuovi scenari, non duplicati qui — i loro step sono gia'
+      # sopra, nelle sezioni M3/M4 (eseguono la versione aggiornata).
+      - name: verify_dimensional_contract.py — M5/C1, contratto dimensionale per-feature (TC-M5-1)
+        working-directory: services/verifier/executor
+        run: python verify_dimensional_contract.py
+
+      - name: verify_snap_fit_min_distance_wiring.py — M5/C3, snap_fit/min_distance nel loop (TC-M5-3)
+        working-directory: services/orchestrator
+        run: python verify_snap_fit_min_distance_wiring.py
+
+      - name: verify_stream_agent_ids.py — M5/C6, id Qdrant deterministici + offset persistito (TC-M5-4)
+        working-directory: services/stream-agent
+        run: python verify_stream_agent_ids.py
+
+      - name: verify_verdict_integrity.py — M5/C7, split esecuzione/verdetto (TC-M5-5)
+        working-directory: services/verifier/executor
+        run: python verify_verdict_integrity.py
+
+      - name: verify_param_first.py — M5/C4, strategia param_first + fix tolleranze sketch-first (TC-M5-7)
+        working-directory: services/orchestrator
+        run: python verify_param_first.py
+
+      - name: verify_result_variable_annassign.py — M5/C10, result_variable accetta AnnAssign (TC-M5-8)
+        working-directory: services/verifier
+        run: python verify_result_variable_annassign.py
+
+      - name: verify_generated_parts_cleanup.py — M5/C10, cleanup /exec/parts con ritenzione
+        working-directory: services/verifier/executor
+        run: python verify_generated_parts_cleanup.py
