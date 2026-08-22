@@ -844,3 +844,44 @@ dell'handoff ("NO-GO senza interferenza -> FAIL finale, conferma live
 di C2"). `stdout` completo in
 `/workspace/caliper-runs/incoming/tc-e4-verify.log` e
 `tc-e4-gauge.log`.
+
+### E2E-7 — RIPROVA dopo il fix SIGSEGV: VERDE pulito (l'esito precedente resta, ora completato)
+
+Con lo sweep GO che ora funziona davvero (~20.7s reali, misurato in
+E2E-8), abbassare `GAUGE_CHECK_TIMEOUT_SECONDS` a 5s esercita
+finalmente il vero percorso `subprocess.TimeoutExpired` — la prima
+volta (prima del fix SIGSEGV) il crash uccideva il processo prima che
+il timeout potesse scattare, qualunque fosse il suo valore.
+
+**Config runtime** (`[program:verifier-executor]`, invariato il resto
+del fix taskset/CALIPER_*):
+```
+environment=...,CALIPER_STACK_LIMIT_MB="2",CALIPER_AS_LIMIT_MB="16384",GAUGE_CHECK_TIMEOUT_SECONDS="5"
+```
+
+**Comando**: stesso sweep GO di E2E-2/E2E-8 (21 step, stesso STEP
+generato), via `POST /gauge-check`.
+
+**Output reale**:
+```json
+{"status":"TIMEOUT","gauge_check":{"status":"TIMEOUT","timeout_seconds":5,
+ "preflight_diagnostics":{"part_face_count":19,"part_edge_count":47,
+   "part_topology_check":"ok","max_entity_tolerance_mm":1e-05,
+   "gauge_face_count":15,"gauge_edge_count":35,"gauge_topology_check":"ok"},
+ "last_checkpoint":{"step":2,"total_steps":21,"offset_mm":0.8,
+   "helix_position_deg":288.0},
+ "source":"virtual"},"error":"gauge_check_timeout"}
+```
+
+**Esito: PASS pulito** — corrisponde esattamente al criterio
+dell'handoff (`TIMEOUT` strutturato via HTTP, `preflight_diagnostics`
++ `last_checkpoint` entrambi presenti e popolati). `last_checkpoint`
+mostra correttamente lo sweep interrotto allo step 2/21 (offset
+0.8mm, 288° di posizione elicoidale) — coerente con un timeout a 5s
+su uno sweep che richiede ~20.7s per completare tutti i 21 step
+(~1s/step).
+
+`GAUGE_CHECK_TIMEOUT_SECONDS` **ripristinato** (rimosso
+dall'`environment=`, torna al default 150s) subito dopo il test,
+`verifier-executor` ricaricato via `supervisorctl`. `stdout` in
+`/workspace/caliper-runs/incoming/tc-e7-retry.log`.
