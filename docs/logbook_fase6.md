@@ -447,3 +447,69 @@ richiesta ha raggiunto Flowise.
 dell'handoff ("orchestratore esce prima di chiamare Flowise, 0
 richieste nei log"). `stdout` completo (3 run concatenati) in
 `/workspace/caliper-runs/incoming/tc-e6.log`.
+
+### E2E-7 — gauge job con CPU limit basso -> TIMEOUT strutturato: NON ESEGUIBILE come specificato
+
+**Setup**: copiato `config/gauges/thread_M6_GO_ISO68-1.step` in
+`/workspace/data/models/thread_M6_test_part.step` (unico modo per
+avere un "part" in `/models`, vuota su questo pod). Aggiunto
+`GAUGE_CHECK_CPU_LIMIT_SECONDS="1"` runtime a `[program:verifier-executor]`
+in `supervisord.conf` (solo sul pod, non nel repo), ricaricato via
+`supervisorctl` (mai il supervisord principale).
+
+**Comando**:
+```
+POST /gauge-check
+{"part_step_path":"thread_M6_test_part.step","gauge_step_path":"thread_M6_NOGO_ISO68-1.step",
+ "mode":"sweep","part_source":"models","sweep":{"steps":21,"start_offset_mm":0.0,"end_offset_mm":8.0,"pitch_mm":1.0}}
+```
+
+**Output reale**: `{"status":"FAIL","gauge_check":{},"error":"il
+sottoprocesso non ha prodotto un risultato"}` — **non** il
+`{"status":"TIMEOUT", "preflight_diagnostics":..., "last_checkpoint":...}`
+atteso.
+
+**Causa (letta nel sorgente, `services/verifier/executor/watcher.py`)**:
+**due meccanismi distinti, non uno**:
+1. `GAUGE_CHECK_CPU_LIMIT_SECONDS` (default 100, overridabile via env)
+   e' l'`RLIMIT_CPU` **interno** di `gauge_check.py` — se scatta, il
+   sistema operativo termina il sottoprocesso (SIGKILL/segnale), che
+   NON solleva `subprocess.TimeoutExpired` in `watcher.py` (quella
+   viene sollevata solo dal parametro `timeout=` di
+   `subprocess.run()`, un meccanismo Python separato). Il codice cade
+   nel fallback generico di riga 187 (`"il sottoprocesso non ha
+   prodotto un risultato"`), che NON costruisce
+   `preflight_diagnostics`/`last_checkpoint`.
+2. Il percorso strutturato con `TIMEOUT`+`preflight_diagnostics`+
+   `last_checkpoint` (righe ~157-182) scatta SOLO su
+   `subprocess.TimeoutExpired`, cioe' quando il job supera
+   `GAUGE_CHECK_TIMEOUT_SECONDS` — costante **hardcoded a 150** (riga
+   80 di `watcher.py`), **non letta da env**, quindi non abbassabile
+   dall'esterno senza modificare il codice.
+
+**L'handoff descrive il test sulla leva sbagliata**: abbassare
+`GAUGE_CHECK_CPU_LIMIT_SECONDS` non esercita il percorso
+"TIMEOUT strutturato", esercita un fallback generico diverso e meno
+informativo. Per riprodurre davvero il criterio d'accettazione
+servirebbe un job che impieghi genuinamente >150s di wall-clock (poco
+pratico da garantire in modo deterministico, specie con l'ambiente
+ancora instabile per via del SIGSEGV) oppure rendere
+`GAUGE_CHECK_TIMEOUT_SECONDS` overridabile via env (stesso pattern
+gia' usato per `CALIPER_AS_LIMIT_MB`/`CALIPER_STACK_LIMIT_MB`) — un
+cambio a codice condiviso, **non applicato qui**, proposto al
+supervisore.
+
+**Configurazione runtime ripristinata** (rimosso
+`GAUGE_CHECK_CPU_LIMIT_SECONDS="1"` da `supervisord.conf` sul pod,
+`verifier-executor` ricaricato via `supervisorctl`) per non
+interferire con test successivi.
+
+**Esito: NON ESEGUITO** (non FALLITO nel senso del criterio — il
+criterio stesso non e' raggiungibile con la leva descritta
+nell'handoff, su questo codice). `stdout` in
+`/workspace/caliper-runs/incoming/tc-e7.log`.
+
+**Candidato fix per il supervisore**: `GAUGE_CHECK_TIMEOUT_SECONDS` in
+`watcher.py` -> `int(os.environ.get("GAUGE_CHECK_TIMEOUT_SECONDS", "150"))`,
+cosi' l'handoff/test puo' davvero forzare il percorso strutturato
+senza dover aspettare 150s reali.
