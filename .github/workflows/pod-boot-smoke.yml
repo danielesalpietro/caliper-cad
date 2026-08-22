@@ -29,7 +29,12 @@ on:
       - "ops/runpod/**"
       - "docker-compose.ghcr.yml"
       - ".github/workflows/publish-images.yml"
-      - ".github/workflows/pod-boot-smoke.yml"
+      # NB: NON includere questo stesso file nei path — un push che tocca
+      # solo il workflow non fa partire il publish, quindi l'immagine
+      # :git-<sha> non esisterebbe mai e il poll andrebbe rosso a vuoto
+      # (successo alla prima esecuzione reale del trigger, merge di #27).
+      # Le modifiche al workflow si validano col dispatch manuale
+      # (fallback :latest) o al successivo push di contenuto.
 
 permissions:
   contents: read
