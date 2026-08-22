@@ -53,7 +53,11 @@ fi
 # FLOWISE_PASSWORD: se assente la GENERIAMO (istanza Flowise del pod,
 # non un segreto esterno) e la persistiamo — zero passaggi manuali.
 if [ -z "${FLOWISE_PASSWORD:-}" ]; then
-  FLOWISE_PASSWORD="$(openssl rand -base64 18 2>/dev/null || head -c 18 /dev/urandom | base64)"
+  # [run1] Flowise 3.x rifiuta la registrazione senza minuscola+maiuscola+
+  # cifra+speciale ("Invalid Password" osservato dal vivo): il solo base64
+  # (A-Za-z0-9+/) non garantisce MAI lo speciale. Il suffisso fisso
+  # garantisce tutte e quattro le classi qualunque sia la parte casuale.
+  FLOWISE_PASSWORD="$(openssl rand -base64 12 2>/dev/null || head -c 12 /dev/urandom | base64)Aa1!"
   export FLOWISE_PASSWORD
   echo "export FLOWISE_PASSWORD='$FLOWISE_PASSWORD'" >> "$WORKSPACE/.caliper_env"
   chmod 600 "$WORKSPACE/.caliper_env"
@@ -202,18 +206,66 @@ fi
 #      importati (idempotente: al secondo boot dice solo "gia' corretta")
 (
   BLOG="$WORKSPACE/logs/flowise_bootstrap.log"
-  if /opt/venv/bin/python "$REPO_DIR/ops/runpod/flowise_bootstrap.py" >> "$BLOG" 2>&1; then
-    set -a; . "$WORKSPACE/.caliper_env" 2>/dev/null; set +a
-    FLOWISE_URL="${FLOWISE_URL:-http://localhost:3000}" \
-      /opt/venv/bin/python "$REPO_DIR/services/flowise/import_chatflows.py" >> "$BLOG" 2>&1 \
-      || echo "flowise-bootstrap: import chatflow FALLITO (vedi logs/flowise_bootstrap.log)"
-    /opt/venv/bin/python "$REPO_DIR/ops/runpod/flowise_bootstrap.py" >> "$BLOG" 2>&1 \
-      && echo "flowise-bootstrap: OK — account, api key, chatflow importati, credential agganciata (vedi logs/flowise_bootstrap.log)" \
-      || echo "flowise-bootstrap: patch credential FALLITA (vedi logs/flowise_bootstrap.log)"
-  else
-    echo "flowise-bootstrap: FALLITO (vedi logs/flowise_bootstrap.log)"
-  fi
+  # [run1] Due giri completi della sequenza: al primo boot reale il primo
+  # tentativo e' fallito per una race col Flowise appena partito, e il
+  # recovery manuale (bootstrap dopo import) lasciava la patch credential
+  # orfana. Il retry dell'INTERA sequenza copre entrambi i casi; ogni
+  # passo resta idempotente.
+  for attempt in 1 2; do
+    if /opt/venv/bin/python "$REPO_DIR/ops/runpod/flowise_bootstrap.py" >> "$BLOG" 2>&1; then
+      set -a; . "$WORKSPACE/.caliper_env" 2>/dev/null; set +a
+      FLOWISE_URL="${FLOWISE_URL:-http://localhost:3000}" \
+        /opt/venv/bin/python "$REPO_DIR/services/flowise/import_chatflows.py" >> "$BLOG" 2>&1 \
+        || echo "flowise-bootstrap: import chatflow FALLITO (vedi logs/flowise_bootstrap.log)"
+      if /opt/venv/bin/python "$REPO_DIR/ops/runpod/flowise_bootstrap.py" >> "$BLOG" 2>&1; then
+        echo "flowise-bootstrap: OK — account, api key, chatflow importati, credential agganciata (vedi logs/flowise_bootstrap.log)"
+        break
+      fi
+      echo "flowise-bootstrap: patch credential FALLITA al giro $attempt (vedi logs/flowise_bootstrap.log)"
+    else
+      echo "flowise-bootstrap: FALLITO al giro $attempt (vedi logs/flowise_bootstrap.log)"
+    fi
+    [ "$attempt" = "1" ] && sleep 30
+  done
 ) &
 
+# --- Affinita' CPU reale [run1, fix strutturale del SIGSEGV]: i pod
+# RunPod mostrano nproc gonfiato (128-256 visibili) contro una quota
+# cgroup ~1/9 (pattern osservato identico su due pod diversi) — i pool
+# di thread nativi (OpenBLAS/OMP/VTK/OCC-TBB) si dimensionano sui core
+# VISIBILI e sfondano RLIMIT_AS/RLIMIT_CPU (SIGSEGV/SIGKILL, vedi
+# docs/logbook_fase6.md). taskset sull'intero process tree (supervisord
+# e tutti i figli) e' l'unico fix che copre TUTTE le librerie, anche
+# quelle senza variabile d'ambiente dedicata. Ricetta validata dal vivo
+# nel run1 (taskset -c 0-11 + i limiti sotto: pipeline completa VERDE).
+CPU_MAX="$(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo max)"
+TASKSET_PREFIX=""
+case "$CPU_MAX" in
+  max*|"") ;;
+  *) QUOTA="${CPU_MAX%% *}"; PERIOD="${CPU_MAX##* }"
+     if [ "$QUOTA" != "max" ] && [ "$PERIOD" -gt 0 ] 2>/dev/null; then
+       CORES=$(( (QUOTA + PERIOD - 1) / PERIOD ))
+       [ "$CORES" -lt 1 ] && CORES=1
+       VISIBLE="$(nproc)"
+       if [ "$CORES" -lt "$VISIBLE" ]; then
+         TASKSET_PREFIX="taskset -c 0-$((CORES - 1))"
+         echo "cgroup quota ${QUOTA}/${PERIOD} -> ${CORES} core reali (nproc=${VISIBLE}): affinita' ristretta con ${TASKSET_PREFIX}"
+       fi
+     fi ;;
+esac
+# Limiti per-job del verificatore, tarati sul pod (run1): overridabili
+# dal template, default di PRODUZIONE (docker-compose) non toccati —
+# start.sh gira solo sul pod.
+export CALIPER_STACK_LIMIT_MB="${CALIPER_STACK_LIMIT_MB:-2}"
+export CALIPER_AS_LIMIT_MB="${CALIPER_AS_LIMIT_MB:-16384}"
+# retry_log dove harvest.sh e stream-agent lo cercano (il default del
+# codice e' relativo al repo — sul pod va sul path condiviso).
+export RETRY_LOG_PATH="${RETRY_LOG_PATH:-$WORKSPACE/data/virtual_log/retry_log.jsonl}"
+mkdir -p "$WORKSPACE/data/virtual_log"
+# ...e anche in .caliper_env: le shell SSH nuove non ereditano l'ambiente
+# di start.sh, ma la sessione esecutrice fa source di questo file.
+grep -q "^export RETRY_LOG_PATH=" "$WORKSPACE/.caliper_env" 2>/dev/null \
+  || echo "export RETRY_LOG_PATH='$RETRY_LOG_PATH'" >> "$WORKSPACE/.caliper_env"
+
 echo "== avvio supervisord =="
-exec /opt/venv/bin/supervisord -n -c "$REPO_DIR/ops/runpod/supervisord.conf"
+exec $TASKSET_PREFIX /opt/venv/bin/supervisord -n -c "$REPO_DIR/ops/runpod/supervisord.conf"

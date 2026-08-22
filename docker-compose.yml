@@ -195,6 +195,12 @@ services:
       FLOWISE_USERNAME: ${FLOWISE_USERNAME:-}
       FLOWISE_PASSWORD: ${FLOWISE_PASSWORD:-}
       FLOWISE_SECRETKEY_OVERWRITE: ${FLOWISE_SECRETKEY_OVERWRITE:-}
+      # [run1] La protezione SSRF di Flowise 3.1.4 blocca gli IP privati:
+      # qui Ollama e' su rete docker interna (http://ollama:11434) e senza
+      # questo il chatflow L2.5 non puo' chiamarlo — scoperto sul pod
+      # (stessa topologia logica), sarebbe esploso a M7. Vedi
+      # docs/logbook_fase6.md.
+      HTTP_SECURITY_CHECK: "false"
     volumes:
       - flowise_data:/root/.flowise
     healthcheck:
