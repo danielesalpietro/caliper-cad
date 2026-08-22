@@ -100,12 +100,45 @@ Alcune già applicate su `claude/review-tecnica` durante l'incidente
    accendere; Fase 1–3 (accensione, esecuzione, spegnimento) con la
    regola di costo. Nessuno step di setup va più scoperto a pod acceso.
 
-## Esito della sessione esecutrice M6
+## Esito della sessione esecutrice M6 (run0 — chiuso 2026-08-22)
 
-> DA COMPLETARE quando arriva l'esito dell'altra sessione (in corso al
-> momento di scrivere). Registrare: cosa è riuscita a eseguire davvero
-> (quali TC-E2E), cosa no e perché, i numeri C8 se ottenuti, e se il pod
-> è stato harvestato+spento correttamente. Onestà sull'esito, previsto
-> come parziale/fallimentare — il valore di questa retrospettiva è che
-> le azioni correttive sopra impediscano che si ripeta, non nascondere
-> il risultato.
+Fonte: `docs/logbook_runpod_run0.md` (branch
+`claude/m6-runpod-bringup-run0`, commit `25eda9a`) — il report completo
+di analisi è `docs/report_run0.md`.
+
+**TC-E2E eseguiti: zero.** Il run0 è stato interamente bring-up e
+diagnosi (~3h di GPU): confermata la previsione "parziale" scritta nel
+placeholder qui sopra. Ma NON è stato tempo perso — il run ha prodotto:
+
+- **3 bug reali trovati e chiusi**: Flowise mai installato nell'immagine
+  (catena `|| true` → `distutils` → `build-essential`, ora corretta e
+  verificata HARD nel Dockerfile, commit `61e9b1b`); i due chatflow L2
+  mancanti dall'epoca di M3, costruiti da zero, versionati e testati dal
+  vivo (`206ee22` sul branch run0); `call_flowise_l2` che perdeva la
+  risposta dei chatflow con Structured Output Parser (Flowise 3.x
+  risponde in `json`, non `text` — fix rosso→verde, approvato dal
+  supervisore su issue #18).
+- **`--confirm` (Rischio #5)** implementato rosso→verde, in regressione CI.
+- **La risposta vera a C8**, diversa dal previsto: non "budget CPU
+  stretto" ma **SIGSEGV/deadlock** — il pod mostra 256 vCPU con quota
+  cgroup reale ~27; le librerie native dimensionano i pool sui core
+  visibili e sfondano `RLIMIT_AS=2GB`. Blocca E2E-2 e ogni `/verify`
+  reale: è la priorità #1 del prossimo run.
+- **Numeri C8: non ottenuti** (bloccati dal SIGSEGV a monte).
+- **Harvest: eseguito ma ROSSO** (`run0-close`): manca `retry_log.jsonl`,
+  mai scritto perché nessuna generazione L2 è arrivata a completamento.
+  Tutto il resto (log, chatflow, fingerprint, dataset) è su git — la
+  regola "push incrementale, mai solo sul pod" ha retto anche durante
+  l'incidente SSH di metà sessione.
+- **Un incidente operativo dell'esecutore** (kill del supervisord PID-1
+  per applicare env → container riavviato, SSH perso): recuperato senza
+  perdita di lavoro; contromisura già committata (socket `supervisorctl`
+  in `supervisord.conf`, `61e9b1b`).
+
+Giudizio onesto: il fallimento di processo del *supervisore* (questa
+retrospettiva) ha consumato la prima parte del run; la sessione
+esecutrice ha lavorato bene con metodo rosso→verde e ha trasformato un
+bring-up fallito in diagnosi complete. Le azioni correttive 1–9 sopra
+sono ora tutte ✅ (le 6–8 di processo restano vincolanti per condotta);
+la preparazione del re-run — con gate, automazione Flowise validata dal
+vivo e mitigazioni SIGSEGV — è in `docs/report_run0.md`.

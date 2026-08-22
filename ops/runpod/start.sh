@@ -191,15 +191,28 @@ else
   echo "GITHUB_TOKEN assente — agent_bus non avviato (supervisione via push manuali)"
 fi
 
-# --- Bootstrap Flowise automatico (account, api key, credential OpenAI,
-# aggancio ai chatflow L2) — in background: lo script aspetta da solo che
-# Flowise risponda al ping. Idempotente a ogni boot. Vedi
-# flowise_bootstrap.py (endpoint verificati dal sorgente 3.1.4).
+# --- Bootstrap Flowise automatico — in background: lo script aspetta da
+# solo che Flowise risponda al ping. Idempotente a ogni boot.
+# Sequenza VALIDATA DAL VIVO in sandbox (flowise@3.1.4 reale, DB pulito
+# — vedi flowise_bootstrap.py, docstring):
+#   1. bootstrap: account, api key (permissions RBAC), credential OpenAI
+#   2. import_chatflows.py con la api key appena scritta in .caliper_env
+#      (i chatflow versionati devono esistere PRIMA della patch)
+#   3. bootstrap di nuovo: aggancia la credential ai chatflow L2 appena
+#      importati (idempotente: al secondo boot dice solo "gia' corretta")
 (
-  /opt/venv/bin/python "$REPO_DIR/ops/runpod/flowise_bootstrap.py" \
-    >> "$WORKSPACE/logs/flowise_bootstrap.log" 2>&1 \
-    && echo "flowise-bootstrap: OK (vedi logs/flowise_bootstrap.log)" \
-    || echo "flowise-bootstrap: FALLITO (vedi logs/flowise_bootstrap.log)"
+  BLOG="$WORKSPACE/logs/flowise_bootstrap.log"
+  if /opt/venv/bin/python "$REPO_DIR/ops/runpod/flowise_bootstrap.py" >> "$BLOG" 2>&1; then
+    set -a; . "$WORKSPACE/.caliper_env" 2>/dev/null; set +a
+    FLOWISE_URL="${FLOWISE_URL:-http://localhost:3000}" \
+      /opt/venv/bin/python "$REPO_DIR/services/flowise/import_chatflows.py" >> "$BLOG" 2>&1 \
+      || echo "flowise-bootstrap: import chatflow FALLITO (vedi logs/flowise_bootstrap.log)"
+    /opt/venv/bin/python "$REPO_DIR/ops/runpod/flowise_bootstrap.py" >> "$BLOG" 2>&1 \
+      && echo "flowise-bootstrap: OK — account, api key, chatflow importati, credential agganciata (vedi logs/flowise_bootstrap.log)" \
+      || echo "flowise-bootstrap: patch credential FALLITA (vedi logs/flowise_bootstrap.log)"
+  else
+    echo "flowise-bootstrap: FALLITO (vedi logs/flowise_bootstrap.log)"
+  fi
 ) &
 
 echo "== avvio supervisord =="

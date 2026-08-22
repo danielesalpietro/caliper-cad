@@ -50,7 +50,7 @@ Se una finisce in chat → revocala e rigenerala.
 | Volume | Network Volume `caliper-artifacts` (100 GB) → mount `/workspace` |
 | HTTP Ports | 3000, 3010, 6333, 8000, 8500, 8600, 8700, 11434 |
 | TCP Ports | 22 |
-| Environment Variables | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `FLOWISE_USERNAME`, `FLOWISE_PASSWORD`, (opz.) `PUBLIC_KEY`, (opz.) `CALIPER_GIT_REF` — **ognuna con valore** |
+| Environment Variables | ⛔ `OPENAI_API_KEY`, `GITHUB_TOKEN` · ⚠️ `ANTHROPIC_API_KEY` (solo se `claude` gira nel pod), `PUBLIC_KEY` (per sshd), `CALIPER_GIT_REF` · `FLOWISE_USERNAME`/`FLOWISE_PASSWORD` **non più necessarie**: il bootstrap automatico (`flowise_bootstrap.py`, validato dal vivo) genera la password, crea account/API key/credential e le persiste in `/workspace/.caliper_env` — **ognuna di quelle passate va col valore** |
 
 Dettaglio campi e "problemi noti" in `ops/runpod/README.md`.
 
