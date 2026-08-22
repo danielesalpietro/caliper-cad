@@ -92,6 +92,13 @@ Alcune già applicate su `claude/review-tecnica` durante l'incidente
    pod acceso, la prima opzione offerta all'utente è
    `harvest.sh` + stop del pod (il volume persiste), non il debug live a
    ore fatturate.
+9. ✅ **Runbook unico dei prerequisiti, dichiarato in anticipo.** Il
+   difetto peggiore percepito dall'utente: una cascata di step manuali
+   mai dichiarati, scoperti uno alla volta. Corretto con
+   `docs/runbook_runpod.md` — Fase 0 (tutto a costo zero: chiavi, gate
+   boot-smoke, parametri template) che deve essere verde PRIMA di
+   accendere; Fase 1–3 (accensione, esecuzione, spegnimento) con la
+   regola di costo. Nessuno step di setup va più scoperto a pod acceso.
 
 ## Esito della sessione esecutrice M6
 
