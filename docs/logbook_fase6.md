@@ -885,3 +885,51 @@ su uno sweep che richiede ~20.7s per completare tutti i 21 step
 dall'`environment=`, torna al default 150s) subito dopo il test,
 `verifier-executor` ricaricato via `supervisorctl`. `stdout` in
 `/workspace/caliper-runs/incoming/tc-e7-retry.log`.
+
+### E2E-9 (best-effort, ridotto a 3 larghezze) — risoluzione dello sweep a 21 step
+
+**Metodo**: foro liscio noto Ø7mm (stesso principio di E2E-4, nessuna
+filettatura — isola la variabile "larghezza del difetto" da altre
+fonti di interferenza), con un difetto sintetico radiale (anello che
+restringe localmente il foro da Ø7mm a Ø5.5mm — sotto il diametro
+massimo accettabile del calibro NO-GO, 6.3mm) centrato a metà
+impegno (z=4mm), larghezza assiale variabile:
+```python
+_host = cq.Workplane("XY").box(10, 10, 8, centered=(True, True, False))
+_hole = cq.Workplane("XY").circle(3.5).extrude(8)          # foro Ø7mm
+_defect = cq.Workplane("XY", origin=(0, 0, 4 - W/2)).circle(3.5).circle(2.75).extrude(W)  # anello Ø5.5mm, larghezza W
+result = _host.cut(_hole).union(_defect)
+```
+`POST /verify` (bypass L2, come E2E-4) poi `POST /gauge-check` NO-GO,
+sweep a 21 step (stesso di E2E-2/7/8, `end_offset_mm=8.0`, passo
+implicito ≈8/20=0.4mm tra campioni).
+
+**Risultati** (3 larghezze, invece della scala completa — timebox 30
+min, come da direttiva):
+
+| larghezza difetto | esito | interferenza rilevata | step di rilevamento |
+|---|---|---|---|
+| 1.0 mm | **FAIL** (rilevato) | 2.016926 mm³ | step 8/21 (interrotto in anticipo) |
+| 0.5 mm | **FAIL** (rilevato) | 1.017829 mm³ | step 2/21 (interrotto in anticipo) |
+| 0.1 mm | **PASS** (NON rilevato) | 0.225758 mm³ (sotto soglia) | nessuno (21/21 completati) |
+
+**Risoluzione minima rilevata dallo sweep a 21 step, su questo
+ambiente**: **tra 0.1mm e 0.5mm** — a 0.1mm il volume di interferenza
+calcolato (0.225758mm³) e' reale (non zero) ma resta **sotto la soglia
+`volume_epsilon_mm3=0.5`** usata dal collaudo per distinguere rumore
+numerico da un difetto genuino, quindi il caso passa. Coerente con lo
+spacing tra campioni dello sweep (~0.4mm: un difetto piu' stretto
+dello spacing ha una probabilita' di essere "scavalcato" o solo
+parzialmente intercettato da un singolo step, in base alla fase).
+
+**Nota onesta**: `volume_epsilon_mm3=0.5` e' lo stesso valore che
+compare come soglia GO nell'esito di E2E-2/E2E-8 — la risoluzione
+"minima rilevabile" misurata qui e' quindi in parte una proprieta'
+della soglia di tolleranza del collaudo (0.5mm³), non solo dello
+spacing geometrico dei campioni: un difetto piu' stretto che produce
+comunque >0.5mm³ di interferenza (es. piu' profondo radialmente)
+verrebbe rilevato anche se piu' stretto di 0.1mm — non e' stato
+esplorato in questo timebox ridotto (fuori scope del best-effort).
+
+`stdout` completo (3 chiamate `/verify` + 3 `/gauge-check`) in
+`/workspace/caliper-runs/incoming/tc-e9.log`.
