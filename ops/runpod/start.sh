@@ -75,6 +75,30 @@ export OLLAMA_HOST=0.0.0.0:11434
   ollama pull granite-embedding:30m || echo "WARN: pull granite-embedding:30m fallito"
 ) &
 
+# --- SSH opzionale (accesso umano diretto; il canale operativo primario
+# resta Claude Code CLI nel pod). NESSUNA chiave e' baked nell'immagine:
+# la chiave PUBBLICA arriva a runtime via env PUBLIC_KEY — RunPod la
+# inietta automaticamente dalle SSH Public Keys dell'account, oppure la
+# si imposta a mano come env del template. Host key persistite sul
+# volume: lo stesso fingerprint sopravvive tra pod diversi (niente
+# warning MITM a ogni pod nuovo). Solo chiave, mai password.
+if [ -n "${PUBLIC_KEY:-}" ]; then
+  mkdir -p /root/.ssh && chmod 700 /root/.ssh
+  printf '%s\n' "$PUBLIC_KEY" > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
+  mkdir -p "$WORKSPACE/ssh" /run/sshd
+  for t in ed25519 ecdsa; do
+    [ -f "$WORKSPACE/ssh/ssh_host_${t}_key" ] || ssh-keygen -q -t "$t" -f "$WORKSPACE/ssh/ssh_host_${t}_key" -N ""
+  done
+  /usr/sbin/sshd \
+    -o "HostKey=$WORKSPACE/ssh/ssh_host_ed25519_key" \
+    -o "HostKey=$WORKSPACE/ssh/ssh_host_ecdsa_key" \
+    -o "PermitRootLogin=prohibit-password" \
+    -o "PasswordAuthentication=no" \
+    && echo "sshd avviato (porta 22, solo chiave)"
+else
+  echo "PUBLIC_KEY assente — sshd non avviato (resta il web terminal / Claude Code CLI)"
+fi
+
 # supervisord espande %(ENV_x)s e fallisce se la variabile non esiste:
 # default espliciti per quelle opzionali.
 export FLOWISE_USERNAME="${FLOWISE_USERNAME:-}"

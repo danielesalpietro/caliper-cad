@@ -43,7 +43,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # --- Node 20 (Flowise/Claude Code), libgl1 (OCP/CadQuery), utilita'.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl git jq gnupg software-properties-common \
-        libgl1 libglib2.0-0 \
+        libgl1 libglib2.0-0 openssh-server \
     && add-apt-repository -y ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y --no-install-recommends \
         python3.11 python3.11-venv python3.11-dev \

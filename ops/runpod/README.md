@@ -39,8 +39,24 @@ RLIMIT per-job). Le verifiche di isolamento attive sono scope M7
 | Container Disk | 60 GB |
 | Volume | Network Volume `caliper-artifacts` (100 GB), mount path `/workspace` |
 | Expose HTTP Ports | 3000, 3010, 6333, 8000, 8500, 8600, 8700, 11434 |
+| Expose TCP Ports | **22** (SSH diretto — vedi "Accesso al pod" sotto) |
 | GPU | 1× RTX 4090 24GB, Secure Cloud, datacenter EU con Network Volume |
 | Env/Secrets | `FLOWISE_USERNAME`, `FLOWISE_PASSWORD`, `FLOWISE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, opzionale `CALIPER_GIT_REF` (default `develop`) |
+
+## Accesso al pod — due canali, entrambi supportati
+
+1. **Claude Code CLI dentro il pod** (canale operativo primario): già
+   installata nell'immagine; la sessione M6 gira lì (web terminal →
+   `claude`, autenticazione via `ANTHROPIC_API_KEY` dai Secrets).
+2. **SSH diretto** (ispezione umana, scp, VS Code Remote): **nessuna
+   chiave è inclusa nell'immagine** — sarebbe un leak su un registry.
+   `start.sh` avvia `sshd` (porta 22, solo chiave, mai password) solo se
+   trova la env `PUBLIC_KEY` con la tua chiave pubblica: RunPod la
+   inietta automaticamente se hai registrato la chiave in *Account →
+   Settings → SSH Public Keys*, oppure impostala a mano come env del
+   template. Le host key del server sono generate al primo avvio e
+   **persistite sul volume** (`/workspace/ssh`): stesso fingerprint tra
+   pod diversi, niente warning a ogni ricreazione.
 
 **Visibilità GHCR**: il primo push crea il package come privato. Per il
 pull da RunPod senza credenziali: GitHub → Packages → `caliper-pod` →
