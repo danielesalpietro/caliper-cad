@@ -370,3 +370,38 @@ supervisore).
 sessione**: avrebbe riaperto il Passo 1 oltre il suo timebox gia'
 chiuso — segnalato qui come pista concreta per il prossimo passo, non
 eseguito.
+
+### E2E-5 — reindex + riavvio stream-agent (C6, id deterministici/offset)
+
+**Setup**: `RETRY_LOG_PATH` corretto a `/workspace/data/virtual_log/retry_log.jsonl`
+(vedi nota sopra su E2E-3) gia' popolato con i 2 record FAIL di E2E-3
+(indicizzati automaticamente in background da `stream-agent` all'avvio,
+senza intervento manuale — thread di indicizzazione periodica gia'
+attivo). Aggiunta 1 fixture fisica L6 minimale
+(`/workspace/data/dataset/e2e5_case1.json`) per popolare anche
+`caliper_l6_dataset` (vuota fino a questo punto).
+
+**Comando/sequenza**:
+```
+POST /reindex                         -> physical 0->1, virtual 2->2 (gia' indicizzati in bg)
+conteggio Qdrant PRIMA del restart    -> l6_dataset=1, virtual_log=2
+supervisorctl restart stream-agent    (MAI il supervisord principale)
+POST /reindex (dopo il restart)       -> physical 1->1, virtual 0->0
+conteggio Qdrant DOPO il restart      -> l6_dataset=1, virtual_log=2
+```
+
+**Esito: PASS pulito**. Conteggio punti nelle 2 collezioni Qdrant
+**invariato** dopo il riavvio (conferma dal vivo di C6 — id
+deterministici, nessun duplicato). Dettaglio interessante non
+richiesto esplicitamente dal criterio ma rilevante: il `/reindex`
+post-restart riporta `virtual_before:0,virtual_after:0` — il processo
+FRESCO (nuovo `pid`, stato Python azzerato) ha comunque riconosciuto
+correttamente che quei 2 record erano gia' stati indicizzati (offset
+persistito su disco, non ripartito da zero), coerente con la garanzia
+gia' verificata in isolamento da `verify_stream_agent_ids.py` (M5) —
+qui pero' confermata con un riavvio REALE via `supervisorctl`, non un
+sottoprocesso simulato.
+
+`stream-agent` riavviato con `supervisorctl -s
+unix:///run/supervisord.sock restart stream-agent` — mai toccato il
+supervisord principale, coerente con la regola vincolante.
