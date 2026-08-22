@@ -19,10 +19,12 @@ indovinati — file citati per provenienza):
        (dist/routes/credentials/index.js)
   GET/PUT  /api/v1/chatflows/:id (aggiorna flowData col credential id)
 
-LIMITE DICHIARATO: flusso costruito sugli endpoint verificati a sorgente
-ma NON ancora eseguito contro un'istanza viva al momento della scrittura
-— la prima esecuzione reale (sul pod) e' la sua validazione; ogni step
-logga richiesta/esito per diagnosi rapida.
+VALIDATO DAL VIVO (2026-08-22, sandbox supervisore, flowise@3.1.4 npm,
+DB pulito): register 201 -> login 200 -> apikey creata (con permissions
+RBAC) -> credential creata -> import dei 3 chatflow del run0 con la
+stessa API key (rc=0) -> secondo giro: patch credential su entrambi i
+chatflow L2 verificata via GET -> terzo giro: idempotenza piena (tutti
+"gia' presente/corretta"). Ogni step logga richiesta/esito per diagnosi.
 
 Input (env): FLOWISE_URL (default http://localhost:3000),
   FLOWISE_USERNAME (email; default caliper-admin@caliper.local),
@@ -59,6 +61,11 @@ opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
 
 def call(method, path, body=None, timeout=30):
     req = urllib.request.Request(f"{BASE}{path}", method=method)
+    # Selettore d'auth di Flowise (dist/index.js, verificato a sorgente E
+    # dal vivo: senza questo header le rotte non-whitelist pretendono una
+    # API key e rispondono 401 anche con JWT valido; con l'header usano
+    # verifyToken sul cookie di login).
+    req.add_header("x-request-from", "internal")
     data = None
     if body is not None:
         data = json.dumps(body).encode()
@@ -66,7 +73,12 @@ def call(method, path, body=None, timeout=30):
     try:
         with opener.open(req, data=data, timeout=timeout) as r:
             raw = r.read().decode()
-            return r.status, (json.loads(raw) if raw.strip() else None)
+            # non tutte le risposte sono JSON (es. /ping -> "pong",
+            # scoperto alla prima esecuzione live): parse tollerante.
+            try:
+                return r.status, (json.loads(raw) if raw.strip() else None)
+            except json.JSONDecodeError:
+                return r.status, raw
     except urllib.error.HTTPError as e:
         raw = e.read().decode(errors="replace")
         return e.code, raw[:400]
@@ -116,7 +128,16 @@ def ensure_api_key():
             if k.get("keyName") == APIKEY_NAME and k.get("apiKey"):
                 log(f"api key '{APIKEY_NAME}' gia' presente")
                 return k["apiKey"]
-    status, created = call("POST", "/api/v1/apikey", {"keyName": APIKEY_NAME})
+    # 'permissions' obbligatorio (array di stringhe — 412 osservato dal
+    # vivo senza; tassonomia da dist/enterprise/rbac/Permissions.js).
+    # Quelle che servono all'orchestratore: risolvere i chatflow per nome
+    # e chiamare la prediction.
+    status, created = call("POST", "/api/v1/apikey", {
+        "keyName": APIKEY_NAME,
+        "permissions": ["chatflows:view", "chatflows:config",
+                        "chatflows:create", "chatflows:update",
+                        "chatflows:import"],
+    })
     if status in (200, 201):
         # la risposta puo' essere l'oggetto o la lista aggiornata
         items = created if isinstance(created, list) else [created]
