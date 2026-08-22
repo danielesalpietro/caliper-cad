@@ -10,6 +10,100 @@ Obiettivo di questo run: portare lo stack a uno stato in cui il Passo 0
 (smoke test) e il Passo 1 (Flowise) dell'handoff M6 siano eseguibili.
 Non è ancora l'esecuzione dei TC-E2E.
 
+## Sintesi (chiusura run 0)
+
+**Harvest finale**: `bash ops/runpod/harvest.sh run0-close --push` →
+**ROSSO** (1 artefatto obbligatorio mancante: `retry_log.jsonl`, mai
+scritto perché nessuna generazione L2 reale è arrivata a completamento
+in questo run). Tutto il resto raccolto e pushato: log, chatflow
+Flowise esportati, dataset, fingerprint. **Il pod NON va spento come
+"M6 completo"** — questa è una chiusura di sessione, non del
+milestone. Se lo spegni comunque (es. per costo), nulla di quanto
+prodotto qui va perso: è tutto su questo branch. Il prossimo run
+riparte dal Network Volume (`/workspace`) invariato; overlay effimero
+(Flowise npm, build-essential, `/root/.caliper_env`) va ricostruito —
+vedi checklist in fondo.
+
+**Andato bene:**
+- Diagnosticato e risolto un bug reale mai scoperto prima (Flowise mai
+  installato con successo sull'immagine — catena `distutils` →
+  `build-essential` mancanti).
+- Costruiti e versionati da zero i due chatflow L2 mancanti (gap
+  dichiarato fin da M3), collegati a una credential OpenAI reale,
+  testati dal vivo.
+- Il test dal vivo ha scoperto un bug reale in `call_flowise_l2`
+  (Flowise 3.x restituisce `json`, non `text`, con uno Structured
+  Output Parser) — corretto con lo stesso metodo rosso→verde delle
+  milestone precedenti.
+- Implementato e verificato `--confirm` (Rischio #5), nessuna
+  regressione sugli altri test dell'orchestratore.
+- Recuperato da un incidente serio (perdita di accesso SSH al pod a
+  metà sessione) senza perdere lavoro, grazie al push incrementale sul
+  branch invece di accumulare tutto in locale.
+- Push incrementale e costante su GitHub per l'intera sessione — niente
+  è rimasto solo sul pod.
+
+**Andato meno bene:**
+- **SIGSEGV non risolto**: la generazione reale via `run_and_measure.py`
+  crasha su questo pod per un'incompatibilità tra la topologia CPU
+  (256 CPU *visibili* via `nproc`/`sched_getaffinity`, ma quota cgroup
+  reale ~27.2 vCPU-equivalenti — libreria come OpenBLAS e
+  verosimilmente OCC/TBB dimensionano i propri thread pool sul primo
+  numero, non sul secondo) e `RLIMIT_AS=2GB` imposto per-job dal
+  verificatore. Tentativi di mitigazione (`OPENBLAS_NUM_THREADS=1`,
+  `OMP_NUM_THREADS=1`, `taskset` per limitare l'affinità) non hanno
+  risolto: o crash diverso (allocazione TLS fallita) o deadlock. **Non
+  è il problema "budget CPU troppo stretto" già anticipato da C8** —
+  è un crash/blocco a prescindere dal budget, categoria più seria.
+  Questo blocca E2E-2 e a cascata l'intera suite TC-E2E reale (nessuna
+  generazione può essere verificata per davvero finché non è risolto).
+- Un mio errore operativo (riavvio diretto di supervisord per
+  applicare nuove variabili d'ambiente) ha causato la perdita di
+  connessione SSH al pod per un periodo — recuperato, ma va evitato
+  (vedi lezione nella sezione "Incidente" sotto).
+- Diversi assunti impliciti nell'handoff M6 si sono rivelati sbagliati
+  una volta verificati dal vivo (FLOWISE_USERNAME/PASSWORD non hanno
+  effetto su Flowise 3.x; il pod non ha davvero 256 vCPU disponibili) —
+  bene che siano stati scoperti ora, ma vanno propagati alla
+  documentazione/pianificazione prima del prossimo run.
+
+**Obiettivi per il prossimo run:**
+1. **Priorità assoluta**: risolvere (o bypassare in modo motivato) il
+   SIGSEGV/deadlock di `run_and_measure.py`. Piste non ancora
+   esaurite: (a) cercare una variabile d'ambiente specifica per il
+   thread-pool di OCC/TBB (non solo OpenBLAS/OMP) — non trovata in
+   questo run; (b) verificare se il pod puo' essere ri-configurato (a
+   livello di template RunPod, fuori dal container) con un cpuset
+   ristretto invece di 0-255, cosi' `nproc` riporta il numero reale;
+   (c) come ultima risorsa, alzare `RLIMIT_AS` per job con
+   giustificazione esplicita (indebolisce il sandboxing, da valutare
+   col supervisore, non una decisione unilaterale).
+2. Una volta sbloccato: eseguire davvero la suite TC-E2E-1…9,
+   `harvest.sh` dopo ognuno (non solo alla fine).
+3. Scrivere `docs/logbook_fase6.md` nel formato delle fasi precedenti
+   (per-TC-E2E: input, comando, output reale, esito) — non ancora
+   iniziato, questo logbook `run0` copre solo il bring-up.
+4. Aggiornare la riga M6 in `docs/logbook.md`.
+5. Prima dell'harvest finale `--push`: il `GITHUB_TOKEN` va rifornito
+   se il pod viene spento e riacceso (overlay effimero).
+6. Segnalare al supervisore, per revisione esplicita (non solo
+   annotazione qui): il fix a `call_flowise_l2` (cambio applicativo
+   condiviso) e la scoperta sul cpuset/vCPU reali (rilevante per come
+   viene descritto il pod in tutta la documentazione, non solo M6).
+7. Commento su issue #18 con lo stato onesto — non fatto in questo run
+   (richiede conferma esplicita dell'utente prima di pubblicare un
+   commento pubblico su GitHub).
+
+**Checklist rapida per il prossimo bring-up** (overlay effimero, da
+rifare se il pod è stato spento/riavviato): chiave SSH in
+`authorized_keys` + sshd con host key in `/etc/ssh` (mai
+`/workspace/ssh`, MooseFS forza 0666); `apt-get install
+build-essential`; `npm_config_python=/usr/bin/python3.11 npm install -g
+flowise@3.1.4`; ripopolare `/root/.caliper_env` (`OPENAI_API_KEY`,
+`GITHUB_TOKEN`, `FLOWISE_API_KEY` — quest'ultima sopravvive se
+`/workspace/flowise` persiste, altrimenti va rigenerata via UI);
+`git config credential.helper store` + `~/.git-credentials`.
+
 ## Accesso
 
 Chiave nuova generata in locale (`~/.ssh/id_ed25519_caliper_pod`),
