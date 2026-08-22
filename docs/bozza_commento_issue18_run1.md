@@ -1,4 +1,4 @@
-<!-- Bozza commento per issue #18 — NON pubblicata, in attesa di ok dell'utente -->
+<!-- Pubblicata su issue #18: https://github.com/danielesalpietro/caliper-cad/issues/18#issuecomment-5382000393 -->
 
 ## M6 run1 — SIGSEGV risolto, 9/9 TC-E2E eseguiti
 
