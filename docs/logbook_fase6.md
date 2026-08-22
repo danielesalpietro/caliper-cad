@@ -86,3 +86,40 @@ carattere e mischiarle. Bloccante silenzioso: se ricapita, il
 bootstrap fallisce SENZA che l'utente abbia sbagliato nulla nel
 template RunPod — vale la pena renderlo deterministicamente corretto,
 non lasciarlo alla probabilita' dell'alfabeto base64.
+
+## Passo 1 — SIGSEGV (timebox 45 minuti, sequenza esaurita — ROSSO)
+
+**Numeri ambiente** (a costo zero, come richiesto): `nproc`=128,
+`nproc --all`=256 (il cpuset qui restringe parzialmente, a differenza
+del run0 dove nproc=nproc --all=256), cgroup v1
+`cfs_quota_us/cfs_period_us`=1360000/100000 → **~13.6 vCPU reali**
+(coerente coi 16 dichiarati dal pannello). Rapporto visibile/reale
+~9.4x, quasi identico al run0 (256/27.2) — pattern strutturale
+RunPod, non specifico di un pod.
+
+**Tentativo 1 — nessun override** (solo `VTK_SMP_MAX_THREADS=1` di
+default, già nel codice): `python3 verify_param_first.py` →
+`died with <Signals.SIGSEGV: 11>`. La sola mitigazione VTK non basta.
+
+**Tentativo 2 — `CALIPER_STACK_LIMIT_MB=2`**: stesso comando →
+ancora `died with <Signals.SIGSEGV: 11>`, invariato.
+
+**Tentativo 3 — `+ CALIPER_AS_LIMIT_MB=6144`**: stesso comando →
+**cambia segnale**: `died with <Signals.SIGKILL: 9>` (non più
+SIGSEGV). Verificato `memory.events`/`memory.oom_control`:
+`oom_kill: 0` — **non** è stato il cgroup-OOM-killer di questo
+container a intervenire. Ambiguo se sia un OOM a livello host (fuori
+dalla contabilità del cgroup) o altro; non approfondito oltre (fuori
+timebox). Il cambio di segnale (crash nativo → kill esterno) è
+comunque un segnale che allentare `RLIMIT_AS` sposta il collo di
+bottiglia, non lo elimina: con più margine di indirizzi il processo
+arriva più lontano (spawna più thread reali?) prima di essere fermato
+da qualcos'altro.
+
+**Esito**: sequenza prescritta esaurita, nessun tentativo verde.
+**Rispetto il timebox** (45 min) come da istruzioni — non insisto
+oltre, procedo con i TC-E2E che non usano l'esecutore (E2E-1, 3, 5, 6,
+7). **E2E-2 ed E2E-8 restano bloccati**, stesso blocco residuo del
+run0, ora con un dato in più (SIGKILL a `AS_LIMIT_MB` alto) da passare
+al supervisore per la prossima iterazione — non una pista risolta,
+un'osservazione aggiuntiva.
