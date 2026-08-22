@@ -3,5 +3,15 @@
     "file": "l25-specification-normalization.json",
     "name": "CALIPER - L2.5 Specification Normalization",
     "description": "Livello 1 -> Livello 2.5: normalizza un prompt in linguaggio naturale in una specifica strutturata JSON (Prompt Template -> Ollama/granite4:1b -> LLM Chain -> Structured Output Parser)."
+  },
+  {
+    "file": "l2-generation-cadquery.json",
+    "name": "CALIPER - L2 Generation (CadQuery)",
+    "description": "Livello 2, strategia free_code: dalla spec L2.5 arricchita genera codice CadQuery libero che costruisce la variabile `result` (Prompt Template -> ChatOpenAI/GPT -> LLM Chain, output testo)."
+  },
+  {
+    "file": "l2-generation-sketch-first.json",
+    "name": "CALIPER - L2 Generation (Sketch-First)",
+    "description": "Livello 2, condiviso da sketch_first e param_first (M5): oggi implementato solo per param_first -- dalla spec L2.5 estrae SOLO i parametri fisici della filettatura (major_diameter_mm, pitch_mm, engagement_length_mm, host_xy_mm) come JSON strutturato, compilati poi da sketch_compiler.compile_thread_params_to_code() (Prompt Template -> ChatOpenAI/GPT -> LLM Chain + Structured Output Parser)."
   }
 ]

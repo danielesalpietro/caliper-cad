@@ -236,16 +236,128 @@ Settings → API Keys. Chiave salvata in `/root/.caliper_env`
 `Importato: 'CALIPER - L2.5 Specification Normalization'`. Idempotente
 per costruzione (salta se già presente), non ri-testato in questo run.
 
+## Chatflow L2 costruiti e versionati
+
+Costruiti programmaticamente (non a mano in UI) con uno script Python
+(`docs/m6-run0-support/build_l2_chatflows.py`) che riusa come
+template i nodi reali del chatflow L2.5 già versionato
+(`promptTemplate`, `llmChain`, `structuredOutputParser`) e il nodo
+`chatOpenAI` reale esportato da un chatflow "tmp" costruito
+dall'utente in UI (unico modo per ottenere un nodo ChatOpenAI con
+`credential` valorizzato — vedi sezione precedente sui permessi
+dell'API key). Schema del nodo `chatOpenAI` preso da
+`GET /api/v1/nodes/chatOpenAI` (salvato in
+`docs/m6-run0-support/flowise-node-schema-chatOpenAI.json`).
+
+- **`services/flowise/chatflows/l2-generation-cadquery.json`** —
+  `"CALIPER - L2 Generation (CadQuery)"` (strategia `free_code`):
+  Prompt Template -> ChatOpenAI (gpt-4o-mini, temp 0) -> LLM Chain,
+  output testo libero (codice CadQuery che deve assegnare `result`,
+  vincolo verificato in `services/verifier/executor/run_and_measure.py`).
+- **`services/flowise/chatflows/l2-generation-sketch-first.json`** —
+  `"CALIPER - L2 Generation (Sketch-First)"` (oggi implementato solo
+  per `param_first`, condiviso con `sketch_first` per nome/env var
+  come da `generate_and_verify.py`): stessa catena + Structured Output
+  Parser con i 4 campi richiesti da
+  `sketch_compiler.build_thread_sketch_spec_from_params()`
+  (`major_diameter_mm`, `pitch_mm`, `engagement_length_mm`,
+  `host_xy_mm`).
+
+`manifest.json` aggiornato con entrambe le entry. Importati con lo
+strumento di produzione esistente (`services/flowise/import_chatflows.py`,
+non un client ad-hoc): `Importato: 'CALIPER - L2 Generation (CadQuery)'`,
+`Importato: 'CALIPER - L2 Generation (Sketch-First)'`.
+
+## Bug reale trovato e risolto — `call_flowise_l2` col parser strutturato
+
+Test dal vivo (spec: `feature=thread, nominal=M6, pitch=1.0,
+tolerance=0.3, engagement_length_mm=8.0`) su entrambi i chatflow appena
+creati:
+
+- **free_code**: risposta con campo `"text"` presente (atteso), codice
+  Python plausibile ma con `.thread(...)` — metodo che **non esiste**
+  nell'API reale di CadQuery (hallucination del modello). Non è un bug
+  del chatflow: è esattamente il tipo di errore che il loop di retry
+  deve intercettare a `/verify` — nessun fix qui, comportamento atteso
+  della strategia `free_code` (motivo per cui esiste `param_first`).
+- **param_first**: risposta `{"json": {"major_diameter_mm": 6,
+  "pitch_mm": 1, "engagement_length_mm": 8, "host_xy_mm": 10}, ...}`
+  — **nessun campo `"text"`**. `call_flowise_l2()` (riga 326 prima del
+  fix) faceva `return data.get("text", "")`, quindi avrebbe restituito
+  stringa vuota — `json.loads("")` in `generate_code_for_attempt()`
+  avrebbe fallito con `JSONDecodeError` per OGNI chiamata param-first,
+  a prescindere dalla qualità della risposta del modello. Conferma
+  esattamente la "riserva onesta" già scritta nel codice
+  (`generate_and_verify.py`: "verificata SOLO con call_flowise_l2
+  mockata... nessuna istanza Flowise viva in questa sessione").
+
+**Causa**: Flowise 3.1.4, quando l'LLM Chain ha uno Structured Output
+Parser collegato, mette il risultato parsato in `data["json"]` nella
+risposta di `/api/v1/prediction/{id}`, non in `data["text"]` (che
+manca del tutto in quel caso). Comportamento non documentato nel
+codice esistente (mai testato dal vivo, come dichiarato onestamente).
+
+**Fix minimale** (`services/orchestrator/generate_and_verify.py`,
+`call_flowise_l2`): preferisce `data["text"]` se presente (invariato
+per `free_code`), altrimenti usa `json.dumps(data["json"])` se
+presente, altrimenti stringa vuota (comportamento legacy per risposte
+inattese). Nessun'altra riga toccata. Diff completo (unico file
+applicativo modificato in questo run):
+
+```diff
+--- a/services/orchestrator/generate_and_verify.py
++++ b/services/orchestrator/generate_and_verify.py
+@@ -323,7 +323,16 @@ def call_flowise_l2(chatflow_id: str, spec_json: str, temperature: float | None
+     req.add_header("Authorization", f"Bearer {FLOWISE_API_KEY}")
+     with urllib.request.urlopen(req, timeout=90) as resp:
+         data = json.loads(resp.read().decode("utf-8"))
+-    return data.get("text", "")
++    # [M6, verificato dal vivo contro Flowise 3.1.4] quando il
++    # chatflow usa uno Structured Output Parser (param_first/
++    # sketch_first), la prediction API restituisce il risultato in
++    # "json", non in "text" (che manca del tutto). "text" resta
++    # prioritario per free_code (LLM Chain senza output parser).
++    if "text" in data:
++        return data["text"]
++    if "json" in data:
++        return json.dumps(data["json"])
++    return ""
+```
+
+**Verde dopo il fix** (stessa chiamata, tramite
+`call_flowise_l2()` patchata): `{"major_diameter_mm": 6, "pitch_mm":
+1, "engagement_length_mm": 8, "host_xy_mm": 10}` — `json.loads()`
+sul risultato ha successo, `host_xy_mm=10 > major_diameter_mm=6`
+(vincolo di `build_thread_sketch_spec_from_params` rispettato).
+
+Evidenza grezza delle chiamate (prima/dopo) non salvata in file a
+parte in questo run (solo negli stdout di sessione, riportati sopra
+per intero) — se serve per la relazione tecnica, rieseguibile in
+30 secondi con i due chatflow ID: `ac6650ea-510a-4b9e-8d5e-0748c61368ca`
+(free_code), `f16015b1-000a-4a5d-a8b2-aa5078d3d88c` (sketch-first).
+
+## Artefatti salvati per la relazione tecnica
+
+In `docs/m6-run0-support/`:
+- `build_l2_chatflows.py` — script generatore dei due chatflow L2.
+- `flowise-node-schema-chatOpenAI.json` — schema nodo ChatOpenAI da
+  Flowise (`GET /api/v1/nodes/chatOpenAI`), usato per costruire i nodi.
+- `fingerprint-m6.json` — fingerprint ambiente (vedi Passo 0 sopra),
+  catturato dopo l'installazione di Flowise.
+
 ## Prossimi passi
 
-1. Costruire e versionare i chatflow L2 (free-code e param-first) in
-   `services/flowise/chatflows/` — oggi non esistono (gap dichiarato in
-   M3). Usare nodo ChatOpenAI con `OPENAI_API_KEY`, non ChatOllama.
-2. Aggiungere il flag `--confirm` a `generate_and_verify.py` (Rischio
-   #5, unica modifica applicativa ammessa in M6).
-3. Eseguire la suite TC-E2E-1…9, con `harvest.sh` dopo ognuno.
-4. Nota per il Dockerfile/supervisord.conf (fuori scope M6, da
+1. Aggiungere il flag `--confirm` a `generate_and_verify.py` (Rischio
+   #5, unica *aggiunta* applicativa esplicitamente ammessa in M6 —
+   distinta dal fix minimale sopra, che è una correzione di un bug
+   reale scoperto in E2E, non un'aggiunta di funzionalità).
+2. Eseguire la suite TC-E2E-1…9, con `harvest.sh` dopo ognuno.
+3. Nota per il Dockerfile/supervisord.conf (fuori scope M6, da
    segnalare al supervisore): `FLOWISE_USERNAME`/`FLOWISE_PASSWORD` in
    `supervisord.conf` non hanno effetto su Flowise 3.x — l'account va
    creato una volta e persiste su `/workspace/flowise` (volume), quindi
    non è un problema per pod successivi finché il volume non cambia.
+4. Segnalare al supervisore il fix a `call_flowise_l2` per revisione —
+   applicato in autonomia in questa sessione seguendo la regola M6
+   ("fallimento reale → fix minimale, documenta, dichiara"), ma è un
+   cambio a codice applicativo condiviso, non solo a config/chatflow.

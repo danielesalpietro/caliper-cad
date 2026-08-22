@@ -323,7 +323,16 @@ def call_flowise_l2(chatflow_id: str, spec_json: str, temperature: float | None 
     req.add_header("Authorization", f"Bearer {FLOWISE_API_KEY}")
     with urllib.request.urlopen(req, timeout=90) as resp:
         data = json.loads(resp.read().decode("utf-8"))
-    return data.get("text", "")
+    # [M6, verificato dal vivo contro Flowise 3.1.4] quando il
+    # chatflow usa uno Structured Output Parser (param_first/
+    # sketch_first), la prediction API restituisce il risultato in
+    # "json", non in "text" (che manca del tutto). "text" resta
+    # prioritario per free_code (LLM Chain senza output parser).
+    if "text" in data:
+        return data["text"]
+    if "json" in data:
+        return json.dumps(data["json"])
+    return ""
 
 
 def generate_code_for_attempt(strategy: str, chatflow_id: str, spec_json: str, temperature: float | None, feature: str):

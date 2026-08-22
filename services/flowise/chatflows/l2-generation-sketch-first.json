@@ -1,0 +1,597 @@
+{
+  "nodes": [
+    {
+      "id": "promptTemplate_0",
+      "position": {
+        "x": -163,
+        "y": 308
+      },
+      "type": "customNode",
+      "data": {
+        "id": "promptTemplate_0",
+        "label": "Prompt Template",
+        "version": 1,
+        "name": "promptTemplate",
+        "type": "PromptTemplate",
+        "baseClasses": [
+          "PromptTemplate",
+          "BaseStringPromptTemplate",
+          "BasePromptTemplate",
+          "Runnable"
+        ],
+        "category": "Prompts",
+        "description": "Schema to represent a basic prompt for an LLM",
+        "inputParams": [
+          {
+            "label": "Template",
+            "name": "template",
+            "type": "string",
+            "rows": 4,
+            "placeholder": "What is a good name for a company that makes {product}?",
+            "id": "promptTemplate_0-input-template-string",
+            "display": true
+          },
+          {
+            "label": "Format Prompt Values",
+            "name": "promptValues",
+            "type": "json",
+            "optional": true,
+            "acceptVariable": true,
+            "list": true,
+            "id": "promptTemplate_0-input-promptValues-json",
+            "display": true
+          }
+        ],
+        "inputAnchors": [],
+        "inputs": {
+          "template": "Sei un estrattore di parametri fisici per una filettatura (CALIPER, Livello 2, strategia param-first). Ricevi una specifica JSON arricchita (Livello 2.5). Restituisci SOLO un oggetto JSON con questi 4 campi numerici in millimetri, nessun testo extra, nessun blocco markdown:\n\n- major_diameter_mm: diametro maggiore nominale della filettatura (es. spec['nominal']==\"M6\" -> 6.0)\n- pitch_mm: passo della filettatura (spec['pitch'] se presente)\n- engagement_length_mm: lunghezza di impegno / profondita' assiale del foro filettato\n- host_xy_mm: lato del blocco ospite quadrato in XY -- deve essere STRETTAMENTE maggiore di major_diameter_mm (il foro deve starci dentro)\n\nNon generare codice, non spiegare: SOLO l'oggetto JSON con questi 4 campi.\n\nSpecifica (Livello 2.5, JSON): {question}",
+          "promptValues": ""
+        },
+        "outputAnchors": [
+          {
+            "id": "promptTemplate_0-output-promptTemplate-PromptTemplate|BaseStringPromptTemplate|BasePromptTemplate|Runnable",
+            "name": "promptTemplate",
+            "label": "PromptTemplate",
+            "description": "Schema to represent a basic prompt for an LLM",
+            "type": "PromptTemplate | BaseStringPromptTemplate | BasePromptTemplate | Runnable"
+          }
+        ],
+        "outputs": {},
+        "selected": false
+      },
+      "width": 300,
+      "height": 515,
+      "selected": false,
+      "positionAbsolute": {
+        "x": -163,
+        "y": 308
+      },
+      "dragging": false
+    },
+    {
+      "id": "chatOpenAI_0",
+      "position": {
+        "x": 443,
+        "y": 117
+      },
+      "type": "customNode",
+      "data": {
+        "loadMethods": {},
+        "label": "OpenAI",
+        "name": "chatOpenAI",
+        "version": 8.3,
+        "type": "ChatOpenAI",
+        "icon": "/usr/lib/node_modules/flowise/node_modules/flowise-components/dist/nodes/chatmodels/ChatOpenAI/openai.svg",
+        "category": "Chat Models",
+        "description": "Wrapper around OpenAI large language models that use the Chat endpoint",
+        "baseClasses": [
+          "ChatOpenAI",
+          "BaseChatOpenAI",
+          "BaseChatModel",
+          "BaseLanguageModel",
+          "Runnable"
+        ],
+        "credential": "72c36fe4-9801-4029-afcb-9468e8307b20",
+        "inputs": {
+          "cache": "",
+          "modelName": "gpt-4o-mini",
+          "temperature": 0,
+          "streaming": true,
+          "allowImageUploads": "",
+          "reasoning": "",
+          "reasoningEffort": "",
+          "reasoningSummary": "",
+          "maxTokens": "",
+          "topP": "",
+          "frequencyPenalty": "",
+          "presencePenalty": "",
+          "timeout": "",
+          "strictToolCalling": "",
+          "stopSequence": "",
+          "basepath": "",
+          "baseOptions": ""
+        },
+        "filePath": "/usr/lib/node_modules/flowise/node_modules/flowise-components/dist/nodes/chatmodels/ChatOpenAI/ChatOpenAI.js",
+        "inputAnchors": [
+          {
+            "label": "Cache",
+            "name": "cache",
+            "type": "BaseCache",
+            "optional": true,
+            "id": "chatOpenAI_0-input-cache-BaseCache",
+            "display": true
+          }
+        ],
+        "inputParams": [
+          {
+            "label": "Connect Credential",
+            "name": "credential",
+            "type": "credential",
+            "credentialNames": [
+              "openAIApi"
+            ],
+            "id": "chatOpenAI_0-input-credential-credential",
+            "display": true
+          },
+          {
+            "label": "Model Name",
+            "name": "modelName",
+            "type": "asyncOptions",
+            "loadMethod": "listModels",
+            "default": "gpt-4o-mini",
+            "id": "chatOpenAI_0-input-modelName-asyncOptions",
+            "display": true
+          },
+          {
+            "label": "Temperature",
+            "name": "temperature",
+            "type": "number",
+            "step": 0.1,
+            "default": 0.9,
+            "optional": true,
+            "id": "chatOpenAI_0-input-temperature-number",
+            "display": true
+          },
+          {
+            "label": "Streaming",
+            "name": "streaming",
+            "type": "boolean",
+            "default": true,
+            "optional": true,
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-streaming-boolean",
+            "display": true
+          },
+          {
+            "label": "Allow Image Uploads",
+            "name": "allowImageUploads",
+            "type": "boolean",
+            "description": "Allow image input. Refer to the <a href=\"https://docs.flowiseai.com/using-flowise/uploads#image\" target=\"_blank\">docs</a> for more details.",
+            "default": false,
+            "optional": true,
+            "id": "chatOpenAI_0-input-allowImageUploads-boolean",
+            "display": true
+          },
+          {
+            "label": "Reasoning",
+            "description": "Whether the model supports reasoning. Only applicable for reasoning models (gpt-5 and o-series models only)",
+            "name": "reasoning",
+            "type": "boolean",
+            "default": false,
+            "optional": true,
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-reasoning-boolean",
+            "display": true
+          },
+          {
+            "label": "Reasoning Effort",
+            "description": "Constrains effort on reasoning. Only applicable for reasoning models (gpt-5 and o-series models only)",
+            "name": "reasoningEffort",
+            "type": "options",
+            "options": [
+              {
+                "label": "Low",
+                "name": "low"
+              },
+              {
+                "label": "Medium",
+                "name": "medium"
+              },
+              {
+                "label": "High",
+                "name": "high"
+              },
+              {
+                "label": "X-High",
+                "name": "xhigh",
+                "description": "X-High is supported for all models after gpt-5.1-codex-max"
+              }
+            ],
+            "additionalParams": true,
+            "show": {
+              "reasoning": true
+            },
+            "id": "chatOpenAI_0-input-reasoningEffort-options",
+            "display": false
+          },
+          {
+            "label": "Reasoning Summary",
+            "description": "A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process",
+            "name": "reasoningSummary",
+            "type": "options",
+            "options": [
+              {
+                "label": "Auto",
+                "name": "auto"
+              },
+              {
+                "label": "Concise",
+                "name": "concise"
+              },
+              {
+                "label": "Detailed",
+                "name": "detailed"
+              }
+            ],
+            "additionalParams": true,
+            "show": {
+              "reasoning": true
+            },
+            "id": "chatOpenAI_0-input-reasoningSummary-options",
+            "display": false
+          },
+          {
+            "label": "Max Tokens",
+            "name": "maxTokens",
+            "type": "number",
+            "step": 1,
+            "optional": true,
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-maxTokens-number",
+            "display": true
+          },
+          {
+            "label": "Top Probability",
+            "name": "topP",
+            "type": "number",
+            "step": 0.1,
+            "optional": true,
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-topP-number",
+            "display": true
+          },
+          {
+            "label": "Frequency Penalty",
+            "name": "frequencyPenalty",
+            "type": "number",
+            "step": 0.1,
+            "optional": true,
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-frequencyPenalty-number",
+            "display": true
+          },
+          {
+            "label": "Presence Penalty",
+            "name": "presencePenalty",
+            "type": "number",
+            "step": 0.1,
+            "optional": true,
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-presencePenalty-number",
+            "display": true
+          },
+          {
+            "label": "Timeout",
+            "name": "timeout",
+            "type": "number",
+            "step": 1,
+            "optional": true,
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-timeout-number",
+            "display": true
+          },
+          {
+            "label": "Strict Tool Calling",
+            "name": "strictToolCalling",
+            "type": "boolean",
+            "description": "Whether the model supports the `strict` argument when passing in tools. If not specified, the `strict` argument will not be passed to OpenAI.",
+            "optional": true,
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-strictToolCalling-boolean",
+            "display": true
+          },
+          {
+            "label": "Stop Sequence",
+            "name": "stopSequence",
+            "type": "string",
+            "rows": 4,
+            "optional": true,
+            "description": "List of stop words to use when generating. Use comma to separate multiple stop words.",
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-stopSequence-string",
+            "display": true
+          },
+          {
+            "label": "Base Path",
+            "name": "basepath",
+            "type": "string",
+            "optional": true,
+            "description": "Override the default base URL for the API, e.g., \"https://api.example.com/v2/",
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-basepath-string",
+            "display": true
+          },
+          {
+            "label": "Base Options",
+            "name": "baseOptions",
+            "type": "json",
+            "optional": true,
+            "description": "Default headers to include with every request to the API.",
+            "additionalParams": true,
+            "id": "chatOpenAI_0-input-baseOptions-json",
+            "display": true
+          }
+        ],
+        "outputs": {},
+        "outputAnchors": [
+          {
+            "id": "chatOpenAI_0-output-chatOpenAI-ChatOpenAI|BaseChatOpenAI|BaseChatModel|BaseLanguageModel|Runnable",
+            "name": "chatOpenAI",
+            "label": "ChatOpenAI",
+            "description": "Wrapper around OpenAI large language models that use the Chat endpoint",
+            "type": "ChatOpenAI | BaseChatOpenAI | BaseChatModel | BaseLanguageModel | Runnable"
+          }
+        ],
+        "id": "chatOpenAI_0",
+        "selected": false
+      },
+      "width": 300,
+      "height": 674,
+      "selected": false,
+      "dragging": false,
+      "positionAbsolute": {
+        "x": 443,
+        "y": 117
+      }
+    },
+    {
+      "id": "structuredOutputParser_0",
+      "position": {
+        "x": 971,
+        "y": 680
+      },
+      "type": "customNode",
+      "data": {
+        "id": "structuredOutputParser_0",
+        "label": "Structured Output Parser",
+        "version": 1,
+        "name": "structuredOutputParser",
+        "type": "StructuredOutputParser",
+        "baseClasses": [
+          "StructuredOutputParser",
+          "BaseLLMOutputParser",
+          "Runnable"
+        ],
+        "category": "Output Parsers",
+        "description": "Parse the output of an LLM call into a given (JSON) structure.",
+        "inputParams": [
+          {
+            "label": "Autofix",
+            "name": "autofixParser",
+            "type": "boolean",
+            "optional": true,
+            "description": "In the event that the first call fails, will make another call to the model to fix any errors.",
+            "id": "structuredOutputParser_0-input-autofixParser-boolean",
+            "display": true
+          },
+          {
+            "label": "JSON Structure",
+            "name": "jsonStructure",
+            "type": "datagrid",
+            "description": "JSON structure for LLM to return",
+            "datagrid": [
+              {
+                "field": "property",
+                "headerName": "Property",
+                "editable": true
+              },
+              {
+                "field": "type",
+                "headerName": "Type",
+                "type": "singleSelect",
+                "valueOptions": [
+                  "string",
+                  "number",
+                  "boolean"
+                ],
+                "editable": true
+              },
+              {
+                "field": "description",
+                "headerName": "Description",
+                "editable": true,
+                "flex": 1
+              }
+            ],
+            "default": [
+              {
+                "property": "answer",
+                "type": "string",
+                "description": "answer to the user's question"
+              },
+              {
+                "property": "source",
+                "type": "string",
+                "description": "sources used to answer the question, should be websites"
+              }
+            ],
+            "additionalParams": true,
+            "id": "structuredOutputParser_0-input-jsonStructure-datagrid",
+            "display": true
+          }
+        ],
+        "inputAnchors": [],
+        "inputs": {
+          "autofixParser": "",
+          "jsonStructure": "[{\"property\": \"major_diameter_mm\", \"type\": \"number\", \"description\": \"diametro maggiore nominale in mm\", \"actions\": \"\", \"id\": 1}, {\"property\": \"pitch_mm\", \"type\": \"number\", \"description\": \"passo della filettatura in mm\", \"actions\": \"\", \"id\": 2}, {\"property\": \"engagement_length_mm\", \"type\": \"number\", \"description\": \"lunghezza di impegno (profondita' assiale) in mm\", \"actions\": \"\", \"id\": 3}, {\"property\": \"host_xy_mm\", \"type\": \"number\", \"description\": \"lato XY del blocco ospite in mm, deve essere > major_diameter_mm\", \"actions\": \"\", \"id\": 4}]"
+        },
+        "outputAnchors": [
+          {
+            "id": "structuredOutputParser_0-output-structuredOutputParser-StructuredOutputParser|BaseLLMOutputParser|Runnable",
+            "name": "structuredOutputParser",
+            "label": "StructuredOutputParser",
+            "description": "Parse the output of an LLM call into a given (JSON) structure.",
+            "type": "StructuredOutputParser | BaseLLMOutputParser | Runnable"
+          }
+        ],
+        "outputs": {},
+        "selected": false
+      },
+      "width": 300,
+      "height": 332,
+      "selected": false,
+      "dragging": false,
+      "positionAbsolute": {
+        "x": 971,
+        "y": 680
+      }
+    },
+    {
+      "id": "llmChain_0",
+      "position": {
+        "x": 1454,
+        "y": 334
+      },
+      "type": "customNode",
+      "data": {
+        "id": "llmChain_0",
+        "label": "LLM Chain",
+        "version": 3,
+        "name": "llmChain",
+        "type": "LLMChain",
+        "baseClasses": [
+          "LLMChain",
+          "BaseChain",
+          "Runnable"
+        ],
+        "category": "Chains",
+        "description": "Chain to run queries against LLMs",
+        "inputParams": [
+          {
+            "label": "Chain Name",
+            "name": "chainName",
+            "type": "string",
+            "placeholder": "Name Your Chain",
+            "optional": true,
+            "id": "llmChain_0-input-chainName-string",
+            "display": true
+          }
+        ],
+        "inputAnchors": [
+          {
+            "label": "Language Model",
+            "name": "model",
+            "type": "BaseLanguageModel",
+            "id": "llmChain_0-input-model-BaseLanguageModel",
+            "display": true
+          },
+          {
+            "label": "Prompt",
+            "name": "prompt",
+            "type": "BasePromptTemplate",
+            "id": "llmChain_0-input-prompt-BasePromptTemplate",
+            "display": true
+          },
+          {
+            "label": "Output Parser",
+            "name": "outputParser",
+            "type": "BaseLLMOutputParser",
+            "optional": true,
+            "id": "llmChain_0-input-outputParser-BaseLLMOutputParser",
+            "display": true
+          },
+          {
+            "label": "Input Moderation",
+            "description": "Detect text that could generate harmful output and prevent it from being sent to the language model",
+            "name": "inputModeration",
+            "type": "Moderation",
+            "optional": true,
+            "list": true,
+            "id": "llmChain_0-input-inputModeration-Moderation",
+            "display": true
+          }
+        ],
+        "inputs": {
+          "model": "{{chatOpenAI_0.data.instance}}",
+          "prompt": "{{promptTemplate_0.data.instance}}",
+          "outputParser": "{{structuredOutputParser_0.data.instance}}",
+          "inputModeration": "",
+          "chainName": ""
+        },
+        "outputAnchors": [
+          {
+            "name": "output",
+            "label": "Output",
+            "type": "options",
+            "description": "",
+            "options": [
+              {
+                "id": "llmChain_0-output-llmChain-LLMChain|BaseChain|Runnable",
+                "name": "llmChain",
+                "label": "LLM Chain",
+                "description": "",
+                "type": "LLMChain | BaseChain | Runnable"
+              },
+              {
+                "id": "llmChain_0-output-outputPrediction-string|json",
+                "name": "outputPrediction",
+                "label": "Output Prediction",
+                "description": "",
+                "type": "string | json"
+              }
+            ],
+            "default": "llmChain"
+          }
+        ],
+        "outputs": {
+          "output": "llmChain"
+        },
+        "selected": false
+      },
+      "width": 300,
+      "height": 511,
+      "selected": false,
+      "positionAbsolute": {
+        "x": 1454,
+        "y": 334
+      },
+      "dragging": false
+    }
+  ],
+  "edges": [
+    {
+      "source": "chatOpenAI_0",
+      "sourceHandle": "chatOpenAI_0-output-chatOpenAI-ChatOpenAI|BaseChatOpenAI|BaseChatModel|BaseLanguageModel|Runnable",
+      "target": "llmChain_0",
+      "targetHandle": "llmChain_0-input-model-BaseLanguageModel",
+      "type": "buttonedge",
+      "id": "chatOpenAI_0-chatOpenAI_0-output-chatOpenAI-ChatOpenAI|BaseChatOpenAI|BaseChatModel|BaseLanguageModel|Runnable-llmChain_0-llmChain_0-input-model-BaseLanguageModel"
+    },
+    {
+      "source": "promptTemplate_0",
+      "sourceHandle": "promptTemplate_0-output-promptTemplate-PromptTemplate|BaseStringPromptTemplate|BasePromptTemplate|Runnable",
+      "target": "llmChain_0",
+      "targetHandle": "llmChain_0-input-prompt-BasePromptTemplate",
+      "type": "buttonedge",
+      "id": "promptTemplate_0-promptTemplate_0-output-promptTemplate-PromptTemplate|BaseStringPromptTemplate|BasePromptTemplate|Runnable-llmChain_0-llmChain_0-input-prompt-BasePromptTemplate"
+    },
+    {
+      "source": "structuredOutputParser_0",
+      "sourceHandle": "structuredOutputParser_0-output-structuredOutputParser-StructuredOutputParser|BaseLLMOutputParser|Runnable",
+      "target": "llmChain_0",
+      "targetHandle": "llmChain_0-input-outputParser-BaseLLMOutputParser",
+      "type": "buttonedge",
+      "id": "structuredOutputParser_0-structuredOutputParser_0-output-structuredOutputParser-StructuredOutputParser|BaseLLMOutputParser|Runnable-llmChain_0-llmChain_0-input-outputParser-BaseLLMOutputParser"
+    }
+  ]
+}
