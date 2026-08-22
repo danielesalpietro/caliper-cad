@@ -685,3 +685,63 @@ python3 generate_and_verify.py \
 **Esito: PASS pulito, primo E2E-2 riuscito in tutto lo sforzo M6**
 (run0+run1). `stdout` completo in
 `/workspace/caliper-runs/incoming/tc-e2.log`.
+
+### E2E-8 — ricalibrazione C8 (budget CPU dello sweep Go/No-Go)
+
+**Metodo**: sweep TC2 completo (21 step, GO su `thread_M6_GO_ISO68-1.step`,
+stesso pezzo di E2E-2) x3, misurato chiamando `gauge_check.py`
+**direttamente come processo figlio** (non via HTTP — un primo
+tentativo con `curl` misurava solo il client HTTP, che aspetta in I/O,
+non il lavoro reale eseguito in un processo separato asincrono dal
+watcher — scartato, rifatto invocando lo script direttamente cosi'
+`time` di bash misura per davvero il processo che fa il lavoro).
+Stesse condizioni di E2E-2: `taskset -c 0-11`, `CALIPER_STACK_LIMIT_MB=2`,
+`CALIPER_AS_LIMIT_MB=16384` (thread OCC fissati sul nodo NUMA 0 di
+questo pod — vedi `docs/hardware_fingerprint_run1.md`).
+
+**Comando**:
+```
+taskset -c 0-11 env CALIPER_STACK_LIMIT_MB=2 CALIPER_AS_LIMIT_MB=16384 \
+  GENERATED_PARTS_DIR=/workspace/exec/parts python3 gauge_check.py \
+  job.json result.json checkpoint.json
+```
+
+**Misure** (bash `time`, real/user/sys aggregati sul processo):
+
+| run | real (wall) | user | sys | CPU totale (user+sys) | rapporto CPU/wall |
+|---|---|---|---|---|---|
+| 1 | 20.669s | 77.284s | 12.428s | 89.712s | 4.34x |
+| 2 | 20.726s | 78.818s | 12.486s | 91.304s | 4.41x |
+| 3 | 20.645s | 78.833s | 12.519s | 91.352s | 4.42x |
+
+Tutti e 3 i run: `status: PASS` (stesso esito, nessuna varianza sul
+risultato — solo sui tempi).
+
+**Osservazioni**:
+- Wall-clock stabilissimo (~20.6-20.7s, varianza <0.5%).
+- CPU totale (somma di tutti i thread) **~4.3-4.4x il wall-clock** —
+  coerente con l'uso reale di piu' core in parallelo dentro
+  l'affinita' limitata a 12 (`taskset -c 0-11`), non uno sfruttamento
+  completo dei 12 ma nemmeno mono-thread.
+- **Il default attuale di `GAUGE_CHECK_CPU_LIMIT_SECONDS` (100s) e'
+  GIA' insufficiente** per questo sweep nella sua configurazione
+  corretta (worst-case CPU misurato: 91.352s, a ridosso del limite di
+  100s con margine risicato — meno del 10%) — conferma che C8 era un
+  problema reale, non solo teorico, ORA misurato per la prima volta
+  su un ambiente dove lo sweep non crasha piu'.
+
+**Nuovo budget proposto**: worst-case (91.352s) × 1.5 = **137.03s**
+→ arrotondato **140s** per margine.
+
+**Fingerprint ambiente**: vedi `docs/hardware_fingerprint_run1.md`
+(RTX A6000, 2x AMD EPYC 7543, quota cgroup reale ~13.6 vCPU, qui
+vincolata esplicitamente a 12 core fisici via `taskset -c 0-11`, stesso
+nodo NUMA 0 — core 0-11 di 0-31,64-95 secondo `lscpu`).
+
+**Nota per il supervisore**: questo budget (140s) e' calibrato per lo
+sweep **con `taskset -c 0-11`** (12 core fissati) — non e' detto sia
+valido se il vincolo di affinita' cambia (piu' o meno core assegnati).
+Chiunque cambi `taskset -c ...` in futuro dovrebbe rimisurare, non
+riusare 140s come costante universale — stessa cautela gia' presente
+nel piano originale ("i numeri dipendenti dall'ambiente si
+rimisurano in QUESTO ambiente").
