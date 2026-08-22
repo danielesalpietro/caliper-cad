@@ -21,6 +21,16 @@ CALIPER_GIT_REF="${CALIPER_GIT_REF:-develop}"
 
 echo "== CALIPER pod start $(date -u +%FT%TZ) =="
 
+# --- Diagnostica env: RunPod NON eredita le variabili, vanno messe
+# --- ESPLICITAMENTE (nome=valore) come Environment Variables del
+# --- template. Le stampiamo subito cosi' un pod mal configurato lo dice
+# --- da solo nel log, invece di fallire in modo oscuro piu' avanti.
+echo "-- Variabili d'ambiente attese (vedi ops/runpod/README.md) --"
+for v in GITHUB_TOKEN OPENAI_API_KEY ANTHROPIC_API_KEY FLOWISE_USERNAME FLOWISE_PASSWORD FLOWISE_API_KEY PUBLIC_KEY; do
+  val="${!v:-}"
+  if [ -n "$val" ]; then echo "  [ok]      $v (${#val} char)"; else echo "  [MANCA]   $v"; fi
+done
+
 # --- Layout persistente sul volume -----------------------------------
 mkdir -p \
   "$WORKSPACE/logs" \
@@ -47,6 +57,21 @@ else
   cp -a /opt/caliper "$REPO_DIR"
 fi
 echo "repo: $(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo 'snapshot immagine')"
+
+# --- Claude Code CLI: auto-heal. L'immagine la installa via npm -g, ma
+# sul primo pod reale e' risultata "not found" (install fallita in build
+# o bin globale fuori dal PATH interattivo). La reinstalliamo se manca,
+# cosi' `claude` funziona da subito nel web terminal del pod.
+if ! command -v claude >/dev/null 2>&1; then
+  echo "claude CLI assente — reinstallo (@anthropic-ai/claude-code)"
+  npm install -g @anthropic-ai/claude-code >/dev/null 2>&1 || echo "WARN: install claude fallita"
+fi
+# npm bin globale nel PATH anche per le shell interattive future.
+NPM_BIN="$(npm prefix -g 2>/dev/null)/bin"
+if [ -d "$NPM_BIN" ] && ! grep -q "$NPM_BIN" /etc/profile.d/npmbin.sh 2>/dev/null; then
+  echo "export PATH=\"$NPM_BIN:\$PATH\"" > /etc/profile.d/npmbin.sh
+fi
+command -v claude >/dev/null 2>&1 && echo "claude: $(claude --version 2>/dev/null | head -1)" || echo "claude: NON disponibile"
 
 # --- Symlink per i path hardcoded dei servizi (nessuna modifica al codice):
 #   /exec    -> volume condiviso job/result (app.py, watcher.py)
