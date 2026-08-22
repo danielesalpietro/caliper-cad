@@ -185,3 +185,66 @@ discrepanza reale rispetto all'output atteso documentato — riportata
 cosi' com'e', non smussata a "PASS" silenzioso.
 
 `stdout` salvato in `/workspace/caliper-runs/incoming/tc-e1.log`.
+
+## Passo 1 (continua) — Tentativo 4 (direttiva supervisore, timebox 5 min)
+
+**Comando esatto**: `taskset -c 0-11 env CALIPER_STACK_LIMIT_MB=2
+CALIPER_AS_LIMIT_MB=6144 /opt/venv/bin/python3 verify_param_first.py`
+
+**Risultato — PROGRESSO REALE**: `run_and_measure.py` (lo stadio che
+crashava da sempre, run0 incluso) **ha funzionato**: `"generated_part_step_path":
+"job_paramfirst.step"`, `"Atteso: PASS, STEP esportato: OK"`. Prima
+volta in assoluto che questo stadio arriva in fondo su questo pod.
+
+Il crash si e' spostato piu' avanti nella pipeline, in
+`gauge_check.py` (chiamato DOPO da `verify_param_first.py` per il
+collaudo Go/No-Go): `died with <Signals.SIGSEGV: 11>` — segnale
+diverso da prima (11, non 9), stesso ambiente (taskset+env ereditati
+correttamente: `run_gauge_check()` in `verify_param_first.py` usa
+`env = dict(os.environ)`, confermato leggendo il sorgente).
+
+**Verifica mirata della causa del SIGKILL del tentativo 3** (grep sul
+sorgente, non un altro run live — a costo zero):
+`run_and_measure.py` riga 106: `resource.setrlimit(resource.RLIMIT_CPU,
+(10, 10))` — **hardcoded a 10s, non parametrico** (a differenza di
+`CALIPER_AS_LIMIT_MB`/`CALIPER_STACK_LIMIT_MB`, gia' overridabili).
+Con 128 CPU visibili (nproc, prima di taskset) e pool di thread nativi
+dimensionati su quel numero, il tempo CPU sommato su tutti i thread
+supera 10s in una frazione di secondo di wall-clock — coerente al
+100% con l'ipotesi del supervisore: **il SIGKILL del tentativo 3 era
+RLIMIT_CPU=10s, non OOM** (confermato anche indirettamente: con
+`taskset -c 0-11` il pool si dimensiona su 12, il tempo CPU sommato
+resta sotto 10s, e infatti QUESTO stadio ora passa).
+
+**gauge_check.py invece HA gia' gli stessi override parametrici**
+(`CALIPER_AS_LIMIT_MB`/`CALIPER_STACK_LIMIT_MB` letti da env, righe
+147-152) e un `GAUGE_CHECK_CPU_LIMIT_SECONDS` di default **100s** (non
+10s) — ampio, improbabile che sia RLIMIT_CPU a colpirlo qui. Il
+SIGSEGV in `gauge_check.py` sotto le stesse condizioni e' quindi
+**un problema distinto, non ancora diagnosticato**: probabilmente
+`CALIPER_AS_LIMIT_MB=6144` non basta per il workload di
+`gauge_check.py` (sweep a 21 step, piu' pesante del singolo build di
+`run_and_measure.py`), ma non verificato oltre — timebox del
+tentativo 4 (5 min) rispettato, mi fermo qui come da direttiva.
+
+**Sintesi per il supervisore**:
+- `run_and_measure.py`: causa confermata (RLIMIT_CPU=10s hardcoded +
+  pool di thread dimensionato su core visibili, non reali). Con
+  `taskset` che restringe l'affinita', funziona. **Non ho modificato
+  `run_and_measure.py`** (per istruzione esplicita) — il fix
+  (`CALIPER_CPU_LIMIT_S` overridabile, default 10 invariato) resta al
+  supervisore.
+- `gauge_check.py`: nuovo blocco scoperto SOLO ora (prima non si
+  arrivava mai cosi' lontano nella pipeline). Stessi sintomi macro
+  (SIGSEGV), causa probabile diversa (AS limit insufficiente per un
+  workload piu' pesante) — da investigare separatamente, non lo stesso
+  problema di `run_and_measure.py` solo perche' condividono la
+  famiglia di sintomi.
+
+**E2E-2/E2E-8**: ancora bloccati (il Go/No-Go di `gauge_check.py` e'
+richiesto dal criterio di successo di E2E-2), ma il blocco si e'
+spostato piu' a valle — non piu' "nessuna generazione arriva mai a
+finire", ora "la generazione finisce, il collaudo fisico no". Passo
+avanti reale, non solo diagnosi.
+
+Procedo ora con i TC-E2E non-executor come da istruzioni.
