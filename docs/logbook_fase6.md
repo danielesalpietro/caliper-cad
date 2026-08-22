@@ -313,3 +313,60 @@ gia' valorizzati che il template istruisce esplicitamente a lasciare
 vuoti — oggi non esiste, `apply_preset()` non e' quel controllo (fa
 solo da fallback per i campi VUOTI, non da validazione di quelli
 GIA' pieni). Nessun fix unilaterale applicato, come da istruzione.
+
+### E2E-3 — spec irrealizzabile (pitch:0.05)
+
+**Comando**: `L2_STRATEGY=param_first L2_SKETCH_CHATFLOW_ID=<id>
+python3 generate_and_verify.py '{"feature":"thread","nominal":"M6","pitch":0.05,"engagement_length_mm":8.0}'`
+
+**Output reale**: 2 tentativi, entrambi FAIL identici (`"il processo
+non fidato non ha prodotto uno stato di esportazione leggibile"`),
+uscita anticipata per errore ripetuto 2 volte consecutive,
+`final_status: unrecoverable_virtual`, `case_id` presente e stabile
+tra i tentativi. `stdout` completo in
+`/workspace/caliper-runs/incoming/tc-e3.log`.
+
+**Confronto con l'atteso** (handoff_m6.md): "≤3 tentativi, directive
+nei tentativi 2+, `unrecoverable_virtual`, record collegati per
+`case_id`" — **la meccanica del retry loop rispetta l'atteso alla
+lettera** (2≤3 tentativi, directive presente al tentativo 2,
+`unrecoverable_virtual` corretto, stesso `case_id` per tutti i
+record).
+
+**MA — riserva onesta, non un PASS pulito**: `pitch:0.05` **non è
+geometricamente invalido** per `sketch_compiler.py` (verificato a
+mano: con `major_diameter_mm=6`, `pitch=0.05`, angolo 60°,
+`r_minor = 3.0 - 0.05/(2*tan(30°)) ≈ 2.957mm`, ben sopra zero — la
+validazione locale in `build_thread_sketch_spec_from_params()` non
+rifiuta questo pitch, lo accetta come un dente di filettatura
+minuscolo ma matematicamente valido). Il codice generato ATTRAVERSA
+quindi la validazione locale ed arriva davvero a `/verify` — dove **il
+FAIL osservato è quasi certamente lo stesso crash del Passo 1**
+(SIGSEGV nell'esecutore), non un rifiuto genuino di "pitch troppo
+piccolo per essere realizzabile". Verificato: il servizio `verifier`
+(`services/verifier/executor/watcher.py`, riga ~109 e succ.,
+`subprocess.run` diretto senza `taskset` ne' gli override
+`CALIPER_*`) e' un processo lanciato da supervisord all'avvio del pod,
+**non ha ereditato ne' puo' ereditare** il fix di `taskset -c 0-11`
+validato nel tentativo 4 (quello era un invocazione manuale isolata di
+`verify_param_first.py`, mai collegata alla pipeline HTTP reale
+`generate_and_verify.py -> /verify -> watcher.py`).
+
+**Conclusione per E2E-3**: la meccanica del retry loop e' verificata
+CORRETTA, ma il trigger che l'ha esercitata e' il bug SIGSEGV noto
+(Passo 1), non l'irrealizzabilita' geometrica che il test intende
+esercitare — quindi **non e' un test case pulito su questo pod finche'
+il SIGSEGV non e' risolto nella pipeline reale** (il fix del tentativo
+4 esiste solo come prova isolata, non e' collegato a
+`watcher.py`/`verifier`). Per un E2E-3 genuino servirebbe o (a) un
+pitch che fallisca la validazione LOCALE per davvero (es. pitch >
+~3.46mm con questo diametro, che rende `r_minor <= 0` — provabile
+senza toccare l'esecutore), o (b) applicare il fix `taskset` anche al
+servizio `verifier`/`verifier-executor` (stessa classe di intervento
+del fix SSRF di Flowise — runtime, non nel repo, proponibile al
+supervisore).
+
+**Non ho applicato il fix taskset al servizio verifier in questa
+sessione**: avrebbe riaperto il Passo 1 oltre il suo timebox gia'
+chiuso — segnalato qui come pista concreta per il prossimo passo, non
+eseguito.
