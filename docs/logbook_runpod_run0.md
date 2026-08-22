@@ -345,12 +345,65 @@ In `docs/m6-run0-support/`:
 - `fingerprint-m6.json` — fingerprint ambiente (vedi Passo 0 sopra),
   catturato dopo l'installazione di Flowise.
 
+## Passo 2 — flag `--confirm` (Rischio #5)
+
+Implementato con lo stesso metodo rosso→verde delle altre milestone:
+`services/orchestrator/verify_confirm_flag.py` (nuovo, stesso stile di
+mock di `verify_virtual_memory_loop_gate.py`: `call_flowise_l2`/
+`resolve_chatflow_id` mockate, nessuna rete reale, `builtins.input`
+mockato per simulare la risposta umana).
+
+**Rosso (pre-fix)**: scenario A (`--confirm`, risposta `"n"`) — atteso
+`return code=1, chiamate a L2=0`, osservato `return code=0, chiamate a
+L2=1` (il flag non esisteva, veniva ignorato silenziosamente):
+FALLITO.
+
+**Fix**: in `main()`, subito dopo l'arricchimento della spec coi
+preset (PRIMA di `resolve_chatflow_id` — un rifiuto non deve costare
+nessuna chiamata di rete), se `--confirm` è tra gli argv stampa la spec
+arricchita e chiede `y/n` via `input()`; se la risposta non è `y`,
+ritorna 1 senza proseguire. Nessuna modifica al comportamento di
+default (flag assente = comportamento legacy invariato, confermato
+dagli altri `verify_*.py` esistenti che non lo passano mai e
+continuano a passare).
+
+**Verde (post-fix)**: entrambi gli scenari OK (`n` → 0 chiamate a L2,
+`y` → generazione procede). Nessuna regressione sugli altri test
+dell'orchestrator già esistenti (`verify_virtual_memory_loop_gate.py`,
+`verify_retry_policy.py`, `verify_sketch_first_strategy.py` tutti OK).
+Script aggiunto a `.github/workflows/regression.yml` (sezione M6
+nuova, in fondo al file).
+
+## Scoperta — SIGSEGV in `run_and_measure.py` su questo pod (rilevante per E2E-2/C8)
+
+Rilanciando `verify_param_first.py` per controllare regressioni (non
+collegato a `--confirm`) ho trovato che **fallisce con un crash nativo**,
+non con un errore Python: il sottoprocesso che esegue
+`services/verifier/executor/run_and_measure.py` (con l'interprete
+corretto, `/opt/venv/bin/python3`, cadquery 2.8.0 presente e
+funzionante per operazioni semplici — verificato con un box banale,
+OK) muore con `SIGSEGV` durante la compilazione reale del codice
+param-first (taglio elicoidale filettato via OCC). Non risolto con
+`OMP_NUM_THREADS=1`/`OPENBLAS_NUM_THREADS=1` impostati nella shell
+(ma `run_two_stage()` in `verify_param_first.py` costruisce il proprio
+`env` per il sottoprocesso — non confermato se lo eredita).
+
+**Non indagato oltre in questo run** (fuori scope rispetto al task
+`--confirm` in corso): potenzialmente la stessa classe di problema
+anticipata da C8 nell'handoff M6 ("verifica se OCC ignora quei limiti
+e satura comunque i core" su 256 vCPU) — o un problema distinto
+(crash vero, non solo lentezza/budget CPU). **Blocca potenzialmente
+E2E-2** (richiede `/verify` reale su codice param-first) se si
+ripresenta lì. Da investigare come primo passo prima di tentare
+E2E-2/E2E-8, non assumere che sia già coperto dalla ricalibrazione C8
+prevista — potrebbe essere un problema diverso e più serio (crash,
+non solo budget).
+
 ## Prossimi passi
 
-1. Aggiungere il flag `--confirm` a `generate_and_verify.py` (Rischio
-   #5, unica *aggiunta* applicativa esplicitamente ammessa in M6 —
-   distinta dal fix minimale sopra, che è una correzione di un bug
-   reale scoperto in E2E, non un'aggiunta di funzionalità).
+1. **Prioritario**: investigare il SIGSEGV sopra prima di tentare
+   E2E-2 — potrebbe bloccare l'intera suite `/verify` reale, non solo
+   il budget CPU di C8.
 2. Eseguire la suite TC-E2E-1…9, con `harvest.sh` dopo ognuno.
 3. Nota per il Dockerfile/supervisord.conf (fuori scope M6, da
    segnalare al supervisore): `FLOWISE_USERNAME`/`FLOWISE_PASSWORD` in

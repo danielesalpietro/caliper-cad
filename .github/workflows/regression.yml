@@ -180,3 +180,8 @@ jobs:
       - name: verify_generated_parts_cleanup.py — M5/C10, cleanup /exec/parts con ritenzione
         working-directory: services/verifier/executor
         run: python verify_generated_parts_cleanup.py
+
+      # --- M6 (docs/logbook_fase6.md, docs/handoff_m6.md) ---
+      - name: verify_confirm_flag.py — M6, conferma umana L2.5 (Rischio #5, --confirm)
+        working-directory: services/orchestrator
+        run: python verify_confirm_flag.py
