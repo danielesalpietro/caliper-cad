@@ -165,6 +165,25 @@ services:
     container_name: caliper-verifier-executor
     restart: unless-stopped
     network_mode: "none"
+    # [M7, C8] Rimisurato dal vivo in QUESTA topologia (regola #3 del
+    # piano: i numeri di M6 non si trasferiscono per assunzione) — e
+    # infatti non si sono trasferiti. RLIMIT_CPU somma il tempo di TUTTI
+    # i thread combinati: con 32 core reali (bare metal, non un pod
+    # oversubscribed) l'aggregato cresce molto piu' in fretta che sul pod
+    # RunPod di M6 a parita' di lavoro reale (stesso pezzo, stesso sweep,
+    # wall-clock quasi identico ~20s vs ~37s qui per il gauge-check GO —
+    # e' la CPU totale che diverge, ~91s in M6 contro ~268s misurati qui).
+    # CALIPER_AS_LIMIT_MB: anche il default 2048 "tarato per
+    # docker-compose" (vedi commento in run_and_measure.py) si e'
+    # rivelato insufficiente qui dal vivo (SIGSEGV, exit 139) — il
+    # commento nel codice era una previsione mai verificata in un
+    # container reale prima d'ora, non un fatto. Valori: worst-case
+    # misurato x1.5, stessa convenzione di E2E-8/M6.
+    environment:
+      CALIPER_AS_LIMIT_MB: "16384"
+      CALIPER_STACK_LIMIT_MB: "2"
+      CALIPER_CPU_LIMIT_S: "25"
+      GAUGE_CHECK_CPU_LIMIT_SECONDS: "405"
     volumes:
       - verifier_exec:/exec
       - ${DATA_DIR:-./data}/models:/models:ro
@@ -308,12 +327,16 @@ services:
   # CLI batch, non un servizio long-running: non parte con "docker compose
   # up" di default (profilo "tools"), si invoca on-demand con
   # "docker compose run prusaslicer ...". Nessuna rete necessaria.
-  # TODO: verificare i path di mount attesi dall'immagine
-  # billa05/prusacli (non ispezionati direttamente) prima del primo uso
-  # reale — quelli sotto sono una convenzione ragionevole, non confermata.
+  # [M7] Verificato dal vivo (era un TODO, mount "dedotti, mai
+  # confermati"): l'immagine ha entrypoint di default /bin/bash (inutile
+  # qui, "--help" veniva interpretato da bash stesso), il binario reale e'
+  # /app/prusa-slicer (non "prusa-slicer-console" come ipotizzato nel
+  # commento del profilo caliper-pla.ini) — PrusaSlicer 2.9.2. I path di
+  # mount sotto erano gia' corretti (confermati), l'entrypoint no.
   prusaslicer:
     image: billa05/prusacli:latest
     container_name: caliper-prusaslicer
+    entrypoint: ["/app/prusa-slicer"]
     profiles: ["tools"]
     network_mode: "none"
     volumes:
