@@ -55,13 +55,12 @@ Qdrant). Architettura completa: `README.md` e
   `bench/bench_l25_models.py` sullo schema post-fix, poi decide
   l'utente); barriera in `apply_preset` (campo utente vs inventato);
   ricalibrazione `CALIPER_CPU_LIMIT_S`; controllo accessi per
-  `/api/generate` (issue #35); filettatura **esterna** ("vite", non
-  solo il foro filettato di oggi) — scoping iniziato (vedi
-  `_emit_thread_code` in `sketch_compiler.py`, il pezzo `_thread_pin`
-  già esiste come geometria valida, va solo restituito invece di
-  sottratto dall'host), nessun codice scritto: servirebbe anche un
-  nuovo calibro ad **anello** (oggi solo tamponi, adatti a collaudare
-  fori) prima di avere un Go/No-Go reale su una vite.
+  `/api/generate` (issue #35); generalizzazione del dominio geometrico
+  — oggi un solo `operation.type` (`helical_thread_cut`, produce
+  sempre un foro filettato, mai una filettatura esterna) e diversi
+  preset `defined: false` in `presets.json` — issue
+  [#36](https://github.com/danielesalpietro/caliper-cad/issues/36),
+  review a 360° ancora da fare con l'utente, non decisa qui.
 
 ## Direttive non negoziabili (il metodo che ha funzionato)
 
