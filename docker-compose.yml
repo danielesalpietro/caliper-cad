@@ -250,13 +250,13 @@ services:
       # /root non e' scrivibile da lui (verificato dal vivo,
       # `drwx------ root root`). L'immagine ufficiale sceglie la
       # directory dati da $HOME (getUserHome()), che per 'node' e'
-      # /home/node, MAI /root -- montare su /root/.flowise (com'era)
+      # /home/node, MAI /root — montare su /root/.flowise (com'era)
       # non falliva rumorosamente: Flowise scriveva silenziosamente in
       # /home/node/.flowise, fuori dal volume, quindi account/API
       # key/credential/import chatflow sopravvivevano SOLO finche' il
       # container non veniva ricreato (mai esercitato finche' non si
       # e' ricreato il container una seconda volta per un cambio di
-      # config non correlato -- bug scoperto cosi', vedi PR #33).
+      # config non correlato — bug scoperto cosi').
       - flowise_data:/home/node/.flowise
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:${FLOWISE_PORT:-3000}/api/v1/ping || exit 1"]
