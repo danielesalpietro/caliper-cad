@@ -184,7 +184,12 @@ services:
     # vedi docs/logbook_fase5.md per il dettaglio) — da aggiornare
     # deliberatamente (bump esplicito, non "latest" che si aggiorna da
     # solo) quando serve una versione piu' recente.
-    image: flowiseai/flowise:3.1.4
+    # [M7] Build locale invece di `image: flowiseai/flowise:3.1.4` diretta:
+    # applica il fix a connect-sqlite3 (vedi ops/docker/flowise/Dockerfile)
+    # senza cui il container non arriva nemmeno a "healthy". Stessa base
+    # e stessa versione pinnata, solo quel modulo e' patchato.
+    build: ./ops/docker/flowise
+    image: caliper-flowise:3.1.4-patched
     container_name: caliper-flowise
     restart: always
     networks: [caliper-ai]
