@@ -1,0 +1,13 @@
+{
+  "hostname": "berlin-3eie",
+  "nproc": "32",
+  "gpu": "NVIDIA GeForce RTX 3090, 24576 MiB, 595.84",
+  "docker_version": "Docker version 29.7.2, build a7dcaa6",
+  "docker_compose_version": "Docker Compose version v5.5.0",
+  "kernel": "6.8.0-138-generic",
+  "os": "PRETTY_NAME=\"Ubuntu 24.04.2 LTS\"",
+  "repo_commit": "7ce44f344c9da9abf9295b5055de7c608ed0a6c7",
+  "cadquery_version": "2.8.0",
+  "flowise_image": "caliper-flowise:3.1.4-patched (build locale, vedi ops/docker/flowise/Dockerfile)",
+  "gpu_memory_used_at_idle_before_run": "9 MiB / 24576 MiB"
+}
