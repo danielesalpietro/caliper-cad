@@ -1,0 +1,820 @@
+<title>CALIPER — Project Plan Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,500;0,600;0,700;0,800;1,600&family=Archivo+Expanded:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg: #F1F4F3;
+    --surface: #FBFDFC;
+    --surface-2: #E7ECEA;
+    --ink: #17262A;
+    --ink-muted: #4C5F60;
+    --ink-faint: #7C8C8C;
+    --border: #CBD6D3;
+    --border-strong: #A9BAB6;
+    --accent: #1B6E73;
+    --accent-ink: #0E4A4F;
+    --accent-soft: #DCEBEA;
+    --ok: #2E7D4F;
+    --ok-soft: #E1F0E5;
+    --warn: #93650E;
+    --warn-soft: #F4E9D3;
+    --danger: #A63B2E;
+    --danger-soft: #F5E1DC;
+    --shadow: 0 1px 2px rgba(23,38,42,.06), 0 8px 24px -12px rgba(23,38,42,.18);
+    --radius: 3px;
+    --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --sans-x: "Archivo Expanded", "Archivo", Arial, sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg: #10191A;
+      --surface: #16201F;
+      --surface-2: #1C2827;
+      --ink: #E7EFEC;
+      --ink-muted: #A9BDB9;
+      --ink-faint: #7E9490;
+      --border: #2B3A38;
+      --border-strong: #3C4E4B;
+      --accent: #52BBBE;
+      --accent-ink: #9BDCDD;
+      --accent-soft: #1B3335;
+      --ok: #6FC58C;
+      --ok-soft: #1D3226;
+      --warn: #E3B15A;
+      --warn-soft: #362D18;
+      --danger: #E3897A;
+      --danger-soft: #3A241F;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg: #10191A;
+    --surface: #16201F;
+    --surface-2: #1C2827;
+    --ink: #E7EFEC;
+    --ink-muted: #A9BDB9;
+    --ink-faint: #7E9490;
+    --border: #2B3A38;
+    --border-strong: #3C4E4B;
+    --accent: #52BBBE;
+    --accent-ink: #9BDCDD;
+    --accent-soft: #1B3335;
+    --ok: #6FC58C;
+    --ok-soft: #1D3226;
+    --warn: #E3B15A;
+    --warn-soft: #362D18;
+    --danger: #E3897A;
+    --danger-soft: #3A241F;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5);
+  }
+
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--serif);
+    font-size:17px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent-ink);}
+  a:focus-visible, button:focus-visible, summary:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:2px;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important; transition-duration:.001ms !important;}
+  }
+
+  .sheet{
+    max-width:920px;
+    margin:0 auto;
+    padding:2.75rem 1.5rem 5rem;
+  }
+
+  /* ---------- title block ---------- */
+  .titleblock{
+    border:1.5px solid var(--border-strong);
+    background:var(--surface);
+    box-shadow:var(--shadow);
+    margin-bottom:2.75rem;
+  }
+  .titleblock-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:1.5rem;
+    padding:1.6rem 1.75rem 1.3rem;
+    border-bottom:1.5px solid var(--border-strong);
+  }
+  .titleblock-kicker{
+    font-family:var(--mono);
+    font-size:.72rem;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    margin:0 0 .5rem;
+  }
+  .titleblock-name{
+    font-family:var(--sans-x);
+    font-weight:700;
+    font-size:clamp(2rem, 5vw, 2.9rem);
+    letter-spacing:.01em;
+    margin:0;
+    text-wrap:balance;
+    color:var(--ink);
+  }
+  .titleblock-doc{
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:1.05rem;
+    color:var(--ink-muted);
+    text-align:right;
+    white-space:nowrap;
+  }
+  .titleblock-grid{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+  }
+  .tb-cell{
+    padding:.85rem 1.1rem;
+    border-right:1px solid var(--border);
+    border-top:1px solid var(--border);
+  }
+  .tb-cell:nth-child(4n){border-right:none;}
+  .tb-label{
+    display:block;
+    font-family:var(--mono);
+    font-size:.66rem;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    margin-bottom:.3rem;
+  }
+  .tb-value{
+    font-family:var(--mono);
+    font-size:.88rem;
+    color:var(--ink);
+    font-variant-numeric:tabular-nums;
+  }
+  .tb-value a{color:var(--ink); text-decoration-color:var(--border-strong);}
+
+  /* ---------- stat rail ---------- */
+  .statrail{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:1px;
+    background:var(--border);
+    border:1px solid var(--border);
+    margin-bottom:2.5rem;
+    box-shadow:var(--shadow);
+  }
+  .stat{
+    background:var(--surface);
+    padding:1.1rem 1rem 1.2rem;
+  }
+  .stat-num{
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:1.7rem;
+    color:var(--accent-ink);
+    font-variant-numeric:tabular-nums;
+    display:block;
+    line-height:1.1;
+  }
+  .stat-num.flag{color:var(--warn);}
+  .stat-label{
+    display:block;
+    margin-top:.35rem;
+    font-family:var(--sans);
+    font-size:.78rem;
+    color:var(--ink-muted);
+    line-height:1.35;
+  }
+
+  /* ---------- prose column ---------- */
+  .col{ max-width:66ch; }
+  .col.wide{ max-width:none; }
+
+  h2{
+    font-family:var(--sans);
+    font-weight:700;
+    font-size:1.5rem;
+    letter-spacing:.005em;
+    color:var(--ink);
+    text-wrap:balance;
+    margin:0 0 .3rem;
+  }
+  .section{
+    margin:3.4rem 0 0;
+  }
+  .section-eyebrow{
+    display:flex;
+    align-items:baseline;
+    gap:.6rem;
+    font-family:var(--mono);
+    font-size:.72rem;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    margin-bottom:.55rem;
+  }
+  .section-eyebrow::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background:var(--border);
+    transform:translateY(-2px);
+  }
+  .section > p, .section > .col > p{
+    margin:0 0 1.05rem;
+    color:var(--ink);
+  }
+  .lede{
+    font-size:1.14rem;
+    color:var(--ink);
+  }
+  strong{color:var(--ink); font-weight:600;}
+  .muted{color:var(--ink-muted);}
+
+  ul.list, ol.list{
+    margin:0 0 1.1rem;
+    padding-left:1.25rem;
+  }
+  ul.list li, ol.list li{
+    margin-bottom:.6rem;
+    padding-left:.15rem;
+  }
+  ul.list{list-style:none; padding-left:0;}
+  ul.list > li{
+    position:relative;
+    padding-left:1.3rem;
+  }
+  ul.list > li::before{
+    content:"—";
+    position:absolute;
+    left:0;
+    color:var(--accent);
+  }
+
+  code, .code{
+    font-family:var(--mono);
+    font-size:.87em;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:2px;
+    padding:.05em .32em;
+    color:var(--ink);
+  }
+
+  /* ---------- pills / stamps ---------- */
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    gap:.35em;
+    font-family:var(--mono);
+    font-size:.68rem;
+    font-weight:600;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding:.22em .55em .22em .5em;
+    border:1.3px solid currentColor;
+    border-radius:2px;
+    white-space:nowrap;
+    line-height:1.5;
+  }
+  .pill::before{
+    content:"";
+    width:.4em; height:.4em;
+    border-radius:50%;
+    background:currentColor;
+    flex:none;
+  }
+  .pill-ok{color:var(--ok); background:var(--ok-soft);}
+  .pill-warn{color:var(--warn); background:var(--warn-soft);}
+  .pill-danger{color:var(--danger); background:var(--danger-soft);}
+  .pill-neutral{color:var(--ink-muted); background:var(--surface-2); border-color:var(--border-strong);}
+
+  /* ---------- milestone timeline ---------- */
+  .mtable{
+    width:100%;
+    border-collapse:collapse;
+    margin:1.4rem 0 .5rem;
+    font-size:.95rem;
+  }
+  .mtable th{
+    text-align:left;
+    font-family:var(--mono);
+    font-size:.68rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    font-weight:500;
+    padding:.5rem .8rem .5rem 0;
+    border-bottom:1.5px solid var(--border-strong);
+  }
+  .mtable td{
+    padding:.85rem .8rem .85rem 0;
+    border-bottom:1px solid var(--border);
+    vertical-align:top;
+  }
+  .mtable tr:last-child td{border-bottom:1.5px solid var(--border-strong);}
+  .m-id{
+    font-family:var(--mono);
+    font-weight:600;
+    color:var(--ink);
+    white-space:nowrap;
+  }
+  .m-issue{font-family:var(--mono); font-size:.85rem; white-space:nowrap;}
+  .m-issue a{color:var(--ink-muted);}
+  .m-note{color:var(--ink-muted); font-size:.92rem; line-height:1.55;}
+  .m-note strong{color:var(--ink);}
+
+  .tablewrap{overflow-x:auto; margin:0 -.2rem;}
+  .tablewrap > table{min-width:640px;}
+
+  /* backlog table */
+  .btable{width:100%; border-collapse:collapse; font-size:.94rem; margin-top:1.2rem;}
+  .btable th{
+    text-align:left; font-family:var(--mono); font-size:.66rem; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-faint); font-weight:500;
+    padding:.5rem .9rem .5rem 0; border-bottom:1.5px solid var(--border-strong);
+  }
+  .btable td{padding:.75rem .9rem .75rem 0; border-bottom:1px solid var(--border); vertical-align:top;}
+  .btable tr:last-child td{border-bottom:1.5px solid var(--border-strong);}
+
+  /* callout / finding boxes */
+  .findings{
+    display:flex; flex-direction:column; gap:1px;
+    background:var(--border);
+    border:1px solid var(--border);
+    margin:1.4rem 0 1.6rem;
+    box-shadow:var(--shadow);
+  }
+  .finding{
+    background:var(--surface);
+    padding:1rem 1.2rem 1.1rem;
+    display:grid;
+    grid-template-columns:1.9rem 1fr;
+    gap:.15rem .9rem;
+  }
+  .finding-idx{
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:.95rem;
+    color:var(--accent);
+    grid-row: 1 / span 2;
+    padding-top:.1rem;
+  }
+  .finding-title{
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:1rem;
+    color:var(--ink);
+  }
+  .finding-body{
+    color:var(--ink-muted);
+    font-size:.94rem;
+    line-height:1.6;
+  }
+  .finding-body strong{color:var(--ink);}
+
+  /* recommendation blocks */
+  .horizon{
+    margin-top:1.6rem;
+  }
+  .horizon-head{
+    display:flex; align-items:center; gap:.6rem;
+    font-family:var(--sans);
+    font-weight:700;
+    font-size:1rem;
+    color:var(--ink);
+    margin-bottom:.65rem;
+  }
+  .horizon-head .tag{
+    font-family:var(--mono);
+    font-size:.65rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--surface);
+    background:var(--accent);
+    padding:.2em .55em;
+    border-radius:2px;
+  }
+  ol.reco{
+    counter-reset:reco;
+    list-style:none;
+    padding:0;
+    margin:0 0 .5rem;
+    display:flex;
+    flex-direction:column;
+    gap:.7rem;
+  }
+  ol.reco li{
+    counter-increment:reco;
+    display:grid;
+    grid-template-columns:1.7rem 1fr;
+    gap:.15rem .7rem;
+    padding:.75rem .9rem;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent);
+  }
+  ol.reco li::before{
+    content:counter(reco);
+    font-family:var(--mono);
+    font-weight:600;
+    color:var(--accent);
+    font-size:.95rem;
+  }
+  ol.reco li .reco-text{color:var(--ink); font-size:.95rem; line-height:1.55;}
+  ol.reco li .reco-text strong{color:var(--ink);}
+  ol.reco li .reco-meta{
+    grid-column:2;
+    font-family:var(--mono);
+    font-size:.72rem;
+    color:var(--ink-faint);
+    margin-top:.15rem;
+  }
+
+  /* risk grid */
+  .riskgrid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:1px;
+    background:var(--border);
+    border:1px solid var(--border);
+    margin:1.3rem 0 1.6rem;
+  }
+  .risk{
+    background:var(--surface);
+    padding:1rem 1.15rem 1.1rem;
+  }
+  .risk-q{
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:.92rem;
+    color:var(--ink);
+    margin:0 0 .4rem;
+    text-wrap:balance;
+  }
+  .risk-a{
+    font-size:.86rem;
+    color:var(--ink-muted);
+    line-height:1.55;
+    margin:0;
+  }
+
+  footer.closing{
+    margin-top:3.6rem;
+    padding-top:1.6rem;
+    border-top:1.5px solid var(--border-strong);
+    font-size:.92rem;
+    color:var(--ink-muted);
+  }
+  footer.closing .stamp{
+    font-family:var(--mono);
+    font-size:.72rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    margin-top:1.2rem;
+  }
+
+  @media (max-width: 720px){
+    .titleblock-grid{grid-template-columns:1fr 1fr;}
+    .tb-cell:nth-child(4n){border-right:1px solid var(--border);}
+    .tb-cell:nth-child(2n){border-right:none;}
+    .titleblock-top{flex-direction:column; align-items:flex-start;}
+    .titleblock-doc{text-align:left;}
+    .statrail{grid-template-columns:1fr 1fr;}
+    .riskgrid{grid-template-columns:1fr;}
+  }
+</style>
+
+<div class="sheet">
+
+  <div class="titleblock">
+    <div class="titleblock-top">
+      <div>
+        <p class="titleblock-kicker">Verification layer for LLM-generated CAD geometry</p>
+        <h1 class="titleblock-name">CALIPER</h1>
+      </div>
+      <div class="titleblock-doc">Project&nbsp;Plan&nbsp;Review</div>
+    </div>
+    <div class="titleblock-grid">
+      <div class="tb-cell">
+        <span class="tb-label">Data</span>
+        <span class="tb-value">2026-08-25</span>
+      </div>
+      <div class="tb-cell">
+        <span class="tb-label">Base</span>
+        <span class="tb-value">develop @ 3f358c6</span>
+      </div>
+      <div class="tb-cell">
+        <span class="tb-label">Fase piano</span>
+        <span class="tb-value">post-M6, pre-M7</span>
+      </div>
+      <div class="tb-cell">
+        <span class="tb-label">Fonti</span>
+        <span class="tb-value">14 doc .md + 12 issue</span>
+      </div>
+    </div>
+  </div>
+
+  <section class="section" style="margin-top:0;">
+    <div class="col">
+      <p class="lede">Il progetto ha attraversato, in quattro giorni, l'intero ciclo che si era proposto: una <strong>review tecnica critica</strong> ha trovato tre difetti bloccanti su giunture mai esercitate, un <strong>piano di recupero</strong> (M5–M8) li ha attaccati in ordine di costo, e la milestone M6 ha prodotto la <strong>prima esecuzione end-to-end reale</strong> della storia del progetto — 9 casi di test su 9, con generazione, verifica e collaudo Go/No-Go tutti dal vivo. La disciplina di processo dichiarata (rosso prima di verde, harvest verde prima di spegnere, verifica indipendente ai gate) è stata rispettata con poche eccezioni, anche quando ha significato ammettere un incidente operativo per iscritto.</p>
+      <p>Quello che segue non è una nuova revisione tecnica del codice — c'è già, in <code>docs/review_tecnica.md</code> — ma una lettura dello <strong>stato di piano e processo</strong> a valle di M6: cosa è davvero chiuso, cosa è dichiarato chiuso ma non lo è ancora su GitHub, cosa è pronto a partire e non è partito, e cosa resta genuinamente aperto prima di M7/M8.</p>
+    </div>
+  </section>
+
+  <div class="statrail">
+    <div class="stat">
+      <span class="stat-num">5<span style="color:var(--ink-faint); font-weight:400;">/8</span></span>
+      <span class="stat-label">milestone con criterio di accettazione raggiunto (M1, M2, M4, M5, M6)</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">9<span style="color:var(--ink-faint); font-weight:400;">/9</span></span>
+      <span class="stat-label">TC-E2E eseguiti dal vivo su RunPod in M6 — primo PASS reale del progetto</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num flag">3</span>
+      <span class="stat-label">issue di milestone chiuse nei fatti (#15, #17, #18) ma ancora aperte su GitHub</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num flag">3</span>
+      <span class="stat-label">giorni di inattività su M7 nonostante il gate (RTX 3090 dal 24) già soddisfatto</span>
+    </div>
+  </div>
+
+  <!-- ================= STATO ================= -->
+  <section class="section">
+    <div class="section-eyebrow">01 — Stato del piano</div>
+    <h2>Dalla review al bring-up: dove si trova ogni milestone</h2>
+    <div class="col wide">
+      <p>Lo schema M1–M8 è quello fissato in <code>docs/piano_recupero.md</code> dopo la review tecnica (issue&nbsp;#15). Le prime quattro erano il filone "Ciclo di Collaudo Virtuale" pre-review; M5–M8 sono la risposta diretta alle criticità C1–C11 trovate lì.</p>
+    </div>
+    <div class="tablewrap">
+    <table class="mtable">
+      <thead>
+        <tr><th>Milestone</th><th>Issue</th><th>Stato</th><th>Nota</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="m-id">M1</td>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/2">#2</a></td>
+          <td><span class="pill pill-ok">chiusa</span></td>
+          <td class="m-note">Scaffold di isolamento + calibri di riferimento. Mergiata, issue chiusa.</td>
+        </tr>
+        <tr>
+          <td class="m-id">M2</td>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/3">#3</a></td>
+          <td><span class="pill pill-ok">chiusa</span></td>
+          <td class="m-note">TC1/TC2/TC3 verificati indipendentemente, timeout ricalibrato su misura reale.</td>
+        </tr>
+        <tr>
+          <td class="m-id">M3</td>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/4">#4</a></td>
+          <td><span class="pill pill-warn">parziale</span></td>
+          <td class="m-note">Sketch-first mergiato ma mai in E2E reale con generazione live. La review (C4) e M5 (P3) hanno poi reso <code>param_first</code> la strategia di default — il criterio originale di #4 resta tecnicamente non soddisfatto nella sua forma iniziale. <strong>Vedi §04.</strong></td>
+        </tr>
+        <tr>
+          <td class="m-id">M4</td>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/5">#5</a></td>
+          <td><span class="pill pill-ok">chiusa</span></td>
+          <td class="m-note">Firewall simulato/fisico, gate anti-bias verificato come regola reale nel loop.</td>
+        </tr>
+        <tr>
+          <td class="m-id">—</td>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/15">#15</a></td>
+          <td><span class="pill pill-warn">aperta su GH</span></td>
+          <td class="m-note">Review tecnica critica: deliverable prodotto (<code>review_tecnica.md</code>), C1–C11 trovate, 7 proposte P1–P7. Lavoro concluso, issue ancora aperta.</td>
+        </tr>
+        <tr>
+          <td class="m-id">M5</td>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/17">#17</a></td>
+          <td><span class="pill pill-warn">aperta su GH</span></td>
+          <td class="m-note">C1, C2, C3, C4, C5, C6, C7, C10 chiusi in sandbox — 8 test rosso→verde, mergiata in develop. C8 (budget non portabile) esplicitamente rimandato a M6/M7.</td>
+        </tr>
+        <tr>
+          <td class="m-id">M6</td>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/18">#18</a></td>
+          <td><span class="pill pill-warn">aperta su GH</span></td>
+          <td class="m-note"><strong>9/9 TC-E2E</strong> su RunPod (run0 diagnosi, run1 esecuzione): primo PASS end-to-end reale, SIGSEGV risolto strutturalmente, C2/C6/C8 confermati dal vivo, C8 ricalibrato (100s → 140s). Commento di chiusura pubblicato, issue non ancora chiusa su GitHub.</td>
+        </tr>
+        <tr>
+          <td class="m-id">M7</td>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/19">#19</a></td>
+          <td><span class="pill pill-danger">non iniziata</span></td>
+          <td class="m-note">Topologia Docker reale su RTX 3090. Gate ("dal 24") <strong>soddisfatto da ieri</strong> — nessun branch, commit o commento da 3 giorni.</td>
+        </tr>
+        <tr>
+          <td class="m-id">M8</td>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/20">#20</a></td>
+          <td><span class="pill pill-danger">non iniziata</span></td>
+          <td class="m-note">Bootstrap Livello 6 + primo loop fisico. Dichiarata parallelizzabile a M7 fin dall'inizio — non dipende da nessuna istanza viva.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- ================= PUNTI DI FORZA ================= -->
+  <section class="section">
+    <div class="section-eyebrow">02 — Punti di forza</div>
+    <h2>Cosa regge, e perché non è cortesia dirlo</h2>
+    <div class="col">
+      <ul class="list">
+        <li><strong>La regola "ogni giuntura mai esercitata contiene un bug" è stata presa sul serio, non solo scritta.</strong> La review l'ha formulata (C9); M6 l'ha confermata due volte — sulle proprie giunture applicative (SIGSEGV, SSRF di Flowise, password non conforme) e sul processo del supervisore stesso, che ha violato la propria regola di preparazione e l'ha registrato in una retrospettiva pubblica (<code>docs/retrospettiva_m6_bringup.md</code>) invece di insabbiarla.</li>
+        <li><strong>Rosso prima di verde è rispettato fino al dettaglio.</strong> Ogni fix di M5 e M6 ha un output rosso documentato prima del fix minimale — compreso il fix "banale" dello schema <code>tolerance_type</code> in M6 (E2E-1, 4/4 verificato dopo la correzione).</li>
+        <li><strong>Il protocollo di harvest ha retto sotto stress reale.</strong> Durante l'incidente SSH del run0, il lavoro non è andato perso: la regola "push incrementale, mai solo sul pod" era già in vigore ed è stata la ragione per cui.</li>
+        <li><strong>Le riserve dichiarate sono davvero oneste.</strong> La review lo verifica esplicitamente ("nessuna delle affermazioni verificate che ho controllato si è rivelata gonfiata") ed è coerente con quanto trovato qui: ogni "non ancora fatto" nei documenti corrisponde a un gap reale, non a un arrotondamento ottimistico.</li>
+        <li><strong>I numeri ambiente-dipendenti vengono rimisurati, non ereditati.</strong> Il budget CPU del gauge-check è stato ricalibrato tre volte in tre ambienti diversi (sandbox 100s, CI 400s, pod 140s) invece di essere copiato dall'ultimo valore noto.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= CRITICITA DI PROCESSO ================= -->
+  <section class="section">
+    <div class="section-eyebrow">03 — Criticità di processo, oggi</div>
+    <h2>Cosa non è ancora vero nonostante sia dichiarato fatto</h2>
+    <div class="col">
+      <p>Nessuna di queste è una criticità tecnica sul codice — quella l'ha già fatta <code>review_tecnica.md</code>. Sono gap tra <strong>ciò che i documenti dicono</strong> e <strong>ciò che il tracker/i file pubblici mostrano</strong>, esattamente il tipo di scarto che il progetto si è impegnato a non tollerare nel proprio codice. Applicare lo stesso standard alla gestione del progetto, non solo al verificatore, è il punto di questa review.</p>
+    </div>
+    <div class="findings">
+      <div class="finding">
+        <div class="finding-idx">01</div>
+        <div class="finding-title">Tre issue di milestone sono chiuse nei fatti ma aperte su GitHub</div>
+        <div class="finding-body">#15 (review), #17 (M5) e #18 (M6) hanno tutte un deliverable completo, un commento di chiusura pubblicato e — per M5/M6 — i PR di merge referenziati. Nessuna delle tre è stata chiusa come issue. Il backlog visibile su GitHub oggi mostra 8 issue aperte quando quelle realmente attive sono 2 (#19, #20) più 3 a bassa priorità (#1, #4, #10).</div>
+      </div>
+      <div class="finding">
+        <div class="finding-idx">02</div>
+        <div class="finding-title">README.md e index.html sono fermi allo stato post-M5</div>
+        <div class="finding-body">L'ultimo commit che li tocca (<code>748ce9e</code>, "allinea README e index.html allo stato post-review/M5") precede l'intero ciclo M6. Il progetto ha una regola di processo esplicita per questo (ogni milestone precedente l'ha rispettata: fcf6ae6 per M1–M3, 0b383c7 per M4, 748ce9e per M5) — M6 è la prima a non averla ancora chiusa. Chi legge il README oggi non sa che esiste un PASS end-to-end reale.</div>
+      </div>
+      <div class="finding">
+        <div class="finding-idx">03</div>
+        <div class="finding-title">M7 è sbloccata da ieri, ferma da tre giorni</div>
+        <div class="finding-body">Il piano condiziona M7 alla disponibilità della RTX 3090 privata "dal 24" — oggi è il 25. Non esiste alcun branch, commit o commento di issue successivo al 22/08. M7 e M8 erano dichiarati parallelizzabili tra loro fin dall'inizio: nessuno dei due è partito, e M8.1–M8.2 (schema Livello 6 + validatore) non hanno mai avuto una dipendenza tecnica da attendere.</div>
+      </div>
+      <div class="finding">
+        <div class="finding-idx">04</div>
+        <div class="finding-title">Cinque fix runtime di M6-run1 restano fuori dal repo, con stato di propagazione da riconciliare</div>
+        <div class="finding-body">Il commento di chiusura di run1 elenca 5 riserve applicate solo a caldo sul pod (password Flowise, SSRF, <code>taskset</code>+limiti dell'executor, budget 140s, <code>RETRY_LOG_PATH</code>). Il commento successivo del supervisore le dichiara "già tutte coperte" da PR&nbsp;#25 — ma quel PR risulta aperto <em>prima</em> della chiusura di run1 nella sequenza dei commenti. Vale la pena una verifica riga per riga alla prossima sessione, non solo fidarsi della tabella di mappatura.</div>
+      </div>
+      <div class="finding">
+        <div class="finding-idx">05</div>
+        <div class="finding-title">Issue #4 (M3) non riflette la decisione presa in M5</div>
+        <div class="finding-body">Il criterio originale di #4 era un E2E reale con la pipeline sketch-first. M5 ha reso <code>param_first</code> il default (proposta P3, per i problemi C4 di precisione IEEE dello sketch-first) e M6 ha ottenuto il primo PASS reale proprio con <code>param_first</code>, non con lo sketch-first di M3. L'issue resta aperta senza che nessun documento dichiari esplicitamente se il criterio originale è superato, rimandato, o ancora da onorare con un run dedicato.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= BACKLOG ================= -->
+  <section class="section">
+    <div class="section-eyebrow">04 — Backlog aperto</div>
+    <h2>Le otto issue oggi aperte su GitHub</h2>
+    <div class="col wide">
+      <p>Vista unificata, con una lettura di priorità reale — non l'ordine numerico delle issue.</p>
+    </div>
+    <div class="tablewrap">
+    <table class="btable">
+      <thead>
+        <tr><th>Issue</th><th>Oggetto</th><th>Priorità</th><th>Perché</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/19">#19</a></td>
+          <td>M7 — topologia Docker reale, RTX 3090</td>
+          <td><span class="pill pill-danger">alta</span></td>
+          <td class="m-note">Gate soddisfatto da ieri. È l'unica giuntura strutturale mai esercitata che resta bloccante per "sistema integro" (C9): immagini mai buildate in produzione, isolamento attivo mai verificato dal vivo.</td>
+        </tr>
+        <tr>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/20">#20</a></td>
+          <td>M8 — bootstrap Livello 6 + primo loop fisico</td>
+          <td><span class="pill pill-danger">alta</span></td>
+          <td class="m-note">Il lavoro a valore dichiarato più alto di Fase A, mai schedulato prima di M5–M8 (C11). Le parti documentali (schema, bootstrap retroattivo dei casi storici) possono iniziare subito, in parallelo a M7.</td>
+        </tr>
+        <tr>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/18">#18</a></td>
+          <td>M6 — bring-up RunPod</td>
+          <td><span class="pill pill-neutral">chiusura amministrativa</span></td>
+          <td class="m-note">Lavoro completo, commento finale pubblicato ("M6 CHIUSA"). Chiudere l'issue con riferimento ai PR #21–#28.</td>
+        </tr>
+        <tr>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/17">#17</a></td>
+          <td>M5 — fix pack post-review</td>
+          <td><span class="pill pill-neutral">chiusura amministrativa</span></td>
+          <td class="m-note">Mergiata in develop, criterio soddisfatto salvo C8 (rimandato esplicitamente e poi chiuso in M6). Chiudere.</td>
+        </tr>
+        <tr>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/15">#15</a></td>
+          <td>Review tecnica critica</td>
+          <td><span class="pill pill-neutral">chiusura o ri-etichetta</span></td>
+          <td class="m-note">Deliverable prodotto e adottato integralmente dal piano di recupero. Chiudere, o etichettare esplicitamente come documento di riferimento permanente se si preferisce tenerla aperta per tracciabilità.</td>
+        </tr>
+        <tr>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/4">#4</a></td>
+          <td>M3 — sketch-first E2E (ambito "thread")</td>
+          <td><span class="pill pill-warn">decisione richiesta</span></td>
+          <td class="m-note">Vedi finding&nbsp;05. Serve una decisione esplicita: chiudere come superata da <code>param_first</code>, o pianificare un E2E dedicato allo sketch-first prima di chiuderla.</td>
+        </tr>
+        <tr>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/10">#10</a></td>
+          <td>Proposta: modalità gauge-check "section" (spessore minimo di parete)</td>
+          <td><span class="pill pill-neutral">pianificare dopo M7</span></td>
+          <td class="m-note">Genuinamente nuova (nessuna modalità esistente misura una proprietà del singolo pezzo). Valutazione già fatta con lo stesso rigore del resto del progetto; implementazione non ancora iniettata in nessuna milestone.</td>
+        </tr>
+        <tr>
+          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/1">#1</a></td>
+          <td>Integrazione con Norimberga (hosting locale)</td>
+          <td><span class="pill pill-neutral">bassa</span></td>
+          <td class="m-note">Tracciamento esplicitamente dichiarato "non blocca nulla", condizionato a una futura scelta di generazione locale mai presa.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- ================= RISCHI ================= -->
+  <section class="section">
+    <div class="section-eyebrow">05 — Domande aperte residue</div>
+    <h2>Ciò che nessun documento risolve ancora</h2>
+    <div class="col wide">
+      <p>Sintesi delle domande genuinamente aperte da <code>review_tecnica.md</code> §5 e dall'architettura originale, con lo stato reale ad oggi — alcune hanno un primo dato parziale da M6, nessuna è chiusa.</p>
+    </div>
+    <div class="riskgrid">
+      <div class="risk">
+        <p class="risk-q">Che rapporto c'è tra PASS virtuale e PASS fisico?</p>
+        <p class="risk-a">La domanda fondante del progetto. Zero dati fisici esistono ancora — è l'intero contenuto di M8. Finché non c'è una prima misura di concordanza, tutta la sofisticazione di M1–M6 resta una scommessa non verificata sulla propria utilità.</p>
+      </div>
+      <div class="risk">
+        <p class="risk-q">Il collaudo Go/No-Go a 21 step ha la risoluzione che serve?</p>
+        <p class="risk-a">Parzialmente risposto in E2E-9 (best-effort): rilevato a 0.5mm, non rilevato a 0.1mm — soglia minima tra i due, coerente con lo spacing dello sweep. Non ancora una misura sistematica.</p>
+      </div>
+      <div class="risk">
+        <p class="risk-q">Su quale hardware gira davvero "la produzione"?</p>
+        <p class="risk-a">Ancora nessuna risposta: i budget sono tarati su sandbox, CI e un pod RunPod — mai sulla topologia container reale. È esattamente ciò che M7 esiste per chiudere.</p>
+      </div>
+      <div class="risk">
+        <p class="risk-q">Il profilo a V non troncato e il vincolo <code>host_z == engagement</code> reggono un pezzo reale?</p>
+        <p class="risk-a">Entrambi dichiarati fuori scope finora. Il secondo in particolare (nessun foro cieco/controcavo) è "il primo muro contro cui sbatterà qualunque caso d'uso non sintetico" — non affrontato in nessuna milestone pianificata.</p>
+      </div>
+      <div class="risk">
+        <p class="risk-q">Quale modello serve davvero per L2.5?</p>
+        <p class="risk-a">Primo bench fatto in M6 (5 modelli, solo <code>gpt-4o-mini</code> a inventati=0%) ma <strong>sullo schema pre-fix</strong> di <code>tolerance_type</code> — dichiarato esplicitamente da rifare prima di ogni decisione.</p>
+      </div>
+      <div class="risk">
+        <p class="risk-q">Il punto cieco di <code>apply_preset</code> è davvero chiuso?</p>
+        <p class="risk-a">Un campo inventato dal modello resta oggi indistinguibile da uno fornito dall'utente; mitigato dalla conferma umana <code>--confirm</code> (Rischio #5), non risolto strutturalmente. Aperto per M7/review.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= RACCOMANDAZIONI ================= -->
+  <section class="section">
+    <div class="section-eyebrow">06 — Raccomandazioni</div>
+    <h2>Tre orizzonti, in ordine di esecuzione</h2>
+
+    <div class="horizon">
+      <div class="horizon-head"><span class="tag">Ora — costo ~zero</span> Igiene di piano</div>
+      <ol class="reco">
+        <li><span class="reco-text"><strong>Sincronizzare README.md e index.html</strong> allo stato reale di M6 (9/9 TC-E2E, SIGSEGV risolto, primo PASS end-to-end) — la stessa regola già rispettata per M1–M5.</span><span class="reco-meta">tocca: README.md, index.html</span></li>
+        <li><span class="reco-text"><strong>Chiudere formalmente #17, #18</strong> su GitHub con riferimento ai PR di merge, e decidere lo stato di #15 (chiudere o ri-etichettare come riferimento).</span><span class="reco-meta">tocca: tracker GitHub</span></li>
+        <li><span class="reco-text"><strong>Sciogliere #4</strong> con una decisione esplicita — superata da <code>param_first</code>, oppure pianificato un E2E sketch-first dedicato — invece di lasciarla aperta senza indicazione.</span><span class="reco-meta">tocca: issue #4</span></li>
+      </ol>
+    </div>
+
+    <div class="horizon">
+      <div class="horizon-head"><span class="tag">Subito — gate già soddisfatto</span> Avvio M7</div>
+      <ol class="reco">
+        <li><span class="reco-text"><strong>Avviare M7</strong> (#19): la RTX 3090 è disponibile dal 24, oggi è il 25 — nessun blocco residuo dichiarato nel piano.</span><span class="reco-meta">rif.: piano_recupero.md §3/M7</span></li>
+        <li><span class="reco-text"><strong>Verificare riga per riga</strong> che PR #25 copra davvero le 5 riserve runtime di M6-run1 (password Flowise, SSRF, <code>taskset</code>/limiti executor, budget 140s, <code>RETRY_LOG_PATH</code>) prima di considerarle chiuse.</span><span class="reco-meta">rif.: finding 04</span></li>
+        <li><span class="reco-text"><strong>Ricalibrare <code>CALIPER_CPU_LIMIT_S</code></strong> per <code>run_and_measure.py</code> con dati tipo E2E-3 — unico numero di C8 non ancora rimisurato.</span><span class="reco-meta">tocca: services/orchestrator, ops/runpod</span></li>
+        <li><span class="reco-text"><strong>Ri-eseguire il bench modelli L2.5</strong> sullo schema <code>tolerance_type</code> corretto prima di scegliere il modello di produzione — il bench attuale fotografa lo schema pre-fix.</span><span class="reco-meta">tocca: bench/bench_l25_models.py</span></li>
+      </ol>
+    </div>
+
+    <div class="horizon">
+      <div class="horizon-head"><span class="tag">In parallelo</span> Avvio M8, non tecnicamente bloccata</div>
+      <ol class="reco">
+        <li><span class="reco-text"><strong>Avviare la parte documentale di M8</strong> (#20) in parallelo a M7: schema formale del Livello 6 e validatore non dipendono da nessuna istanza viva, e possono partire subito.</span><span class="reco-meta">rif.: piano_recupero.md §3/M8, punti 1–2</span></li>
+        <li><span class="reco-text"><strong>Bootstrap retroattivo dei casi storici</strong> con l'utente — l'unico dato fisico esistente al mondo per questo progetto, dichiaratamente non delegabile a una sessione.</span><span class="reco-meta">richiede: lavoro umano non automatizzabile</span></li>
+        <li><span class="reco-text"><strong>Pianificare issue #10</strong> (modalità <code>section_thickness</code>) dopo M7, con lo stesso rigore empirico già applicato a TC1/TC2/TC3 — nessuna geometria generata da LLM prima di una validazione su casi noti.</span><span class="reco-meta">rif.: issue #10</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <footer class="closing">
+    <p>Questa review applica al piano e al tracker la stessa disciplina che il progetto applica al proprio codice — misurare lo stato reale invece di assumerlo dall'ultimo documento scritto. Nessuna delle criticità in §03 è un giudizio sul lavoro tecnico svolto, che resta — nei propri termini — solido e onestamente documentato: sono gap di sincronizzazione tra ciò che è vero e ciò che il repository mostra a chi arriva ora.</p>
+    <p class="stamp">Basata su: README.md · docs/*.md (14 documenti) · issue #1–#20 (12 esistenti) · log commit develop @ 3f358c6</p>
+  </footer>
+
+</div>
