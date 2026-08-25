@@ -7,6 +7,50 @@ stato è la fonte primaria, con dettaglio per-TC; questo file è
 l'indice cronologico). Non ci sono ancora release/tag versionati — le
 date sono quelle di merge in `develop`.
 
+## [M7+] — 2026-08-25
+
+"Prompt to Part" — pagina interattiva servita dalla dashboard,
+estensione di M7 (stesso giorno), non una milestone nuova. PR
+[#33](https://github.com/danielesalpietro/caliper-cad/pull/33),
+[#34](https://github.com/danielesalpietro/caliper-cad/pull/34).
+
+### Added
+- `services/dashboard/static/prompt-to-part.html`: prompt in
+  linguaggio naturale → `/api/normalize` (L2.5/Ollama) →
+  `/api/generate` (rilancia `generate_and_verify.py` com'è) → viewer
+  3D WebGL scritto da zero (parser STL binario + renderer minimale,
+  niente librerie esterne) → 4 download.
+- `/api/download/step`, `/api/download/stl`, `/api/download/gcode`,
+  `/api/report` (PDF stile disegno tecnico via `reportlab`: spec,
+  preset, parametri slicer, stima filamento/tempo di stampa,
+  verifica L3, gauge-check GO/NO-GO, timbro PASS/FAIL).
+- Nuovo servizio `slicer-watcher` (`ops/docker/prusaslicer/watch.sh`):
+  parallelo a `prusaslicer` esistente (mai toccato), stesso binario,
+  entrypoint diverso — comunica con la dashboard solo tramite un
+  volume condiviso, nessun accesso Docker dalla dashboard.
+- `.env`: `PUBLIC_ACCESS` (Flowise/Open WebUI pubblici o solo interni
+  — la dashboard non è mai gated) e `PROMPT_TO_PART_MODE` (RW/RO,
+  applicato lato server).
+
+### Fixed
+- Dashboard: `health_url` di Flowise era una stringa statica, mai
+  esercitata contro un `FLOWISE_PORT` non-default finché non l'abbiamo
+  cambiato per davvero — segnalava "down" con Flowise realmente up.
+- Persistenza Flowise: il volume dati era montato su `/root/.flowise`,
+  non scrivibile dall'utente `node` (uid 1000) con cui gira il
+  container — account/API key/chatflow sopravvivevano solo finché il
+  container non veniva ricreato. Fix: `/home/node/.flowise` + owner
+  precreato nell'immagine (un volume nominato vuoto eredita i permessi
+  della directory che sovrascrive al primo mount).
+- PDF report: "filament used"/"estimated printing time" stanno *dopo*
+  un dump di centinaia di righe di parametri nel G-code, non
+  nell'header — un tail a byte fissi li mancava sempre.
+
+### Declared, not omitted
+- `/api/generate` chiama GPT (costo reale) senza autenticazione né
+  limite di frequenza su una pagina pubblica — tracciato in issue
+  [#35](https://github.com/danielesalpietro/caliper-cad/issues/35).
+
 ## [M7] — 2026-08-25
 
 Topologia Docker reale su RTX 3090 — prima volta su hardware dedicato

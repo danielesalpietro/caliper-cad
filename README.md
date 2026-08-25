@@ -309,6 +309,26 @@ metric thread feature class:
   analysis, including a hardware/software fingerprint of the run
   environment, in [`docs/report_m7_run0.md`](docs/report_m7_run0.md);
   per-test detail in [`docs/logbook_fase7.md`](docs/logbook_fase7.md).
+- **"Prompt to Part" (merged, same day as M7):** an interactive page
+  served by the dashboard
+  ([`services/dashboard/static/prompt-to-part.html`](services/dashboard/static/prompt-to-part.html))
+  — type a natural-language spec, watch it go through the real L2.5
+  and L2 chatflows and the real gauge check, and get back an
+  interactive 3D viewer (a from-scratch WebGL STL viewer, no external
+  library) plus four downloads: the STEP, the STL, a G-code (sliced
+  live by a new `slicer-watcher` service, running the same PrusaSlicer
+  binary as the on-demand `prusaslicer` service but as a persistent
+  job-queue worker instead), and a technical-drawing-style PDF report
+  (via `reportlab`) with the spec, the preset, the slicer parameters,
+  the verification checks, and the Go/No-Go gauge results. Two new
+  `.env` flags: `PUBLIC_ACCESS` (Flowise and Open WebUI reachable from
+  outside or host-only — the dashboard itself is never gated by this,
+  deliberately, so an OFF set remotely can't lock out the panel that
+  would turn it back ON) and `PROMPT_TO_PART_MODE` (`RW`/`RO`, enforced
+  server-side, not just hidden in the UI). **Declared, not
+  omitted:** `/api/generate` calls GPT (real cost) with no
+  authentication or rate limit on a publicly reachable page — tracked
+  as [issue #35](https://github.com/danielesalpietro/caliper-cad/issues/35).
 
 The verification scripts accumulated across M1–M5 (14 through M4, 21
 after M5) run automatically on every push/PR via
