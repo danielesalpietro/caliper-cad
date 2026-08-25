@@ -258,7 +258,7 @@
         ],
         "inputs": {
           "cache": "",
-          "baseUrl": "http://localhost:11434/",
+          "baseUrl": "http://ollama:11434/",
           "modelName": "granite4:1b",
           "temperature": "0",
           "streaming": true,

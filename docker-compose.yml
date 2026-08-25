@@ -43,6 +43,7 @@ volumes:
   flowise_data:
   open_webui_data:
   verifier_exec:
+  stream_agent_state:
 
 services:
 
@@ -114,10 +115,21 @@ services:
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-granite-embedding:30m}
       DATASET_DIR: /data/dataset
       VIRTUAL_LOG_PATH: /data/virtual_log/retry_log.jsonl
+      # [M7, C6] Giuntura mai esercitata: /data/virtual_log e' read-only
+      # per scelta (l'indexer non deve poter toccare il log
+      # dell'orchestratore), ma il file di offset che rende
+      # l'indicizzazione incrementale sopravvissuta ai riavvii (fix
+      # C6) e' un sidecar SCRITTO accanto al log — su RunPod (M6) quel
+      # path era nativo e scrivibile, mai testato dentro un bind mount
+      # :ro finora. VIRTUAL_LOG_OFFSET_PATH era gia' overridabile via
+      # env (nessun cambio al codice): lo spostiamo su un volume
+      # dedicato scrivibile.
+      VIRTUAL_LOG_OFFSET_PATH: /data/state/retry_log.jsonl.offset
       POLL_INTERVAL_SECONDS: "30"
     volumes:
       - ${DATA_DIR:-./data}/dataset:/data/dataset:ro
       - ${DATA_DIR:-./data}/virtual_log:/data/virtual_log:ro
+      - stream_agent_state:/data/state
     depends_on:
       - ollama
       - qdrant
@@ -165,6 +177,25 @@ services:
     container_name: caliper-verifier-executor
     restart: unless-stopped
     network_mode: "none"
+    # [M7, C8] Rimisurato dal vivo in QUESTA topologia (regola #3 del
+    # piano: i numeri di M6 non si trasferiscono per assunzione) — e
+    # infatti non si sono trasferiti. RLIMIT_CPU somma il tempo di TUTTI
+    # i thread combinati: con 32 core reali (bare metal, non un pod
+    # oversubscribed) l'aggregato cresce molto piu' in fretta che sul pod
+    # RunPod di M6 a parita' di lavoro reale (stesso pezzo, stesso sweep,
+    # wall-clock quasi identico ~20s vs ~37s qui per il gauge-check GO —
+    # e' la CPU totale che diverge, ~91s in M6 contro ~268s misurati qui).
+    # CALIPER_AS_LIMIT_MB: anche il default 2048 "tarato per
+    # docker-compose" (vedi commento in run_and_measure.py) si e'
+    # rivelato insufficiente qui dal vivo (SIGSEGV, exit 139) — il
+    # commento nel codice era una previsione mai verificata in un
+    # container reale prima d'ora, non un fatto. Valori: worst-case
+    # misurato x1.5, stessa convenzione di E2E-8/M6.
+    environment:
+      CALIPER_AS_LIMIT_MB: "16384"
+      CALIPER_STACK_LIMIT_MB: "2"
+      CALIPER_CPU_LIMIT_S: "25"
+      GAUGE_CHECK_CPU_LIMIT_SECONDS: "405"
     volumes:
       - verifier_exec:/exec
       - ${DATA_DIR:-./data}/models:/models:ro
@@ -184,7 +215,12 @@ services:
     # vedi docs/logbook_fase5.md per il dettaglio) — da aggiornare
     # deliberatamente (bump esplicito, non "latest" che si aggiorna da
     # solo) quando serve una versione piu' recente.
-    image: flowiseai/flowise:3.1.4
+    # [M7] Build locale invece di `image: flowiseai/flowise:3.1.4` diretta:
+    # applica il fix a connect-sqlite3 (vedi ops/docker/flowise/Dockerfile)
+    # senza cui il container non arriva nemmeno a "healthy". Stessa base
+    # e stessa versione pinnata, solo quel modulo e' patchato.
+    build: ./ops/docker/flowise
+    image: caliper-flowise:3.1.4-patched
     container_name: caliper-flowise
     restart: always
     networks: [caliper-ai]
@@ -303,12 +339,16 @@ services:
   # CLI batch, non un servizio long-running: non parte con "docker compose
   # up" di default (profilo "tools"), si invoca on-demand con
   # "docker compose run prusaslicer ...". Nessuna rete necessaria.
-  # TODO: verificare i path di mount attesi dall'immagine
-  # billa05/prusacli (non ispezionati direttamente) prima del primo uso
-  # reale — quelli sotto sono una convenzione ragionevole, non confermata.
+  # [M7] Verificato dal vivo (era un TODO, mount "dedotti, mai
+  # confermati"): l'immagine ha entrypoint di default /bin/bash (inutile
+  # qui, "--help" veniva interpretato da bash stesso), il binario reale e'
+  # /app/prusa-slicer (non "prusa-slicer-console" come ipotizzato nel
+  # commento del profilo caliper-pla.ini) — PrusaSlicer 2.9.2. I path di
+  # mount sotto erano gia' corretti (confermati), l'entrypoint no.
   prusaslicer:
     image: billa05/prusacli:latest
     container_name: caliper-prusaslicer
+    entrypoint: ["/app/prusa-slicer"]
     profiles: ["tools"]
     network_mode: "none"
     volumes:

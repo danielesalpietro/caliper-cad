@@ -1,0 +1,30 @@
+{
+  "files": [
+    {
+      "path": "e2e2_thread_M6.gcode",
+      "bytes": 310366,
+      "sha256": "4c79b5126b42ba8e0a0d27fcf412d5c5b305b96017ca49a1111428c3dfbc05e6"
+    },
+    {
+      "path": "env_fingerprint.json",
+      "bytes": 559,
+      "sha256": "29fddc6b55555111822baa38ac477527ffc8acc17bf83db5f7789a143e6996ba"
+    },
+    {
+      "path": "incoming/e2e5_case1.json",
+      "bytes": 220,
+      "sha256": "d12fb9333763685d845be4ae34e0552b0e78f7b3a1ebfcce30475bbec0ef3982"
+    },
+    {
+      "path": "incoming/e2e6_physical_fail.json",
+      "bytes": 262,
+      "sha256": "33f74fe8c95b8c3b56f1c57bd27ddd8fb35190821b5e7f07858b375c87ccaeac"
+    },
+    {
+      "path": "retry_log.jsonl",
+      "bytes": 5233,
+      "sha256": "63fd478a7ebde5c47bccacdc58a6df2e109e10b0ed36380d5a42a4d145138abe"
+    }
+  ],
+  "count": 5
+}
