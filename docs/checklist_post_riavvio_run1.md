@@ -13,7 +13,7 @@ va rifatto, senza riscoprirlo da zero.
       pannello, non riusare quella del run precedente (mi e' successo:
       "Connection refused" sulla vecchia porta, poi l'utente ne ha
       dato una nuova).
-- [ ] **Round 1 di questa serie (2026-08-22, secondo tentativo di
+- [x] **Round 1 di questa serie (2026-08-22, secondo tentativo di
       restart): `sshd` avviato a mano da web terminal risultava come
       processo vivo (`pgrep -ax sshd` lo mostrava, stato
       `[listener]`) ma la connessione da fuori dava comunque
@@ -21,12 +21,23 @@ va rifatto, senza riscoprirlo da zero.
       nulla di visibile (echo "SSHD UP" non e' apparso — la pipe si e'
       fermata li').** Causa NON accertata in quel tentativo (sessione
       interrotta prima di poter leggere l'output completo di
-      `ss -tlnp` senza filtro). Prossima volta: eseguire `ss -tlnp`
-      SENZA filtro per primo (vedere tutte le porte in ascolto, non
-      solo presumere che :22 ci sia), e controllare anche se il
-      pannello RunPod mappa davvero la porta esterna sul container
-      port 22 (non dare per scontato — potrebbe essere un mismatch di
-      mappatura lato RunPod, non un problema di sshd stesso).
+      `ss -tlnp` senza filtro).
+      **Chiuso 2026-08-25, non riaperto**: questo round verificava se i
+      fix runtime del run1 sopravvivevano a un riavvio del *pod RunPod*
+      — domanda superata dai fatti, non dalla diagnosi. M6 e' stata
+      chiusa dal supervisore poche ore dopo (le 5 riserve sono tutte
+      in `PR #25`, quindi ora vivono nel codice/immagine, non piu' in
+      un fix runtime a rischio di non sopravvivere a un riavvio) e M7
+      esercita la stessa suite in una topologia diversa (Docker su RTX
+      3090, non piu' processi nativi su pod RunPod) — quindi un sshd
+      irraggiungibile su un pod RunPod che con ogni probabilita' e'
+      gia' stato terminato (harvest era gia' verde e pushato, il
+      supervisore aveva autorizzato lo spegnimento) non e' piu' una
+      domanda rilevante da inseguire. Se dovesse riservirsi RunPod in
+      futuro, il prossimo tentativo resta comunque valido: `ss -tlnp`
+      SENZA filtro per primo, e verificare se il pannello RunPod mappa
+      davvero la porta esterna sul container port 22 (mismatch di
+      mappatura lato RunPod, non detto sia sshd stesso).
 - [ ] `OPENAI_API_KEY`/`GITHUB_TOKEN` presenti nell'ambiente REALE di
       boot (`/proc/<pid-supervisord>/environ`, non la propria shell —
       falso allarme gia' preso 2 volte in questa sessione)
