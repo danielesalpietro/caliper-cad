@@ -30,6 +30,11 @@
   }
   nav.side button:hover{ background:var(--accent-soft); color:var(--text); }
   nav.side button.active{ color:var(--accent); font-weight:600; border-left-color:var(--accent); background:var(--accent-soft); }
+  nav.side .nav-link-out{
+    display:block; padding:10px 20px; font-size:14px; color:var(--muted);
+    border-left:3px solid transparent; text-decoration:none; margin-top:auto;
+  }
+  nav.side .nav-link-out:hover{ background:var(--accent-soft); color:var(--text); }
 
   /* ---------------- main ---------------- */
   main{ flex:1; padding:40px 48px; max-width:900px; }
@@ -84,6 +89,7 @@
   <button data-tab="rete">Rete</button>
   <button data-tab="capacity">Capacity</button>
   <button data-tab="installazione">Installazione</button>
+  <a href="/prompt-to-part.html" target="_blank" rel="noopener" class="nav-link-out">Prompt to Part ↗</a>
 </nav>
 
 <main>
