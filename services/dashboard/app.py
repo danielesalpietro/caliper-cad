@@ -46,7 +46,17 @@ SERVICES = [
         "name": "Flowise",
         "level": "L1 / L2.5 / L2",
         "description": "motore di esecuzione — input, normalizzazione specifica, generazione",
-        "health_url": "http://flowise:3000/api/v1/ping",
+        # [M7] Flowise e' l'unico servizio la cui porta INTERNA (non solo
+        # quella pubblicata sull'host) cambia con FLOWISE_PORT — il
+        # compose passa PORT=${FLOWISE_PORT} al container, quindi
+        # cambiare quella variabile sposta anche l'indirizzo su cui
+        # ascolta dentro la rete Docker. Una `health_url` statica
+        # (com'era: "http://flowise:3000/...") punta a una porta morta
+        # non appena FLOWISE_PORT si discosta dal default — mai
+        # esercitato prima di cambiarla per davvero la prima volta.
+        "health_url_env": "FLOWISE_PORT",
+        "health_default_port": 3000,
+        "health_path": "/api/v1/ping",
         "open_url_env": "FLOWISE_PORT",
         "open_default_port": 3000,
         "open_path": "",
@@ -136,10 +146,27 @@ def compute_open_url(svc: dict) -> str | None:
     return f"http://localhost:{port}{svc.get('open_path', '')}"
 
 
-async def check_status(svc: dict, client: httpx.AsyncClient) -> str:
+def compute_health_url(svc: dict) -> str | None:
     if svc.get("health_url"):
+        return svc["health_url"]
+    if svc.get("health_url_env"):
+        # Stesso pattern di compute_open_url, ma sull'hostname interno
+        # della rete Docker (svc["id"] coincide col nome del servizio nel
+        # compose per costruzione, vedi SERVICES sopra) invece di
+        # "localhost" — qui serve chiamare il container, non aprirlo nel
+        # browser dell'utente.
+        port = os.environ.get(svc["health_url_env"]) or svc.get("health_default_port")
+        if not port:
+            return None
+        return f"http://{svc['id']}:{port}{svc.get('health_path', '')}"
+    return None
+
+
+async def check_status(svc: dict, client: httpx.AsyncClient) -> str:
+    health_url = compute_health_url(svc)
+    if health_url:
         try:
-            r = await client.get(svc["health_url"], timeout=HEALTH_TIMEOUT_SECONDS)
+            r = await client.get(health_url, timeout=HEALTH_TIMEOUT_SECONDS)
             return "up" if r.status_code < 400 else "down"
         except (httpx.HTTPError, OSError):
             return "down"
