@@ -44,6 +44,7 @@ volumes:
   open_webui_data:
   verifier_exec:
   stream_agent_state:
+  slicer_jobs:
 
 services:
 
@@ -225,7 +226,14 @@ services:
     restart: always
     networks: [caliper-ai]
     ports:
-      - "${FLOWISE_PORT:-3000}:${FLOWISE_PORT:-3000}"
+      # [Prompt to Part / accesso pubblico] Docker Compose non ha un vero
+      # switch ON/OFF sul bind di una porta, solo un indirizzo host:
+      # PUBLIC_ACCESS=0.0.0.0 pubblica davvero (ON), 127.0.0.1 la rende
+      # raggiungibile solo dall'host/dagli altri container (OFF) -- la
+      # comunicazione INTERNA (dashboard -> flowise, generate_and_verify.py
+      # -> flowise) passa dalla rete Docker via hostname, mai da questa
+      # porta pubblicata, quindi resta identica in entrambi i casi.
+      - "${PUBLIC_ACCESS:-0.0.0.0}:${FLOWISE_PORT:-3000}:${FLOWISE_PORT:-3000}"
     environment:
       PORT: ${FLOWISE_PORT:-3000}
       FLOWISE_USERNAME: ${FLOWISE_USERNAME:-}
@@ -238,7 +246,18 @@ services:
       # docs/logbook_fase6.md.
       HTTP_SECURITY_CHECK: "false"
     volumes:
-      - flowise_data:/root/.flowise
+      # [M7] Il container gira come utente 'node' (uid 1000), non root:
+      # /root non e' scrivibile da lui (verificato dal vivo,
+      # `drwx------ root root`). L'immagine ufficiale sceglie la
+      # directory dati da $HOME (getUserHome()), che per 'node' e'
+      # /home/node, MAI /root -- montare su /root/.flowise (com'era)
+      # non falliva rumorosamente: Flowise scriveva silenziosamente in
+      # /home/node/.flowise, fuori dal volume, quindi account/API
+      # key/credential/import chatflow sopravvivevano SOLO finche' il
+      # container non veniva ricreato (mai esercitato finche' non si
+      # e' ricreato il container una seconda volta per un cambio di
+      # config non correlato -- bug scoperto cosi', vedi PR #33).
+      - flowise_data:/home/node/.flowise
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:${FLOWISE_PORT:-3000}/api/v1/ping || exit 1"]
       interval: 10s
@@ -276,7 +295,9 @@ services:
     restart: unless-stopped
     networks: [caliper-ai]
     ports:
-      - "${OPEN_WEBUI_PORT:-3010}:8080"
+      # [Prompt to Part / accesso pubblico] Stesso flag PUBLIC_ACCESS di
+      # flowise sopra -- vedi il commento li' per il perche'.
+      - "${PUBLIC_ACCESS:-0.0.0.0}:${OPEN_WEBUI_PORT:-3010}:8080"
     environment:
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-}
       OLLAMA_BASE_URL: http://ollama:11434
@@ -342,11 +363,19 @@ services:
       L2_STRATEGY: param_first
       L6_DATASET_DIR: /data/dataset
       RETRY_LOG_PATH: /data/virtual_log/retry_log.jsonl
+      # Stesso flag usato per il bind delle porte di flowise/open-webui
+      # sopra -- qui serve perche' /api/services deve sapere se mostrare
+      # "Apri" o "solo interno" per quei due servizi (vedi compute_open_url
+      # in app.py). RO/RW: vedi ops/docker/prusaslicer/watch.sh e issue #35.
+      PUBLIC_ACCESS: ${PUBLIC_ACCESS:-0.0.0.0}
+      PROMPT_TO_PART_MODE: ${PROMPT_TO_PART_MODE:-RW}
     volumes:
       - ./services/orchestrator:/orchestrator:ro
       - ${DATA_DIR:-./data}/dataset:/data/dataset:ro
       - ${DATA_DIR:-./data}/virtual_log:/data/virtual_log
       - verifier_exec:/exec:ro
+      - slicer_jobs:/jobs
+      - ./config/prusaslicer:/config:ro
     depends_on:
       - docker-socket-proxy
 
@@ -370,3 +399,27 @@ services:
       - ${DATA_DIR:-./data}/models:/models
       - ${DATA_DIR:-./data}/gcode:/gcode
       - ./config/prusaslicer:/config:ro
+
+  # ---------------- Livello 4 — slicing on-demand (Prompt to Part) ----------------
+  # [Prompt to Part] Servizio PARALLELO a "prusaslicer" sopra, non una
+  # sua modifica: stessa immagine, stesso binario, entrypoint diverso
+  # (un loop invece di un'invocazione singola) e SEMPRE avviato (non
+  # profilo "tools") — la dashboard non ha e non deve avere accesso
+  # Docker per fare "docker compose run prusaslicer" da sola (stessa
+  # scelta di isolamento di docker-socket-proxy: POST=0), e il binario
+  # non si puo' copiare nell'immagine dashboard senza portarsi dietro
+  # tutte le dipendenze GTK/WebKit di PrusaSlicer (19 librerie mancanti,
+  # verificato dal vivo). Comunica con la dashboard SOLO tramite il
+  # volume slicer_jobs — stesso pattern job/result di verifier-executor.
+  # network_mode: none per lo stesso motivo di quel servizio: nessun
+  # bisogno di rete per uno slicer batch.
+  slicer-watcher:
+    image: billa05/prusacli:latest
+    container_name: caliper-slicer-watcher
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "/watch.sh"]
+    network_mode: "none"
+    volumes:
+      - slicer_jobs:/jobs
+      - ./config/prusaslicer:/config:ro
+      - ./ops/docker/prusaslicer/watch.sh:/watch.sh:ro

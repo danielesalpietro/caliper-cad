@@ -60,6 +60,7 @@
   .card-text{ min-width:0; }
   .card-text .name{ font-weight:600; font-size:14px; }
   .card-text .desc{ color:var(--muted); font-size:12.5px; margin-top:2px; }
+  .gated-note{ color:var(--unknown); font-weight:400; font-size:12px; }
   .card-actions{ flex:none; display:flex; align-items:center; gap:10px; }
   .status-dot{ width:9px; height:9px; border-radius:50%; background:var(--unknown); flex:none; }
   .status-dot.up{ background:var(--ok); }
@@ -171,7 +172,7 @@ function renderServices() {
       <div class="card-main">
         <span class="level-badge">${s.level}</span>
         <div class="card-text">
-          <div class="name">${s.name}</div>
+          <div class="name">${s.name}${s.public_access_off ? ' <span class="gated-note">· solo interno (PUBLIC_ACCESS=off)</span>' : ''}</div>
           <div class="desc">${s.description}</div>
         </div>
       </div>
