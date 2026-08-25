@@ -18,18 +18,41 @@ in docs/architettura-prototipo-mesh-llm.md.
 Eccezione di rete: a differenza degli altri servizi su caliper-public,
 questo e' multi-homed (caliper-ai + caliper-public) proprio perche' deve
 raggiungere sia gli altri container che il proxy Docker.
+
+[Prompt to Part] /api/normalize e /api/generate: la pagina statica
+static/prompt-to-part.html chiama la pipeline vera da qui, stesso
+principio "un servizio non chiama un altro senza un motivo reale" gia'
+in uso sopra. /api/normalize chiama il chatflow L2.5 (Ollama, gratis).
+/api/generate rilancia services/orchestrator/generate_and_verify.py
+(montato read-only, MAI riscritto qui: e' il codice gia' validato dalla
+suite TC-E2E, non c'e' motivo di duplicarne la logica) come subprocess
+e ne fa il parsing dell'output — poi converte lo STEP prodotto in STL
+(cadquery, stesso ruolo di verifier-executor) per il viewer. NESSUN
+controllo di accesso qui (pagina pubblica, nessun limite di frequenza):
+scelta esplicita dell'utente per accelerare, tracciata in issue #35 —
+non un'omissione.
 """
 
 import asyncio
+import base64
+import json
 import os
+import re
 import struct
+import subprocess
+import tempfile
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 app = FastAPI(title="CALIPER — dashboard")
+
+ORCHESTRATOR_DIR = "/orchestrator"
+EXEC_PARTS_DIR = "/exec/parts"
+GENERATE_TIMEOUT_SECONDS = 180
 
 DOCKER_PROXY_URL = os.environ.get("DOCKER_PROXY_URL", "http://docker-socket-proxy:2375")
 HEALTH_TIMEOUT_SECONDS = 1.5
@@ -225,6 +248,167 @@ async def get_logs(service_id: str):
         return PlainTextResponse(f"errore dal proxy Docker: HTTP {r.status_code}", status_code=502)
     text = demux_docker_logs(r.content)
     return PlainTextResponse(text or "(nessun log)")
+
+
+class NormalizeRequest(BaseModel):
+    prompt: str
+
+
+class GenerateRequest(BaseModel):
+    spec: dict
+
+
+def _resolve_flowise_chatflow_id(flows: list, name_fragment: str) -> str | None:
+    for f in flows:
+        if name_fragment in f.get("name", ""):
+            return f.get("id")
+    return None
+
+
+@app.post("/api/normalize")
+async def normalize(req: NormalizeRequest):
+    prompt = req.prompt.strip()
+    if not prompt:
+        raise HTTPException(400, "prompt vuoto")
+    api_key = os.environ.get("FLOWISE_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(503, "FLOWISE_API_KEY non configurata su questo servizio")
+    flowise_url = os.environ.get("FLOWISE_URL", f"http://flowise:{os.environ.get('FLOWISE_PORT', '3000')}")
+    headers = {"Authorization": f"Bearer {api_key}"}
+    async with httpx.AsyncClient() as client:
+        try:
+            r = await client.get(f"{flowise_url}/api/v1/chatflows", headers=headers, timeout=10)
+            r.raise_for_status()
+            flows = r.json()
+        except (httpx.HTTPError, ValueError) as e:
+            raise HTTPException(502, f"impossibile leggere i chatflow da Flowise: {e}") from e
+        chatflow_id = _resolve_flowise_chatflow_id(flows, "L2.5")
+        if not chatflow_id:
+            raise HTTPException(503, "chatflow L2.5 non trovato — importato?")
+        try:
+            r = await client.post(
+                f"{flowise_url}/api/v1/prediction/{chatflow_id}",
+                headers=headers,
+                json={"question": prompt},
+                timeout=30,
+            )
+            r.raise_for_status()
+            data = r.json()
+        except (httpx.HTTPError, ValueError) as e:
+            raise HTTPException(502, f"chiamata al chatflow L2.5 fallita: {e}") from e
+    spec = data.get("json")
+    if spec is None:
+        # [E2E-1, docs/logbook_fase6.md] Flowise 3.1.4 con Structured
+        # Output Parser mette la risposta in data["json"], non
+        # data["text"] -- se manca, il parser ha fallito o il chatflow
+        # non ha un output parser strutturato collegato.
+        raise HTTPException(502, "risposta L2.5 senza campo 'json' strutturato")
+    return {"spec": spec}
+
+
+def _extract_json_after(text: str, marker: str, start_from: int = 0):
+    """Trova il primo blocco JSON bilanciato dopo `marker` nell'output
+    testuale di generate_and_verify.py (che stampa gia' json.dumps(...,
+    indent=2) per ogni esito -- qui solo letto, mai riscritto)."""
+    idx = text.find(marker, start_from)
+    if idx == -1:
+        return None, -1
+    brace_idx = text.find("{", idx)
+    if brace_idx == -1:
+        return None, -1
+    depth = 0
+    for i in range(brace_idx, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(text[brace_idx : i + 1]), i + 1
+                except json.JSONDecodeError:
+                    return None, i + 1
+    return None, -1
+
+
+def _parse_generate_stdout(stdout: str) -> dict:
+    result: dict = {"status": "UNKNOWN"}
+
+    m = re.search(r"case_id:\s*([0-9a-fA-F-]+)", stdout)
+    if m:
+        result["case_id"] = m.group(1)
+
+    preset, _ = _extract_json_after(stdout, "-> Preset applicato:")
+    if preset:
+        result["preset"] = {
+            "name": preset.get("feature"),
+            "standard": preset.get("thread_standard"),
+            "engagement_length_mm": preset.get("engagement_length_mm"),
+        }
+
+    verify, _ = _extract_json_after(stdout, "--- Esito verifica ---")
+    if verify:
+        result["verify"] = verify
+        result["step_path"] = verify.get("generated_part_step_path")
+
+    go, _ = _extract_json_after(stdout, "--- Esito gauge-check ---")
+    if go:
+        result["go"] = go
+
+    nogo, _ = _extract_json_after(stdout, "--- Esito gauge-check (NO-GO) ---")
+    if nogo:
+        result["nogo"] = nogo
+
+    if "Strategia scartata dalla memoria del collaudo virtuale" in stdout:
+        result["status"] = "EXCLUDED"
+    elif re.search(r"=== PASS al tentativo \d+/\d+", stdout):
+        result["status"] = "PASS"
+    elif "final_status: unrecoverable_virtual" in stdout:
+        result["status"] = "FAIL"
+
+    return result
+
+
+def _step_to_stl_b64(step_rel_path: str) -> str | None:
+    step_path = os.path.join(EXEC_PARTS_DIR, step_rel_path)
+    if not os.path.isfile(step_path):
+        return None
+    import cadquery as cq  # lazy: pesante, serve solo qui
+
+    with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        shape = cq.importers.importStep(step_path)
+        cq.exporters.export(shape, tmp_path)
+        with open(tmp_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("ascii")
+    finally:
+        os.unlink(tmp_path)
+
+
+@app.post("/api/generate")
+async def generate(req: GenerateRequest):
+    env = dict(os.environ)
+    env.setdefault("L2_STRATEGY", "param_first")
+    proc = await asyncio.to_thread(
+        subprocess.run,
+        ["python3", "generate_and_verify.py", json.dumps(req.spec)],
+        cwd=ORCHESTRATOR_DIR,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=GENERATE_TIMEOUT_SECONDS,
+    )
+    result = _parse_generate_stdout(proc.stdout)
+    result["log_tail"] = proc.stdout[-4000:]
+    if proc.returncode not in (0, 1):
+        result.setdefault("status", "ERROR")
+        result["error"] = f"exit {proc.returncode}: {proc.stderr[-1000:]}"
+    if result.get("status") == "PASS" and result.get("step_path"):
+        try:
+            result["stl_base64"] = _step_to_stl_b64(result["step_path"])
+        except Exception as e:  # noqa: BLE001 - conversione best-effort, non deve rompere una PASS reale
+            result["stl_conversion_error"] = str(e)
+    return result
 
 
 @app.get("/health")

@@ -332,6 +332,21 @@ services:
       FLOWISE_PORT: ${FLOWISE_PORT:-3000}
       OPEN_WEBUI_PORT: ${OPEN_WEBUI_PORT:-3010}
       DOCKER_PROXY_URL: http://docker-socket-proxy:2375
+      # [Prompt to Part] /api/normalize e /api/generate: la dashboard
+      # chiama Flowise (L2.5/L2) e rilancia generate_and_verify.py
+      # com'e', non riscritto — vedi mount sotto e issue #35 per il
+      # controllo accessi (deliberatamente non ancora presente).
+      FLOWISE_API_KEY: ${FLOWISE_API_KEY:-}
+      FLOWISE_URL: http://flowise:${FLOWISE_PORT:-3000}
+      VERIFIER_URL: http://verifier:8600
+      L2_STRATEGY: param_first
+      L6_DATASET_DIR: /data/dataset
+      RETRY_LOG_PATH: /data/virtual_log/retry_log.jsonl
+    volumes:
+      - ./services/orchestrator:/orchestrator:ro
+      - ${DATA_DIR:-./data}/dataset:/data/dataset:ro
+      - ${DATA_DIR:-./data}/virtual_log:/data/virtual_log
+      - verifier_exec:/exec:ro
     depends_on:
       - docker-socket-proxy
 

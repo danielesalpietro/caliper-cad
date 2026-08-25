@@ -173,11 +173,82 @@
     transition:filter 0.15s ease;
   }
   .prompt-strip button:hover{ filter:brightness(1.08); }
+  .prompt-strip button:disabled,
+  .generate-row button:disabled{
+    opacity:0.5;
+    cursor:not-allowed;
+    filter:none;
+  }
   .prompt-strip button:focus-visible,
+  .generate-row button:focus-visible,
   input:focus-visible,
   .chip:focus-visible{
     outline:2px solid var(--focus);
     outline-offset:2px;
+  }
+  .strip-status{
+    margin:8px 2px 0;
+    min-height:1.2em;
+    font-family:"IBM Plex Mono",monospace;
+    font-size:12.5px;
+    color:var(--ink-muted);
+  }
+  .strip-status.err{ color:var(--fail); }
+  .strip-status.ok{ color:var(--pass); }
+
+  .generate-row{
+    padding:14px 18px 18px;
+    border-top:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .generate-row button{
+    font-family:"IBM Plex Sans Condensed",sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    background:var(--accent);
+    border:none;
+    border-radius:7px;
+    padding:11px 16px;
+    cursor:pointer;
+    align-self:flex-start;
+    transition:filter 0.15s ease;
+  }
+  .generate-row button:not(:disabled):hover{ filter:brightness(1.08); }
+  .generate-note{
+    margin:0;
+    font-size:12px;
+    color:var(--ink-muted);
+  }
+
+  .loading-overlay{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    background:color-mix(in srgb, var(--canvas-bg) 82%, transparent);
+    font-family:"IBM Plex Mono",monospace;
+    font-size:12.5px;
+    color:var(--ink-muted);
+  }
+  .spinner{
+    width:26px;
+    height:26px;
+    border-radius:50%;
+    border:2.5px solid var(--line);
+    border-top-color:var(--accent);
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){
+    .spinner{ animation-duration:2.4s; }
   }
 
   /* -------- two column result -------- */
@@ -392,9 +463,9 @@
     <div class="eyebrow"><span class="dot"></span>CALIPER — concept demo</div>
     <h1>Prompt to Part</h1>
     <p class="lede">One line of natural language, normalized into a structured spec, generated as CAD, and gauge-checked against a Go/No-Go calibro before you ever see the geometry — this page shows what that could look like end to end, in one view.</p>
-    <span class="mockup-tag">
+    <span class="mockup-tag" id="modeTag">
       <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.4M8 10.6h.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-      mockup — the geometry below is real (E2E-2), the input field is illustrative
+      live — Normalize calls Ollama (free); Generate calls GPT (real cost, no rate limit yet — <a href="https://github.com/danielesalpietro/caliper-cad/issues/35" target="_blank" rel="noopener">issue #35</a>)
     </span>
   </header>
 
@@ -402,9 +473,10 @@
     <div class="section-label">01 — Specification, in natural language<span class="rule"></span></div>
     <div class="prompt-strip">
       <span class="caret">&gt;</span>
-      <input type="text" value="foro filettato M6, tolleranza 0.3mm, passo 1.0" readonly aria-label="Esempio di prompt">
-      <button type="button">Normalize →</button>
+      <input type="text" id="promptInput" value="foro filettato M6, tolleranza 0.3mm, passo 1.0" aria-label="Specifica in linguaggio naturale">
+      <button type="button" id="normalizeBtn">Normalize →</button>
     </div>
+    <p class="strip-status" id="normalizeStatus"></p>
   </section>
 
   <section>
@@ -414,9 +486,9 @@
       <div class="plate">
         <div class="plate-head">
           <span class="name">L2.5 output</span>
-          <span class="badge">granite4:1b</span>
+          <span class="badge" id="specBadge">granite4:1b</span>
         </div>
-<pre class="spec"><span class="punct">{</span>
+<pre class="spec" id="specOutput"><span class="punct">{</span>
   <span class="k">"feature"</span><span class="punct">:</span> <span class="s">"thread"</span><span class="punct">,</span>
   <span class="k">"nominal"</span><span class="punct">:</span> <span class="s">"M6"</span><span class="punct">,</span>
   <span class="k">"pitch"</span><span class="punct">:</span> <span class="n">1</span><span class="punct">,</span>
@@ -425,32 +497,40 @@
   <span class="k">"measured_as"</span><span class="punct">:</span> <span class="s">""</span>
 <span class="punct">}</span></pre>
         <div class="field-rows">
-          <div class="field-row"><span class="k">Preset applied</span><span class="v">thread · ISO 68-1</span></div>
-          <div class="field-row"><span class="k">Engagement length</span><span class="v">8.0 mm</span></div>
-          <div class="field-row"><span class="k">tolerance_type / measured_as</span><span class="v empty">left blank, not guessed</span></div>
+          <div class="field-row"><span class="k">Preset applied</span><span class="v" id="presetVal">thread · ISO 68-1</span></div>
+          <div class="field-row"><span class="k">Engagement length</span><span class="v" id="engagementVal">8.0 mm</span></div>
+          <div class="field-row"><span class="k">tolerance_type / measured_as</span><span class="v empty" id="toleranceVal">left blank, not guessed</span></div>
+        </div>
+        <div class="generate-row">
+          <button type="button" id="generateBtn" disabled>Generate &amp; verify →</button>
+          <p class="generate-note">calls GPT via the L2 chatflow, then the real Go/No-Go gauge check — 3–40s</p>
         </div>
       </div>
 
       <div class="plate viewer-wrap">
         <div class="plate-head">
           <span class="name">Generated &amp; measured</span>
-          <span class="badge">e2e2_thread_M6.stl</span>
+          <span class="badge" id="viewerBadge">e2e2_thread_M6.stl (example)</span>
         </div>
         <div class="viewer-canvas-holder">
           <canvas id="viewer"></canvas>
           <div class="viewer-hint">drag to rotate · scroll to zoom</div>
-          <div class="stamp"><span class="go">GO ✓</span><span class="pass">PASS</span></div>
+          <div class="stamp" id="stamp"><span class="go" id="stampLabel">GO ✓</span><span class="pass" id="stampSub">PASS</span></div>
+          <div class="loading-overlay" id="loadingOverlay" hidden>
+            <div class="spinner"></div>
+            <span id="loadingText">generating…</span>
+          </div>
         </div>
-        <div class="gauge-rows">
+        <div class="gauge-rows" id="gaugeRows">
           <div class="gauge-row go">
             <span class="g-label">Go gauge</span>
-            <span class="g-bar"><span class="g-fill"></span></span>
-            <span class="g-val">0.305925 mm³</span>
+            <span class="g-bar"><span class="g-fill" id="goFill"></span></span>
+            <span class="g-val" id="goVal">0.305925 mm³</span>
           </div>
           <div class="gauge-row nogo">
             <span class="g-label">No-Go gauge</span>
-            <span class="g-bar"><span class="g-fill"></span></span>
-            <span class="g-val">20.158069 mm³</span>
+            <span class="g-bar"><span class="g-fill" id="nogoFill"></span></span>
+            <span class="g-val" id="nogoVal">20.158069 mm³</span>
           </div>
         </div>
       </div>
@@ -458,11 +538,11 @@
     </div>
   </section>
 
-  <p class="footnote">This is a mockup of the view, not a new pipeline stage: the JSON and the interference volumes are the real numbers from <strong>E2E-2</strong>, and the part is the actual verified STL, converted from the STEP CALIPER exported in M7. Wiring the left-hand input up for real means putting a small API in front of <code>generate_and_verify.py</code> — that call already takes 3–40s depending on the strategy, so the honest version of this page needs a job-status state between "Normalize" and a result, not just a spinner.</p>
+  <p class="footnote">The example above the fold is the real result of <strong>E2E-2</strong>. Typing a new prompt and clicking <strong>Normalize</strong> calls the live L2.5 chatflow (Ollama, local, free); <strong>Generate &amp; verify</strong> runs the real pipeline — L2 generation via GPT, <code>/verify</code>, then the Go/No-Go gauge check — and swaps the viewer for whatever comes back, pass or fail.</p>
 
   <footer class="page-foot">
     <span>CALIPER — issue #19, M7</span>
-    <span>geometry: E2E-2, GO 0.305925mm³ / NO-GO 20.158069mm³</span>
+    <span id="footerMeta">geometry: E2E-2, GO 0.305925mm³ / NO-GO 20.158069mm³</span>
   </footer>
 
 </div>
@@ -624,6 +704,17 @@
     var uRimColor = gl.getUniformLocation(prog, 'uRimColor');
     var uCameraPos = gl.getUniformLocation(prog, 'uCameraPos');
 
+    function setMesh(m){
+      mesh = m;
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, m.positions, gl.STATIC_DRAW);
+      gl.bindBuffer(gl.ARRAY_BUFFER, normBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, m.normals, gl.STATIC_DRAW);
+      dist = m.size * 2.05;
+      yaw = 0.5; pitch = -0.32;
+      lastInteract = 0;
+    }
+
     gl.enable(gl.DEPTH_TEST);
     // [fix] niente backface culling: gli export STL da operazioni
     // booleane (CadQuery/OCC) non garantiscono un winding coerente
@@ -733,15 +824,168 @@
     }
 
     requestAnimationFrame(frame);
+    return { setMesh: setMesh };
   }
+
+  var viewerController = null;
 
   try {
     var mesh = parseBinarySTL(decodeB64(STL_B64));
     var canvas = document.getElementById('viewer');
-    initViewer(canvas, mesh);
+    viewerController = initViewer(canvas, mesh);
   } catch (err){
     var holder = document.querySelector('.viewer-canvas-holder');
     if (holder){ holder.innerHTML = '<p style="padding:20px;font-family:monospace;font-size:12px;color:var(--ink-muted)">viewer failed to init: ' + (err && err.message) + '</p>'; }
+  }
+
+  /* ---- live wiring: Normalize (L2.5/Ollama) + Generate (L2/GPT + gauge-check) ---- */
+
+  function escapeHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function renderSpecJson(spec){
+    var out = document.getElementById('specOutput');
+    if (!out) return;
+    var keys = Object.keys(spec || {});
+    var html = '<span class="punct">{</span>\n';
+    keys.forEach(function(k, i){
+      var v = spec[k];
+      var vHtml;
+      if (typeof v === 'string') vHtml = '<span class="s">"' + escapeHtml(v) + '"</span>';
+      else if (typeof v === 'number') vHtml = '<span class="n">' + v + '</span>';
+      else if (v === null || v === undefined) vHtml = '<span class="s">""</span>';
+      else vHtml = '<span class="s">' + escapeHtml(JSON.stringify(v)) + '</span>';
+      html += '  <span class="k">"' + escapeHtml(k) + '"</span><span class="punct">:</span> ' + vHtml +
+        (i < keys.length - 1 ? '<span class="punct">,</span>' : '') + '\n';
+    });
+    html += '<span class="punct">}</span>';
+    out.innerHTML = html;
+  }
+
+  var promptInput = document.getElementById('promptInput');
+  var normalizeBtn = document.getElementById('normalizeBtn');
+  var normalizeStatus = document.getElementById('normalizeStatus');
+  var generateBtn = document.getElementById('generateBtn');
+  var loadingOverlay = document.getElementById('loadingOverlay');
+  var loadingText = document.getElementById('loadingText');
+  var stamp = document.getElementById('stamp');
+  var stampLabel = document.getElementById('stampLabel');
+  var stampSub = document.getElementById('stampSub');
+  var goFill = document.getElementById('goFill');
+  var goVal = document.getElementById('goVal');
+  var nogoFill = document.getElementById('nogoFill');
+  var nogoVal = document.getElementById('nogoVal');
+  var viewerBadge = document.getElementById('viewerBadge');
+  var footerMeta = document.getElementById('footerMeta');
+  var presetVal = document.getElementById('presetVal');
+  var engagementVal = document.getElementById('engagementVal');
+  var toleranceVal = document.getElementById('toleranceVal');
+  var currentSpec = null;
+
+  if (normalizeBtn){
+    normalizeBtn.addEventListener('click', function(){
+      var prompt = (promptInput.value || '').trim();
+      if (!prompt) return;
+      normalizeBtn.disabled = true;
+      generateBtn.disabled = true;
+      normalizeStatus.textContent = 'normalizing…';
+      normalizeStatus.className = 'strip-status';
+      fetch('/api/normalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt })
+      }).then(function(r){
+        if (!r.ok) return r.json().then(function(e){ throw new Error(e.detail || ('HTTP ' + r.status)); });
+        return r.json();
+      }).then(function(data){
+        currentSpec = data.spec;
+        renderSpecJson(currentSpec);
+        presetVal.textContent = '— (generate to see preset)';
+        engagementVal.textContent = '—';
+        var declared = currentSpec && (currentSpec.tolerance_type || currentSpec.measured_as);
+        toleranceVal.textContent = declared ? 'declared, not guessed' : 'left blank, not guessed';
+        normalizeStatus.textContent = 'normalized';
+        normalizeStatus.className = 'strip-status ok';
+        generateBtn.disabled = false;
+      }).catch(function(err){
+        normalizeStatus.textContent = 'error: ' + err.message;
+        normalizeStatus.className = 'strip-status err';
+      }).finally(function(){
+        normalizeBtn.disabled = false;
+      });
+    });
+  }
+
+  if (generateBtn){
+    generateBtn.addEventListener('click', function(){
+      if (!currentSpec) return;
+      generateBtn.disabled = true;
+      normalizeBtn.disabled = true;
+      loadingOverlay.hidden = false;
+      loadingText.textContent = 'generating…';
+      stamp.style.display = 'none';
+
+      fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spec: currentSpec })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        loadingOverlay.hidden = true;
+
+        if (data.preset){
+          presetVal.textContent = data.preset.name + (data.preset.standard ? ' · ' + data.preset.standard : '');
+          if (data.preset.engagement_length_mm != null){
+            engagementVal.textContent = data.preset.engagement_length_mm + ' mm';
+          }
+        }
+
+        if (data.status === 'EXCLUDED'){
+          stamp.style.display = '';
+          stampLabel.textContent = 'SKIP';
+          stampSub.textContent = 'EXCLUDED';
+          stamp.style.borderColor = 'var(--fail)';
+          stamp.style.color = 'var(--fail)';
+          viewerBadge.textContent = 'excluded by anti-bias gate — no call made';
+          return;
+        }
+
+        var pass = data.status === 'PASS';
+        stamp.style.display = '';
+        stampLabel.textContent = pass ? 'GO ✓' : 'FAIL ✕';
+        stampSub.textContent = pass ? 'PASS' : 'FAIL';
+        stamp.style.borderColor = pass ? 'var(--pass)' : 'var(--fail)';
+        stamp.style.color = pass ? 'var(--pass)' : 'var(--fail)';
+
+        if (data.go && data.go.gauge_check){
+          var vol = data.go.gauge_check.interference_volume_mm3;
+          goVal.textContent = (vol == null ? data.go.status : vol + ' mm³');
+          goFill.style.width = Math.min(100, (vol || 0) * 20) + '%';
+        }
+        if (data.nogo && data.nogo.gauge_check){
+          var volN = data.nogo.gauge_check.interference_volume_mm3;
+          nogoVal.textContent = (volN == null ? data.nogo.status : volN + ' mm³');
+          nogoFill.style.width = Math.min(100, (volN || 0) * 5) + '%';
+        }
+
+        if (data.stl_base64 && viewerController){
+          try {
+            var newMesh = parseBinarySTL(decodeB64(data.stl_base64));
+            viewerController.setMesh(newMesh);
+            viewerBadge.textContent = (data.case_id || 'generated') + '.stl';
+            footerMeta.textContent = 'live generation — case ' + (data.case_id || '?') + ' — ' + data.status;
+          } catch (e){ /* keep previous mesh on parse failure */ }
+        } else if (!pass){
+          viewerBadge.textContent = 'no part generated (' + (data.status || 'FAIL') + ')';
+        }
+      }).catch(function(err){
+        loadingOverlay.hidden = true;
+        viewerBadge.textContent = 'error: ' + err.message;
+      }).finally(function(){
+        generateBtn.disabled = false;
+        normalizeBtn.disabled = false;
+      });
+    });
   }
 })();
 </script>
