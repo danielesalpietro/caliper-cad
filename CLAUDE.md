@@ -18,14 +18,24 @@ Qdrant). Architettura completa: `README.md` e
 
 ## Stato del progetto (aggiornare a ogni chiusura di milestone)
 
-- **M1–M6 CHIUSE.** M6 (2026-08-22): suite TC-E2E 9/9 dal vivo su pod
-  RunPod, primo end-to-end reale del progetto, SIGSEGV risolto.
-  Cronistoria ufficiale: `docs/logbook.md` (una riga per milestone).
+- **M1–M7 CHIUSE.** M6 (2026-08-22): suite TC-E2E 9/9 dal vivo su pod
+  RunPod, primo end-to-end reale del progetto, SIGSEGV risolto. M7
+  (2026-08-25): stessa suite (TC-E2E-1..7) riprodotta nella topologia
+  Docker reale su RTX 3090 (workstation privata, non RunPod) — 6 bug
+  reali trovati e risolti (tutti giunture mai esercitate in M6: crash
+  Flowise su Docker, entrypoint/limite STEP di `billa05/prusacli`,
+  budget CPU non trasferibili a un host a 32 core reali, baseUrl Ollama
+  nel chatflow L2.5, offset di `stream-agent` su mount read-only), 3/3
+  verifiche di isolamento attive, primo G-code della storia del
+  progetto. Cronistoria ufficiale: `docs/logbook.md` (una riga per
+  milestone, **da aggiornare** — ferma a M5/M6 "non ancora mergiata",
+  fatto invece il 22/08; stesso per `README.md`/`index.html`).
 - **Immagine pod di riferimento (build- e boot-validata)**:
   `ghcr.io/danielesalpietro/caliper-pod:git-fe90a0b`.
-- **Prossime**: M7 (topologia Docker reale su RTX 3090, dal 24) e M8
-  (schema L6 + primo loop fisico) — scope in `docs/piano_recupero.md`
-  §M7/§M8.
+- **Prossima**: M8 (schema L6 + primo loop fisico) — scope in
+  `docs/piano_recupero.md` §M8. La parte documentale (schema +
+  bootstrap) non dipende da nessuna istanza; la parte fisica ha ora
+  entrambi i prerequisiti (pezzo PASS-virtuale + primo G-code, da M7).
 - **Decisioni aperte**: modello L2.5 (re-bench con
   `bench/bench_l25_models.py` sullo schema post-fix, poi decide
   l'utente); barriera in `apply_preset` (campo utente vs inventato);

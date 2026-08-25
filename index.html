@@ -334,7 +334,7 @@
     <h2>📊 Status</h2>
     <p>
       Detail and provenance for every row below: <a href="docs/logbook.md">docs/logbook.md</a>
-      (milestones M1–M5), the critical technical review
+      (milestones M1–M7), the critical technical review
       (<a href="docs/review_tecnica.md">docs/review_tecnica.md</a>) and the
       recovery plan (<a href="docs/piano_recupero.md">docs/piano_recupero.md</a>, M5–M8).
     </p>
@@ -344,18 +344,19 @@
       </thead>
       <tbody>
         <tr><td>Architecture defined</td><td class="status-ok">✅ yes</td></tr>
-        <tr><td>L2.5 specification format (natural language → JSON)</td><td class="status-pending">⬜ not yet</td></tr>
+        <tr><td>L2.5 specification format (natural language → JSON)</td><td class="status-ok">✅ yes — live via Flowise/Ollama, verified end-to-end in M6/M7</td></tr>
         <tr><td>Sketch-first 2D constraint schema (M3, thread only)</td><td class="status-ok">✅ yes</td></tr>
         <tr><td>Preset format</td><td class="status-ok">✅ yes (thread, clearance_fit, snap_fit)</td></tr>
-        <tr><td>Declarative pipeline runner (Flowise, L2 chatflow)</td><td class="status-pending">⬜ not yet — a script-based orchestrator exists instead</td></tr>
+        <tr><td>Declarative pipeline runner (Flowise, L2 chatflow)</td><td class="status-ok">✅ yes — 3 chatflows versioned, live L2.5+L2 generation verified in M6/M7</td></tr>
         <tr><td>Verification code (Livello 3 — gauge checks, dimensional checks)</td><td class="status-ok">✅ yes (M1–M3, independently verified)</td></tr>
         <tr><td>Critical technical review of M1–M4</td><td class="status-ok">✅ yes — <a href="docs/review_tecnica.md">review_tecnica.md</a>, issue #15 (3 blocking defects found on never-exercised seams)</td></tr>
-        <tr><td>M5 fix pack (C1–C8, C10)</td><td class="status-ok">✅ implemented + independently verified — merge pending (issue #17)</td></tr>
+        <tr><td>M5 fix pack (C1–C8, C10)</td><td class="status-ok">✅ merged (issue #17)</td></tr>
         <tr><td>Automated regression CI</td><td class="status-ok">✅ yes — 14 scripts through M4, 21 after M5, on every push/PR</td></tr>
         <tr><td>Docker images built &amp; published (GHCR)</td><td class="status-ok">✅ yes — 4 service images + RunPod pod image, on every relevant push</td></tr>
-        <tr><td>Live end-to-end run (real generation model)</td><td class="status-pending">⬜ not yet — scope of M6 on RunPod (issue #18)</td></tr>
+        <tr><td>Live end-to-end run (real generation model)</td><td class="status-ok">✅ yes — RunPod native (M6, issue #18) and real Docker Compose topology on dedicated hardware (M7, issue #19), 9/9 and TC-E2E-1..7 green</td></tr>
+        <tr><td>Real Docker Compose topology (build, isolation, slicing)</td><td class="status-ok">✅ yes (M7) — first-ever docker build/compose up, 3/3 isolation checks active, first G-code produced</td></tr>
         <tr><td>Ground-truth dataset</td><td class="status-pending">⬜ not yet — scope of M8 (issue #20)</td></tr>
-        <tr><td>Retrieval loop (Livello 7, virtual/physical firewall)</td><td class="status-ok">✅ yes (M4) — verified against fixtures, not a live Ollama/Qdrant instance</td></tr>
+        <tr><td>Retrieval loop (Livello 7, virtual/physical firewall)</td><td class="status-ok">✅ yes (M4, live-verified in M6/M7) — two Qdrant collections, anti-bias gate confirmed with 0 generation calls when excluded</td></tr>
         <tr><td>Local-generation feasibility test</td><td class="status-pending">⬜ not yet — optional extra of M6, served via vLLM</td></tr>
       </tbody>
     </table>
