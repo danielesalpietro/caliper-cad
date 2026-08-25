@@ -160,7 +160,37 @@ cgroup/nproc, non un host bare-metal a 32 thread reali).
 - **Bench modello L2.5** (aperta da M6): non ripetuta qui, fuori scope
   M7.
 
-## 8. Riferimenti
+## 8. Verifica indipendente — riesecuzione da zero (stessa sessione, post-merge)
+
+Dopo il merge della PR #31 in `develop`, la stessa sessione ha
+riprodotto l'intero run **da uno stato genuinamente pulito**, per
+verificare che i 6 fix fossero davvero nel codice committato e non
+dipendenti da uno stato "a mano" lasciato sul container (regola del
+piano: "il supervisore riesegue, non rilegge"):
+
+- Container fermati e rimossi (`docker compose down`); volumi di stato
+  cancellati (`flowise_data`, `qdrant_data`, `verifier_exec`,
+  `stream_agent_state` — **non** `ollama_data`, i modelli non vanno
+  riscaricati); `data/{models,gcode,dataset,virtual_log}` svuotate;
+  repo riportato a `origin/develop` pulito (`git reset --hard`).
+- `docker compose build` + `docker compose up -d`: **Flowise healthy
+  al primo colpo**, zero intervento manuale (la volta precedente aveva
+  richiesto la diagnosi e il fix del bug `connect-sqlite3` in tempo
+  reale).
+- Bootstrap Flowise da zero (account/API key/credential/import
+  chatflow) su un'istanza con DB SQLite vuoto: riuscito al primo
+  tentativo, chatflow L2.5 importato con la `baseUrl` corretta già nel
+  file versionato — nessuna patch a mano necessaria stavolta.
+- **Suite TC-E2E-1..7 rieseguita per intero, tutta verde al primo
+  tentativo**, incluse le 3 verifiche di isolamento attive e un nuovo
+  slicing (STEP→STL→G-code) sul pezzo appena generato — zero fix
+  applicati durante questo secondo giro.
+
+Risultato: i 6 bug di M7 sono confermati chiusi nel codice, non
+artefatti di stato di sessione. Nessun nuovo file harvested per questo
+giro (stessa suite, stessi numeri del run0 già documentato in §1-7).
+
+## 9. Riferimenti
 
 - Dettaglio tecnico completo (per-TC, rosso/verde): [`docs/logbook_fase7.md`](logbook_fase7.md)
 - Harvest con manifest+sha256: `runs/20260825-133500-m7-run0/`
