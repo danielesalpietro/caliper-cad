@@ -4,29 +4,34 @@
 
 *Working name — see [Naming](#naming). Not yet checked for namespace conflicts.*
 
-**Status:** early prototype. Architecture defined; the deterministic
-verification layer (Livello 3 — Go/No-Go gauge checks, dimensional
-checks, a sketch-first generation path) is implemented and independently
-verified for the ISO metric thread feature class (milestones M1–M3, see
-[`docs/logbook.md`](docs/logbook.md)). The retrieval loop (Livello 7) now
+**Status:** early prototype, but end-to-end verified twice over — once
+live on RunPod, once in the real Docker topology on dedicated private
+hardware. Architecture defined; the deterministic verification layer
+(Livello 3 — Go/No-Go gauge checks, dimensional checks, a sketch-first
+generation path) is implemented and independently verified for the ISO
+metric thread feature class (milestones M1–M3, see
+[`docs/logbook.md`](docs/logbook.md)). The retrieval loop (Livello 7)
 distinguishes physical from simulated evidence end-to-end (M4, `source:
 virtual|physical` on every retrieved record, anti-bias gate wired into
-the generation loop) — implemented and independently verified with
-fixtures, not yet run against a live Ollama/Qdrant instance. A full
-critical technical review of M1–M4
+the generation loop). A full critical technical review of M1–M4
 ([`docs/review_tecnica.md`](docs/review_tecnica.md), issue
 [#15](https://github.com/danielesalpietro/caliper-cad/issues/15)) found
-three undocumented blocking defects on never-exercised seams; a recovery
-plan ([`docs/piano_recupero.md`](docs/piano_recupero.md), milestones
-M5–M8) is now in progress: the M5 fix pack is implemented and
-independently verified (issue
-[#17](https://github.com/danielesalpietro/caliper-cad/issues/17)), and
-all service images plus a RunPod pod image are now built and published
-to GHCR on every push — the first builds in the project's history. No
-live end-to-end run with a real generation model yet (scope of M6 on
-RunPod, issue
-[#18](https://github.com/danielesalpietro/caliper-cad/issues/18)); no
-ground-truth dataset collected yet (scope of M8).
+three undocumented blocking defects on never-exercised seams; the
+resulting recovery plan
+([`docs/piano_recupero.md`](docs/piano_recupero.md), milestones M5–M8)
+has closed M5 through M7: the M5 fix pack (issue
+[#17](https://github.com/danielesalpietro/caliper-cad/issues/17)), the
+first live end-to-end run on RunPod with a real generation model — L2.5
+→ L2 → verify → gauge-check GO/NO-GO, 9/9 test cases (M6, issue
+[#18](https://github.com/danielesalpietro/caliper-cad/issues/18)) — and
+the first real Docker Compose topology on dedicated private hardware
+(RTX 3090): first-ever `docker build`/`docker compose up`, active
+network isolation confirmed (not just declared), and the first G-code
+the project has ever produced (M7, issue
+[#19](https://github.com/danielesalpietro/caliper-cad/issues/19), report
+in [`docs/report_m7_run0.md`](docs/report_m7_run0.md)). No ground-truth
+dataset collected yet, no physical print-and-measure loop closed yet
+(scope of M8, next).
 
 ---
 
@@ -268,41 +273,89 @@ metric thread feature class:
   ([`docs/piano_recupero.md`](docs/piano_recupero.md)) tracks milestones
   M5–M8 (issues
   [#17](https://github.com/danielesalpietro/caliper-cad/issues/17)–[#20](https://github.com/danielesalpietro/caliper-cad/issues/20)).
-- **M5 (implemented, independently verified — merge pending):** the fix
-  pack closing C1–C7 and C10 quick wins, including a per-feature
-  dimensional contract, the NO-GO gauge in the loop, a trusted
-  measurement process (`measure_verdict.py`) that makes the verdict
-  unforgeable by generated code, a `param_first` L2 strategy,
-  deterministic Qdrant point ids, and a revocable virtual-memory
-  exclusion keyed on `tolerance`/`pitch`/`checker_version`. Details and
-  red-before-green evidence in
-  [`docs/logbook_fase5.md`](docs/logbook_fase5.md).
+- **M5 (merged):** the fix pack closing C1–C7 and C10 quick wins,
+  including a per-feature dimensional contract, the NO-GO gauge in the
+  loop, a trusted measurement process (`measure_verdict.py`) that makes
+  the verdict unforgeable by generated code, a `param_first` L2
+  strategy, deterministic Qdrant point ids, and a revocable
+  virtual-memory exclusion keyed on
+  `tolerance`/`pitch`/`checker_version`. Details and red-before-green
+  evidence in [`docs/logbook_fase5.md`](docs/logbook_fase5.md).
 - **Images on GHCR:** all four compose service images plus the
   monolithic RunPod pod image (`ops/runpod/`, pinned versions) are built
   and published by
   [`.github/workflows/publish-images.yml`](.github/workflows/publish-images.yml)
   on every relevant push — the first image builds in the project's
   history.
+- **M6 (merged):** the first live end-to-end run of the whole pipeline
+  — L2.5 (Ollama) → L2 (GPT) → `/verify` → `/gauge-check` GO/NO-GO →
+  retry loop → virtual memory (Qdrant) — on a RunPod pod (native
+  processes, no Docker-in-Docker available there). 9/9 test cases run;
+  a SIGSEGV in the executor was root-caused (native thread pools sized
+  on *visible* CPU count, not the real cgroup quota) and fixed. Details
+  in [`docs/logbook_fase6.md`](docs/logbook_fase6.md).
+- **M7 (merged):** the same test suite reproduced in the real Docker
+  Compose topology, for the first time ever, on dedicated private
+  hardware (RTX 3090) rather than a rented pod. First `docker
+  build`/`docker compose up` in the project's history; three isolation
+  guarantees confirmed *active* (a network call from inside
+  `verifier-executor` genuinely fails, a write to the read-only Docker
+  socket proxy is rejected, a path-traversal attempt on `/gauge-check`
+  is rejected over HTTP) rather than only declared; the first G-code the
+  project has ever produced. Six real bugs found and fixed, all on
+  seams M6 never exercised (Flowise crashing on every Docker boot, a
+  wrong slicer entrypoint, CPU/memory budgets that don't transfer
+  between environments, an Ollama URL hardcoded to `localhost`). Full
+  analysis, including a hardware/software fingerprint of the run
+  environment, in [`docs/report_m7_run0.md`](docs/report_m7_run0.md);
+  per-test detail in [`docs/logbook_fase7.md`](docs/logbook_fase7.md).
+- **"Prompt to Part" (merged, same day as M7):** an interactive page
+  served by the dashboard
+  ([`services/dashboard/static/prompt-to-part.html`](services/dashboard/static/prompt-to-part.html))
+  — type a natural-language spec, watch it go through the real L2.5
+  and L2 chatflows and the real gauge check, and get back an
+  interactive 3D viewer (a from-scratch WebGL STL viewer, no external
+  library) plus four downloads: the STEP, the STL, a G-code (sliced
+  live by a new `slicer-watcher` service, running the same PrusaSlicer
+  binary as the on-demand `prusaslicer` service but as a persistent
+  job-queue worker instead), and a technical-drawing-style PDF report
+  (via `reportlab`) with the spec, the preset, the slicer parameters,
+  the verification checks, and the Go/No-Go gauge results. Two new
+  `.env` flags: `PUBLIC_ACCESS` (Flowise and Open WebUI reachable from
+  outside or host-only — the dashboard itself is never gated by this,
+  deliberately, so an OFF set remotely can't lock out the panel that
+  would turn it back ON) and `PROMPT_TO_PART_MODE` (`RW`/`RO`, enforced
+  server-side, not just hidden in the UI). **Declared, not
+  omitted:** `/api/generate` calls GPT (real cost) with no
+  authentication or rate limit on a publicly reachable page — tracked
+  as [issue #35](https://github.com/danielesalpietro/caliper-cad/issues/35).
 
 The verification scripts accumulated across M1–M5 (14 through M4, 21
 after M5) run automatically on every push/PR via
 [`.github/workflows/regression.yml`](.github/workflows/regression.yml).
 
-No ground-truth dataset (Livello 6) has been collected yet (scope of
-M8), and no local-generation feasibility test (Rischio #1) has been run
+No ground-truth dataset (Livello 6) has been collected yet and no
+physical print-and-measure loop has been closed (scope of M8, next), and
+no local-generation feasibility test (Rischio #1) has been run
 (optional extra of M6, served via vLLM).
 
 ## 8. Local stack (Docker)
 
 A working scaffold exists as [`docker-compose.yml`](docker-compose.yml),
 covering the execution engine, retrieval, and slicing portions of the
-pipeline. Run end-to-end at least once (GPU detected correctly, first
-Flowise chatflow built and tested — see
-[`docs/architettura-prototipo-mesh-llm.md`](docs/architettura-prototipo-mesh-llm.md)
-for the full log). One known intermittent issue: the Flowise↔Ollama
-connection occasionally fails with `fetch failed`, likely an upstream
-bundling bug in `flowiseai/flowise:latest` — not yet isolated, see the
-architecture doc's risk list. Retrying usually works.
+pipeline — run end-to-end for real in M7 (see
+[`docs/report_m7_run0.md`](docs/report_m7_run0.md)), GPU detected
+correctly, all Flowise chatflows built and tested against the live
+compose topology. The Flowise image is built locally
+(`ops/docker/flowise/`) rather than pulled directly: the upstream
+`flowiseai/flowise:3.1.4` image crashes on every boot with a default
+SQLite session store (a `connect-sqlite3` API mismatch, see the M7
+logbook) — patched, not worked around. A persistent
+`fetch failed`/Flowise↔Ollama connection issue some setups hit turned
+out, in M7, to be a versioned chatflow pointing its Ollama node at
+`localhost` (valid when Flowise ran natively on the same RunPod pod in
+M6, not valid across separate Compose containers) — fixed in the
+versioned chatflow.
 
 | Service | Role | Image | Size |
 |---|---|---|---|
