@@ -28,8 +28,23 @@ Qdrant). Architettura completa: `README.md` e
   nel chatflow L2.5, offset di `stream-agent` su mount read-only), 3/3
   verifiche di isolamento attive, primo G-code della storia del
   progetto. Cronistoria ufficiale: `docs/logbook.md` (una riga per
-  milestone, **da aggiornare** — ferma a M5/M6 "non ancora mergiata",
-  fatto invece il 22/08; stesso per `README.md`/`index.html`).
+  milestone).
+- **Estensione M7 — "Prompt to Part" (2026-08-25, stesso giorno):**
+  pagina statica interattiva servita dalla dashboard
+  (`services/dashboard/static/prompt-to-part.html`) — prompt in
+  linguaggio naturale → L2.5 (Ollama) → L2 (GPT) →
+  `/verify`+gauge-check → viewer 3D (WebGL scritto da zero, nessuna
+  libreria esterna) → 4 download (STEP, STL, G-code via nuovo servizio
+  `slicer-watcher`, PDF stile disegno tecnico via `reportlab`).
+  Due flag `.env` nuovi: `PUBLIC_ACCESS` (0.0.0.0/127.0.0.1 — Flowise e
+  Open WebUI pubblici o solo interni; la dashboard NON è mai gated, per
+  scelta esplicita, altrimenti un OFF da remoto toglierebbe l'accesso
+  al pannello che dovrebbe rimetterlo ON) e `PROMPT_TO_PART_MODE`
+  (RW/RO — in RO gli endpoint rispondono 403 anche lato server).
+  **Nessun controllo di accesso su `/api/generate`** (chiama GPT a
+  pagamento, pagina pubblica senza limite di frequenza) — scelta
+  esplicita dell'utente per accelerare, tracciata in issue #35, non
+  un'omissione.
 - **Immagine pod di riferimento (build- e boot-validata)**:
   `ghcr.io/danielesalpietro/caliper-pod:git-fe90a0b`.
 - **Prossima**: M8 (schema L6 + primo loop fisico) — scope in
@@ -39,7 +54,14 @@ Qdrant). Architettura completa: `README.md` e
 - **Decisioni aperte**: modello L2.5 (re-bench con
   `bench/bench_l25_models.py` sullo schema post-fix, poi decide
   l'utente); barriera in `apply_preset` (campo utente vs inventato);
-  ricalibrazione `CALIPER_CPU_LIMIT_S`.
+  ricalibrazione `CALIPER_CPU_LIMIT_S`; controllo accessi per
+  `/api/generate` (issue #35); filettatura **esterna** ("vite", non
+  solo il foro filettato di oggi) — scoping iniziato (vedi
+  `_emit_thread_code` in `sketch_compiler.py`, il pezzo `_thread_pin`
+  già esiste come geometria valida, va solo restituito invece di
+  sottratto dall'host), nessun codice scritto: servirebbe anche un
+  nuovo calibro ad **anello** (oggi solo tamponi, adatti a collaudare
+  fori) prima di avere un Go/No-Go reale su una vite.
 
 ## Direttive non negoziabili (il metodo che ha funzionato)
 
