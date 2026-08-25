@@ -261,6 +261,7 @@
     line-height:1.1;
   }
   .stat-num.flag{color:var(--warn);}
+  .stat-num.good{color:var(--ok);}
   .stat-label{
     display:block;
     margin-top:.35rem;
@@ -583,7 +584,7 @@
     <div class="titleblock-grid">
       <div class="tb-cell">
         <span class="tb-label">Data</span>
-        <span class="tb-value">2026-08-25 · rev.3</span>
+        <span class="tb-value">2026-08-25 · rev.4</span>
       </div>
       <div class="tb-cell">
         <span class="tb-label">Base</span>
@@ -614,7 +615,7 @@
       <li><span class="ok-mark">✓</span> <strong>Verifica indipendente del supervisore prodotta</strong> — <code>docs/report_m7_run0.md</code> (PR&nbsp;#32): fingerprint hardware/software, confronto numerico con M6, causa-effetto dei 6 bug — lo stesso standard di riesecuzione già visto su M1–M6.</li>
       <li><span class="warn-mark">→</span> <strong>Nuovo, fuori piano: "Prompt to Part"</strong> (PR&nbsp;#33, #34) — demo pubblica collegata alla pipeline reale (L2.5 → GPT → verifica → viewer 3D → download STEP/STL/G-code/PDF). <code>/api/generate</code> chiama GPT a pagamento, pubblico di default, senza autenticazione né limite di frequenza — rischio dichiarato e tracciato (issue&nbsp;#35), non mitigato. Vedi §03, finding&nbsp;01.</li>
       <li><span class="warn-mark">→</span> <strong>Nuovo limite architetturale reso esplicito</strong>: costruendo la demo, l'utente ha notato che qualunque prompt produce sempre un foro filettato, mai una filettatura esterna — un solo <code>operation.type</code> è supportato. Issue&nbsp;#36, review a 360° ancora da fare.</li>
-      <li><span class="warn-mark">→</span> <strong>Il gap sul tracker resta invariato</strong>: ancora le stesse 4 issue chiuse nei fatti ma aperte su GitHub (#15, #17, #18, #19); #35 e #36 sono aperture legittime, non altri esempi dello stesso problema.</li>
+      <li><span class="ok-mark">✓</span> <strong>Il gap sul tracker è risolto</strong> — #15, #17, #18, #19 chiuse su GitHub (25/08, 20:26, tutte <code>state_reason: completed</code>, chiuse dall'utente stesso). È il finding più persistente delle tre revisioni precedenti, e ora non esiste più: il backlog visibile su GitHub è tornato a coincidere con quello reale.</li>
     </ul>
   </div>
 
@@ -628,8 +629,8 @@
       <span class="stat-label">TC-E2E dal vivo su due topologie reali — RunPod nativo (9/9) + Docker/RTX 3090 (7/7)</span>
     </div>
     <div class="stat">
-      <span class="stat-num flag">4</span>
-      <span class="stat-label">issue di milestone chiuse nei fatti (#15, #17, #18, #19) ma ancora aperte su GitHub</span>
+      <span class="stat-num good">0<span style="color:var(--ink-faint); font-weight:400;">/4</span></span>
+      <span class="stat-label">issue chiuse nei fatti ma aperte su GitHub — #15, #17, #18, #19 chiuse oggi, gap risolto</span>
     </div>
     <div class="stat">
       <span class="stat-num flag">1</span>
@@ -666,7 +667,7 @@
           <td class="m-id">M3</td>
           <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/4">#4</a></td>
           <td><span class="pill pill-warn">parziale</span></td>
-          <td class="m-note">Sketch-first mergiato ma mai in E2E reale con generazione live. La review (C4) e M5 (P3) hanno poi reso <code>param_first</code> la strategia di default — confermata sia in M6 sia in M7 — mentre il criterio originale di #4 resta tecnicamente non soddisfatto nella sua forma iniziale. <strong>Vedi §03, finding&nbsp;04.</strong></td>
+          <td class="m-note">Sketch-first mergiato ma mai in E2E reale con generazione live. La review (C4) e M5 (P3) hanno poi reso <code>param_first</code> la strategia di default — confermata sia in M6 sia in M7 — mentre il criterio originale di #4 resta tecnicamente non soddisfatto nella sua forma iniziale. <strong>Vedi §03, finding&nbsp;03.</strong></td>
         </tr>
         <tr>
           <td class="m-id">M4</td>
@@ -677,26 +678,26 @@
         <tr>
           <td class="m-id">—</td>
           <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/15">#15</a></td>
-          <td><span class="pill pill-warn">aperta su GH</span></td>
-          <td class="m-note">Review tecnica critica: deliverable prodotto (<code>review_tecnica.md</code>), C1–C11 trovate, 7 proposte P1–P7. Lavoro concluso, issue ancora aperta.</td>
+          <td><span class="pill pill-ok">chiusa</span></td>
+          <td class="m-note">Review tecnica critica: deliverable prodotto (<code>review_tecnica.md</code>), C1–C11 trovate, 7 proposte P1–P7. Chiusa il 25/08 (<code>completed</code>), dopo essere rimasta aperta per giorni nonostante il lavoro concluso.</td>
         </tr>
         <tr>
           <td class="m-id">M5</td>
           <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/17">#17</a></td>
-          <td><span class="pill pill-warn">aperta su GH</span></td>
-          <td class="m-note">C1, C2, C3, C4, C5, C6, C7, C10 chiusi in sandbox — 8 test rosso→verde, mergiata in develop. C8 (budget non portabile) esplicitamente rimandato a M6/M7.</td>
+          <td><span class="pill pill-ok">chiusa</span></td>
+          <td class="m-note">C1, C2, C3, C4, C5, C6, C7, C10 chiusi in sandbox — 8 test rosso→verde, mergiata in develop. C8 (budget non portabile) esplicitamente rimandato a M6/M7, poi chiuso lì. Issue chiusa il 25/08.</td>
         </tr>
         <tr>
           <td class="m-id">M6</td>
           <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/18">#18</a></td>
-          <td><span class="pill pill-warn">aperta su GH</span></td>
-          <td class="m-note"><strong>9/9 TC-E2E</strong> su RunPod (run0 diagnosi, run1 esecuzione): primo PASS end-to-end reale, SIGSEGV risolto strutturalmente, C2/C6/C8 confermati dal vivo, C8 ricalibrato (100s → 140s). Commento di chiusura pubblicato, issue non ancora chiusa su GitHub.</td>
+          <td><span class="pill pill-ok">chiusa</span></td>
+          <td class="m-note"><strong>9/9 TC-E2E</strong> su RunPod (run0 diagnosi, run1 esecuzione): primo PASS end-to-end reale, SIGSEGV risolto strutturalmente, C2/C6/C8 confermati dal vivo, C8 ricalibrato (100s → 140s). Chiusa il 25/08, con riferimento al commento di chiusura già pubblicato.</td>
         </tr>
         <tr>
           <td class="m-id">M7</td>
           <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/19">#19</a></td>
-          <td><span class="pill pill-warn">aperta su GH</span></td>
-          <td class="m-note">Topologia Docker reale sulla workstation dell'utente (RTX 3090, 32 core). <strong>Criterio soddisfatto</strong>: TC-E2E-1..7 verdi, 3 verifiche di isolamento attive (rete, socket proxy, path traversal), primo G-code prodotto (<code>e2e2_thread_M6.gcode</code>). 6 bug reali trovati e fissati (Flowise/connect-sqlite3, entrypoint prusaslicer, STEP→STL, budget CPU/mem per 32 core reali, baseUrl Ollama, offset stream-agent su mount <code>:ro</code>) — stesso pattern C9 di M6. PR&nbsp;#31 mergiata dall'utente lo stesso giorno del gate.</td>
+          <td><span class="pill pill-ok">chiusa</span></td>
+          <td class="m-note">Topologia Docker reale sulla workstation dell'utente (RTX 3090, 32 core). <strong>Criterio soddisfatto</strong>: TC-E2E-1..7 verdi, 3 verifiche di isolamento attive (rete, socket proxy, path traversal), primo G-code prodotto (<code>e2e2_thread_M6.gcode</code>). 6 bug reali trovati e fissati (Flowise/connect-sqlite3, entrypoint prusaslicer, STEP→STL, budget CPU/mem per 32 core reali, baseUrl Ollama, offset stream-agent su mount <code>:ro</code>) — stesso pattern C9 di M6. PR&nbsp;#31 mergiata e issue chiusa dall'utente lo stesso giorno del gate.</td>
         </tr>
         <tr>
           <td class="m-id">M8</td>
@@ -744,7 +745,7 @@
     <div class="section-eyebrow">03 — Criticità di processo, oggi</div>
     <h2>Un rischio concreto, e i soliti gap di processo</h2>
     <div class="col">
-      <p>Il finding&nbsp;01 è diverso dagli altri: non è un gap di sincronizzazione, è un'esposizione con un costo reale, già dichiarata dal progetto stesso in issue&nbsp;#35. I finding 02–05 restano invece la stessa categoria della revisione precedente — gap tra <strong>ciò che i documenti dicono</strong> e <strong>ciò che il tracker/i file pubblici mostrano</strong> — la maggior parte dei quali (README, index.html, logbook.md, CLAUDE.md) è stata risolta nel frattempo; quelli elencati qui sono i residui.</p>
+      <p>Il finding&nbsp;01 è diverso dagli altri: non è un gap di sincronizzazione, è un'esposizione con un costo reale, già dichiarata dal progetto stesso in issue&nbsp;#35. I finding 02–04 sono gli ultimi residui della stessa categoria che ha dominato le due revisioni precedenti — quella più grande e più persistente (il tracker disallineato dal lavoro reale) è stata chiusa oggi stesso.</p>
     </div>
     <div class="findings">
       <div class="finding">
@@ -754,21 +755,16 @@
       </div>
       <div class="finding">
         <div class="finding-idx">02</div>
-        <div class="finding-title">Il gap sul tracker resta invariato: quattro issue di milestone chiuse nei fatti restano aperte su GitHub</div>
-        <div class="finding-body">Nessun cambiamento dalla versione precedente: #15 (review), #17 (M5), #18 (M6), #19 (M7) hanno tutte un deliverable completo o una PR mergiata con criterio dichiarato soddisfatto, ma nessuna è stata chiusa come issue. Le due nuove issue di oggi (#35, #36) sono aperture legittime, non altri esempi dello stesso problema — ma portano il totale delle issue aperte su GitHub a 10, di cui solo 3 realmente attive (#20, #35, #36).</div>
+        <div class="finding-title">La mappa dei documenti di CLAUDE.md non copre ancora M7 né "Prompt to Part"</div>
+        <div class="finding-body">La sezione "Stato del progetto" di <code>CLAUDE.md</code> è oggi accurata (PR&nbsp;#32 l'ha riallineata subito) — ma la tabella "Mappa dei documenti — leggi PRIMA di toccare", la parte pensata apposta per orientare una sessione futura verso il documento giusto, non ha ancora una riga per <code>docs/logbook_fase7.md</code>/<code>report_m7_run0.md</code>, né per <code>services/dashboard/app.py</code>/<code>prompt-to-part.html</code> o l'issue di sicurezza #35. Un gap piccolo (la sezione più letta è corretta), ma la stessa categoria: la parte del documento con più inerzia è quella che resta indietro per prima.</div>
       </div>
       <div class="finding">
         <div class="finding-idx">03</div>
-        <div class="finding-title">La mappa dei documenti di CLAUDE.md non copre ancora M7 né "Prompt to Part"</div>
-        <div class="finding-body">La sezione "Stato del progetto" di <code>CLAUDE.md</code> è oggi accurata (PR&nbsp;#32 l'ha riallineata subito) — ma la tabella "Mappa dei documenti — leggi PRIMA di toccare", la parte pensata apposta per orientare una sessione futura verso il documento giusto, non ha ancora una riga per <code>docs/logbook_fase7.md</code>/<code>report_m7_run0.md</code>, né per <code>services/dashboard/app.py</code>/<code>prompt-to-part.html</code> o l'issue di sicurezza #35. Un gap più piccolo del precedente (la sezione più letta è corretta), ma la stessa categoria: la parte del documento con più inerzia è quella che resta indietro per prima.</div>
-      </div>
-      <div class="finding">
-        <div class="finding-idx">04</div>
         <div class="finding-title">Issue #4 (M3) non riflette ancora la decisione presa in M5</div>
         <div class="finding-body">Il criterio originale di #4 era un E2E reale con la pipeline sketch-first. M5 ha reso <code>param_first</code> il default (proposta P3) e sia M6 sia M7 hanno ottenuto PASS reali proprio con <code>param_first</code>, non con lo sketch-first di M3. L'issue resta aperta senza che nessun documento dichiari se il criterio originale è superato, rimandato, o ancora da onorare — invariato dall'ultima versione di questa review.</div>
       </div>
       <div class="finding">
-        <div class="finding-idx">05</div>
+        <div class="finding-idx">04</div>
         <div class="finding-title"><code>CALIPER_CPU_LIMIT_S</code> resta calibrato solo sul caso leggero — stesso "ultimo miglio" già visto su C8 in M6</div>
         <div class="finding-body">M7 ha ricalibrato <code>CALIPER_CPU_LIMIT_S</code> a 25s, ma solo sul caso base (<code>pitch=1.0</code>); il caso pesante di E2E-3 (<code>pitch=0.05</code>) continua a fallire per timeout, non per un rifiuto geometrico — dichiarato onestamente come riserva, non nascosto. Invariato dall'ultima versione.</div>
       </div>
@@ -778,9 +774,9 @@
   <!-- ================= BACKLOG ================= -->
   <section class="section">
     <div class="section-eyebrow">04 — Backlog aperto</div>
-    <h2>Le dieci issue oggi aperte su GitHub</h2>
+    <h2>Le sei issue oggi aperte su GitHub</h2>
     <div class="col wide">
-      <p>Vista unificata, con una lettura di priorità reale — non l'ordine numerico delle issue. Due nuove da oggi (#35, #36), entrambe aperture legittime, non gap di tracker.</p>
+      <p>Vista unificata, con una lettura di priorità reale — non l'ordine numerico delle issue. Erano dieci fino a poco fa: #15, #17, #18, #19 sono state chiuse oggi stesso (tutte <code>completed</code>), quindi il backlog qui sotto ora coincide con quello reale.</p>
     </div>
     <div class="tablewrap">
     <table class="btable">
@@ -807,34 +803,10 @@
           <td class="m-note">Oggi un solo <code>operation.type</code> (<code>helical_thread_cut</code>): qualunque prompt produce un foro filettato, mai una filettatura esterna. Issue ben scoping, 4 domande esplicite, nessuna presa in autonomia — corretto lasciarla in attesa di revisione con l'utente.</td>
         </tr>
         <tr>
-          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/19">#19</a></td>
-          <td>M7 — topologia Docker reale, RTX 3090</td>
-          <td><span class="pill pill-neutral">chiusura amministrativa</span></td>
-          <td class="m-note">Criterio soddisfatto, PR&nbsp;#31 mergiata (2026-08-25). Chiudere l'issue con riferimento al PR e al primo G-code prodotto.</td>
-        </tr>
-        <tr>
-          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/18">#18</a></td>
-          <td>M6 — bring-up RunPod</td>
-          <td><span class="pill pill-neutral">chiusura amministrativa</span></td>
-          <td class="m-note">Lavoro completo, commento finale pubblicato ("M6 CHIUSA"). Chiudere l'issue con riferimento ai PR #21–#28.</td>
-        </tr>
-        <tr>
-          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/17">#17</a></td>
-          <td>M5 — fix pack post-review</td>
-          <td><span class="pill pill-neutral">chiusura amministrativa</span></td>
-          <td class="m-note">Mergiata in develop, criterio soddisfatto salvo C8 (rimandato esplicitamente e poi chiuso in M6). Chiudere.</td>
-        </tr>
-        <tr>
-          <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/15">#15</a></td>
-          <td>Review tecnica critica</td>
-          <td><span class="pill pill-neutral">chiusura o ri-etichetta</span></td>
-          <td class="m-note">Deliverable prodotto e adottato integralmente dal piano di recupero. Chiudere, o etichettare esplicitamente come documento di riferimento permanente se si preferisce tenerla aperta per tracciabilità.</td>
-        </tr>
-        <tr>
           <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/4">#4</a></td>
           <td>M3 — sketch-first E2E (ambito "thread")</td>
           <td><span class="pill pill-warn">decisione richiesta</span></td>
-          <td class="m-note">Vedi finding&nbsp;04. Serve una decisione esplicita: chiudere come superata da <code>param_first</code>, o pianificare un E2E dedicato allo sketch-first prima di chiuderla.</td>
+          <td class="m-note">Vedi finding&nbsp;03. Serve una decisione esplicita: chiudere come superata da <code>param_first</code>, o pianificare un E2E dedicato allo sketch-first prima di chiuderla.</td>
         </tr>
         <tr>
           <td class="m-issue"><a href="https://github.com/danielesalpietro/caliper-cad/issues/10">#10</a></td>
@@ -891,30 +863,23 @@
   <!-- ================= RACCOMANDAZIONI ================= -->
   <section class="section">
     <div class="section-eyebrow">06 — Raccomandazioni</div>
-    <h2>Quattro orizzonti, in ordine di esecuzione</h2>
+    <h2>Tre orizzonti, in ordine di esecuzione</h2>
 
     <div class="horizon">
-      <div class="horizon-head"><span class="tag">Ora — prima di ogni altra cosa</span> Mitigare il rischio, non solo tracciarlo</div>
+      <div class="horizon-head"><span class="tag">Ora — prima di ogni altra cosa</span> Mitigare il rischio, chiudere gli ultimi residui</div>
       <ol class="reco">
         <li><span class="reco-text"><strong>Aggiungere almeno una barriera minima a <code>/api/generate</code></strong> — un token statico in query/header, o una quota giornaliera in memoria, bastano alla scala dichiarata; nessuna delle opzioni elencate in issue&nbsp;#35 richiede un sistema utenti.</span><span class="reco-meta">tocca: services/dashboard/app.py, issue #35</span></li>
         <li><span class="reco-text"><strong>Nel frattempo, considerare <code>PROMPT_TO_PART_MODE=RO</code> come default</strong> di <code>.env.example</code> — RW resta un opt-in esplicito invece di essere lo stato di un deploy fresco.</span><span class="reco-meta">tocca: .env.example</span></li>
-      </ol>
-    </div>
-
-    <div class="horizon">
-      <div class="horizon-head"><span class="tag">Ora — costo ~zero</span> Igiene di piano, i residui</div>
-      <ol class="reco">
-        <li><span class="reco-text"><strong>Chiudere formalmente #15, #17, #18, #19</strong> su GitHub con riferimento ai PR di merge — invariato dalla revisione precedente.</span><span class="reco-meta">tocca: tracker GitHub</span></li>
         <li><span class="reco-text"><strong>Estendere la mappa documenti di CLAUDE.md</strong> con una riga per M7/Prompt to Part (logbook_fase7.md, report_m7_run0.md, dashboard app.py, issue #35) — la sezione "Stato" è già sincronizzata, la mappa di navigazione no.</span><span class="reco-meta">tocca: CLAUDE.md</span></li>
         <li><span class="reco-text"><strong>Sciogliere #4</strong> con una decisione esplicita — superata da <code>param_first</code> (ora confermato due volte, in M6 e M7), oppure pianificato un E2E sketch-first dedicato.</span><span class="reco-meta">tocca: issue #4</span></li>
       </ol>
     </div>
 
     <div class="horizon">
-      <div class="horizon-head"><span class="tag">Subito — nessun gate residuo</span> Avvio M8, e chiudere gli ultimi miglia</div>
+      <div class="horizon-head"><span class="tag">Subito — nessun gate residuo</span> Avvio M8, e gli ultimi migli</div>
       <ol class="reco">
         <li><span class="reco-text"><strong>Avviare la parte documentale di M8</strong> (#20): schema formale del Livello 6, validatore, bootstrap retroattivo dei casi storici — nessuna dipendenza tecnica residua ora che M7 è chiusa.</span><span class="reco-meta">rif.: piano_recupero.md §3/M8, punti 1–2</span></li>
-        <li><span class="reco-text"><strong>Ricalibrare <code>CALIPER_CPU_LIMIT_S</code></strong> sul caso pesante (E2E-3, <code>pitch=0.05</code>), non solo sul caso base — stesso "ultimo miglio" già chiuso per <code>GAUGE_CHECK_CPU_LIMIT_SECONDS</code> in M6.</span><span class="reco-meta">rif.: finding 05</span></li>
+        <li><span class="reco-text"><strong>Ricalibrare <code>CALIPER_CPU_LIMIT_S</code></strong> sul caso pesante (E2E-3, <code>pitch=0.05</code>), non solo sul caso base — stesso "ultimo miglio" già chiuso per <code>GAUGE_CHECK_CPU_LIMIT_SECONDS</code> in M6.</span><span class="reco-meta">rif.: finding 04</span></li>
         <li><span class="reco-text"><strong>Pubblicare l'immagine Flowise patchata su GHCR</strong> se si vuole un <code>docker-compose.ghcr.yml</code> completo — oggi <code>publish-images.yml</code> pubblica solo le 4 immagini di servizio, non quella con il fix <code>connect-sqlite3</code> di M7.</span><span class="reco-meta">tocca: .github/workflows/publish-images.yml</span></li>
         <li><span class="reco-text"><strong>Ri-eseguire il bench modelli L2.5</strong> sullo schema <code>tolerance_type</code> corretto prima di scegliere il modello di produzione — il bench di M6 fotografa ancora lo schema pre-fix.</span><span class="reco-meta">tocca: bench/bench_l25_models.py</span></li>
       </ol>
@@ -932,7 +897,7 @@
 
   <footer class="closing">
     <p>Questa review applica al piano e al tracker la stessa disciplina che il progetto applica al proprio codice — misurare lo stato reale invece di assumerlo dall'ultimo documento scritto. Nessuna delle criticità in §03 è un giudizio sul lavoro tecnico svolto, che resta — nei propri termini — solido e onestamente documentato: sono gap di sincronizzazione tra ciò che è vero e ciò che il repository mostra a chi arriva ora.</p>
-    <p class="stamp">Basata su: README.md · CLAUDE.md · CHANGELOG.md · docs/*.md (18 documenti, incl. logbook_fase7.md, report_m7_run0.md) · services/dashboard/app.py · PR #31–#34 · issue #1–#36 (14 esistenti) · log commit develop @ f53d3e7 — rev.3 di questa review, prima versione 2026-08-25 mattina</p>
+    <p class="stamp">Basata su: README.md · CLAUDE.md · CHANGELOG.md · docs/*.md (18 documenti, incl. logbook_fase7.md, report_m7_run0.md) · services/dashboard/app.py · PR #31–#34 · issue #1–#36 (14 esistenti, 6 aperte) · log commit develop @ f53d3e7 — rev.4 di questa review, prima versione 2026-08-25 mattina</p>
   </footer>
 
 </div>
