@@ -34,3 +34,16 @@ RUN node -e " \
   fs.writeFileSync(p, s); \
   console.log('connect-sqlite3 patchato: db stringa ora apre sqlite3.Database internamente'); \
 "
+
+# [M7] Il container gira come utente 'node' (uid 1000, vedi immagine
+# base) — la sua $HOME e' /home/node, MAI /root (che appartiene a root
+# e non e' scrivibile da lui: verificato dal vivo, "Permission denied").
+# Il volume dati va montato su /home/node/.flowise (vedi
+# docker-compose.yml) — ma un volume nominato vuoto, al primo mount,
+# eredita proprietario/permessi dalla directory che sovrascrive
+# nell'immagine: se quella directory non esiste ancora, Docker la crea
+# root-owned, e 'node' non puo' scriverci ("EACCES: mkdir
+# /home/node/.flowise/storage", stesso sintomo, causa diversa dal fix
+# sopra). Precreata qui con l'owner giusto cosi' il volume la eredita
+# correttamente al primo avvio.
+RUN mkdir -p /home/node/.flowise && chown -R node:node /home/node/.flowise
