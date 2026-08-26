@@ -47,6 +47,12 @@ Qdrant). Architettura completa: `README.md` e
   un'omissione.
 - **Immagine pod di riferimento (build- e boot-validata)**:
   `ghcr.io/danielesalpietro/caliper-pod:git-fe90a0b`.
+- **Prima release pubblica**: [`v0.1.0-beta.1`](https://github.com/danielesalpietro/caliper-cad/releases/tag/v0.1.0-beta.1)
+  (2026-08-26, pre-release, tag su `develop`) — pacchetta M1–M7 +
+  "Prompt to Part". Note di rilascio derivate da `CHANGELOG.md`, con i
+  rischi noti (#35, #36) in evidenza. Prossimo taglio: `v0.1.0-beta.2`
+  se serve un altro giro prima di M8, altrimenti si aspetta M8 per
+  `v0.1.0`.
 - **Prossima**: M8 (schema L6 + primo loop fisico) — scope in
   `docs/piano_recupero.md` §M8. La parte documentale (schema +
   bootstrap) non dipende da nessuna istanza; la parte fisica ha ora

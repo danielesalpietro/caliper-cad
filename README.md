@@ -4,6 +4,12 @@
 
 *Working name — see [Naming](#naming). Not yet checked for namespace conflicts.*
 
+**First public release:** [`v0.1.0-beta.1`](https://github.com/danielesalpietro/caliper-cad/releases/tag/v0.1.0-beta.1)
+(pre-release, 2026-08-26) — see the [release notes](https://github.com/danielesalpietro/caliper-cad/releases/tag/v0.1.0-beta.1)
+for what's included and the known risks (unauthenticated public
+generation endpoint, single-feature geometric domain) before deploying
+it publicly.
+
 **Status:** early prototype, but end-to-end verified twice over — once
 live on RunPod, once in the real Docker topology on dedicated private
 hardware. Architecture defined; the deterministic verification layer

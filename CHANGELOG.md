@@ -4,8 +4,21 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/),
 adattato al ritmo per-milestone di questo progetto: ogni voce
 corrisponde a una milestone del piano (`docs/logbook.md` §Milestone e
 stato è la fonte primaria, con dettaglio per-TC; questo file è
-l'indice cronologico). Non ci sono ancora release/tag versionati — le
-date sono quelle di merge in `develop`.
+l'indice cronologico). Le voci M1–M7+ non hanno un tag dedicato — le
+date sono quelle di merge in `develop`; da `v0.1.0-beta.1` in poi ogni
+release pubblicata ha anche un tag git e una pagina
+[Releases](https://github.com/danielesalpietro/caliper-cad/releases).
+
+## [v0.1.0-beta.1] — 2026-08-26
+
+Prima release pubblica del progetto — [pagina della
+release](https://github.com/danielesalpietro/caliper-cad/releases/tag/v0.1.0-beta.1)
+(pre-release, tag su `develop` @ `f53d3e7`). Pacchetta tutto quanto
+sotto, da M1 a M7+/"Prompt to Part" incluso: nessun codice nuovo,
+solo il primo taglio versionato di ciò che era già in `develop`.
+Rischi noti dichiarati nelle note di rilascio, non nascosti: endpoint
+pubblico `/api/generate` senza autenticazione ([#35](https://github.com/danielesalpietro/caliper-cad/issues/35)),
+dominio geometrico limitato al solo foro filettato ([#36](https://github.com/danielesalpietro/caliper-cad/issues/36)).
 
 ## [M7+] — 2026-08-25
 
