@@ -63,8 +63,15 @@ services:
       # umana locale, es. curl/debug) — flowise/open-webui/dashboard
       # restano su tutte le interfacce perche' sono le UI pensate per
       # accesso da browser, anche da altre macchine sulla rete locale.
-      - "127.0.0.1:6333:6333"
-      - "127.0.0.1:6334:6334"
+      # Solo il lato host e' parametrizzato: Qdrant ascolta SEMPRE su
+      # 6333/6334 dentro il container (immagine di terzi, non un nostro
+      # servizio con una PORT env come Flowise) — la rete Docker interna
+      # (QDRANT_URL=http://qdrant:6333, mai cambiata) non e' toccata da
+      # questa variabile, solo la porta pubblicata sull'host lo e' (utile
+      # per evitare collisioni con un altro Qdrant gia' in ascolto su
+      # 127.0.0.1:6333 sulla stessa macchina).
+      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
+      - "127.0.0.1:${QDRANT_GRPC_PORT:-6334}:6334"
     volumes:
       - qdrant_data:/qdrant/storage
 
@@ -75,8 +82,11 @@ services:
     restart: unless-stopped
     networks: [caliper-ai]
     ports:
-      # [M5, C10] Bind 127.0.0.1 — vedi nota su qdrant sopra.
-      - "127.0.0.1:11434:11434"
+      # [M5, C10] Bind 127.0.0.1 — vedi nota su qdrant sopra. Stessa
+      # logica: solo la porta host e' parametrizzabile, Ollama ascolta
+      # sempre su 11434 dentro il container (OLLAMA_BASE_URL=http://
+      # ollama:11434 sulla rete interna resta invariato).
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama_data:/root/.ollama
     # Richiede NVIDIA Container Toolkit installato sull'host (vedi
@@ -223,7 +233,13 @@ services:
     build: ./ops/docker/flowise
     image: caliper-flowise:3.1.4-patched
     container_name: caliper-flowise
-    restart: always
+    # unless-stopped, non always: coerente col resto dello stack. Con
+    # "always" un docker compose stop/down non impediva a Flowise di
+    # ripartire da solo al prossimo riavvio del demone Docker, mentre
+    # tutti gli altri servizi (fermati insieme, stessa operazione)
+    # restavano giu' — stato "meta' su" scoperto sulla Z8 dopo un
+    # riavvio host, nessuna ragione documentata per l'asimmetria.
+    restart: unless-stopped
     networks: [caliper-ai]
     ports:
       # [Prompt to Part / accesso pubblico] Docker Compose non ha un vero
