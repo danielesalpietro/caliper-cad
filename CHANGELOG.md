@@ -9,6 +9,29 @@ date sono quelle di merge in `develop`; da `v0.1.0-beta.1` in poi ogni
 release pubblicata ha anche un tag git e una pagina
 [Releases](https://github.com/danielesalpietro/caliper-cad/releases).
 
+## [Unreleased]
+
+Due fix a `docker-compose.yml`, emersi controllando lo stato reale dei
+container sulla Z8 dopo un riavvio dell'host. PR
+[#38](https://github.com/danielesalpietro/caliper-cad/pull/38).
+
+### Fixed
+- Porte host di `qdrant`/`ollama` erano hardcoded
+  (`127.0.0.1:6333/6334`, `127.0.0.1:11434`) — impossibile evitare una
+  collisione con un'altra istanza già in ascolto sulla stessa
+  macchina (scoperto sulla Z8: uno stack separato occupava già quelle
+  porte, bloccando `docker compose up -d`). Parametrizzate con nuove
+  variabili `QDRANT_PORT`/`QDRANT_GRPC_PORT`/`OLLAMA_PORT` (default
+  invariati), stesso pattern già in uso per `FLOWISE_PORT`. Solo il
+  lato host è parametrizzato — la rete Docker interna
+  (`QDRANT_URL`/`OLLAMA_BASE_URL`) resta invariata.
+- `caliper-flowise` era l'unico servizio con `restart: always`
+  (nessuna ragione documentata), contro `unless-stopped` di tutti gli
+  altri. Effetto pratico: dopo un `docker compose stop`/`down` seguito
+  da un riavvio della macchina, Flowise ripartiva da solo mentre gli
+  altri 10 servizi (fermati nella stessa operazione) restavano giù —
+  uno stato "metà su" non voluto. Uniformato a `unless-stopped`.
+
 ## [v0.1.0-beta.1] — 2026-08-26
 
 Prima release pubblica del progetto — [pagina della

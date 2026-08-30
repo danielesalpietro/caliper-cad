@@ -53,6 +53,13 @@ Qdrant). Architettura completa: `README.md` e
   rischi noti (#35, #36) in evidenza. Prossimo taglio: `v0.1.0-beta.2`
   se serve un altro giro prima di M8, altrimenti si aspetta M8 per
   `v0.1.0`.
+- **Fix operativi post-beta.1 (2026-08-26, PR #38)**: porte host di
+  `qdrant`/`ollama` parametrizzate (`QDRANT_PORT`/`QDRANT_GRPC_PORT`/
+  `OLLAMA_PORT`, default invariati) — erano hardcoded, scoperto sulla
+  Z8 in collisione con un altro stack Docker già in ascolto sulle
+  stesse porte; `caliper-flowise` uniformato a `restart: unless-stopped`
+  (era l'unico `always`, causava uno stato "metà su" dopo un riavvio
+  host). Vedi `CHANGELOG.md` §Unreleased per il dettaglio.
 - **Prossima**: M8 (schema L6 + primo loop fisico) — scope in
   `docs/piano_recupero.md` §M8. La parte documentale (schema +
   bootstrap) non dipende da nessuna istanza; la parte fisica ha ora
@@ -147,3 +154,14 @@ Qdrant). Architettura completa: `README.md` e
 - Un modello piccolo obbedisce all'istruzione più vicina: le
   descrizioni dei campi negli schema devono offrire esplicitamente
   l'opzione "vuoto" (lezione E2E-1).
+- Docker `restart: always` vs `unless-stopped`: `always` ignora uno
+  stop manuale precedente e riparte comunque al riavvio del demone
+  Docker (es. dopo un reboot host); `unless-stopped` rispetta lo stop
+  manuale e resta giù. Se lo stack ha entrambe le policy mescolate
+  senza motivo, un riavvio host produce uno stato "metà su" non
+  voluto invece di tutto su o tutto giù (scoperto sulla Z8, PR #38).
+- La Z8 è una macchina condivisa, non dedicata a CALIPER: verificare
+  sempre le porte host già occupate da altri stack Docker (`docker ps`)
+  prima di assumere che le porte di default del compose siano libere
+  — non parametrizzarle a priori (`QDRANT_PORT`/`OLLAMA_PORT`/ecc.)
+  costa un giro di scoperta a ogni nuova macchina.
