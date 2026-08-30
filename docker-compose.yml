@@ -233,7 +233,13 @@ services:
     build: ./ops/docker/flowise
     image: caliper-flowise:3.1.4-patched
     container_name: caliper-flowise
-    restart: always
+    # unless-stopped, non always: coerente col resto dello stack. Con
+    # "always" un docker compose stop/down non impediva a Flowise di
+    # ripartire da solo al prossimo riavvio del demone Docker, mentre
+    # tutti gli altri servizi (fermati insieme, stessa operazione)
+    # restavano giu' — stato "meta' su" scoperto sulla Z8 dopo un
+    # riavvio host, nessuna ragione documentata per l'asimmetria.
+    restart: unless-stopped
     networks: [caliper-ai]
     ports:
       # [Prompt to Part / accesso pubblico] Docker Compose non ha un vero
